@@ -8,7 +8,7 @@
       content="وب سایت خانوادگی فیروزجایی برای نمایش درخت خانوادگی، گالری عکس و تاریخچه خانواده."
     />
     <title>خاندان فیروزجایی</title>
-    <link rel="icon" type="image/svg+xml" href="assets/brand/pirouz_1st.svg" />
+    <link rel="icon" type="image/png" href="assets/brand/firouzjaei-logo.png" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -16,7 +16,7 @@
       <header class="site-header">
         <a class="brand" href="#home" aria-label="خانه">
           <span class="brand-mark" aria-hidden="true">
-            <img src="assets/brand/pirouz_1st.svg" alt="" />
+            <img src="assets/brand/firouzjaei-logo.png" alt="" />
           </span>
           <span>
             <strong>خاندان فیروزجایی</strong>
@@ -177,6 +177,60 @@
       </form>
     </dialog>
 
+    <dialog class="modal" id="personEditorDialog">
+      <form class="modal-card large" id="personEditor">
+        <button class="icon-button modal-close" type="button" data-close-person-editor title="بستن">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+        <div class="editor-heading">
+          <p class="eyebrow">ویرایش روی درخت</p>
+          <h2 id="personEditorTitle">ویرایش فرد</h2>
+          <p class="muted">تغییرات پس از ذخیره مستقیم روی درخت خانوادگی دیده می‌شود.</p>
+        </div>
+        <input type="hidden" name="id" />
+        <div class="form-grid">
+          <label>نام و نام خانوادگی
+            <input name="name" type="text" required />
+          </label>
+          <label>سال تولد
+            <input name="birth" type="text" />
+          </label>
+          <label>سال درگذشت
+            <input name="death" type="text" />
+          </label>
+          <label>نسل
+            <input name="generation" type="number" min="0" max="8" required />
+          </label>
+          <label>جایگاه افقی
+            <input name="slot" type="number" min="0" max="12" required />
+          </label>
+          <label>همسر
+            <select name="spouseId"></select>
+          </label>
+          <label>والد اول
+            <select name="parentOne"></select>
+          </label>
+          <label>والد دوم
+            <select name="parentTwo"></select>
+          </label>
+        </div>
+        <label>نشانی عکس اصلی
+          <input name="photo" type="url" placeholder="اختیاری" />
+        </label>
+        <label>زندگی نامه کوتاه
+          <textarea name="story" rows="5"></textarea>
+        </label>
+        <label>عکس های بیشتر
+          <textarea name="photos" rows="3" placeholder="هر نشانی عکس در یک خط"></textarea>
+        </label>
+        <div class="form-actions">
+          <button class="primary-action" type="submit">ذخیره فرد</button>
+          <button class="soft-action" type="button" data-clear-person-form>فرم تازه</button>
+          <button class="danger-action" type="button" data-delete-person>حذف فرد</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog class="modal" id="loginDialog">
       <form class="modal-card" id="loginForm">
         <button class="icon-button modal-close" type="button" data-close-login title="بستن">
@@ -232,49 +286,10 @@
             <button type="button" class="tab" data-admin-tab="data">داده ها</button>
           </div>
           <section class="admin-tab active" data-admin-panel="people">
-            <form class="editor-form" id="personEditor">
-              <input type="hidden" name="id" />
-              <div class="form-grid">
-                <label>نام و نام خانوادگی
-                  <input name="name" type="text" required />
-                </label>
-                <label>سال تولد
-                  <input name="birth" type="text" />
-                </label>
-                <label>سال درگذشت
-                  <input name="death" type="text" />
-                </label>
-                <label>نسل
-                  <input name="generation" type="number" min="0" max="8" required />
-                </label>
-                <label>جایگاه افقی
-                  <input name="slot" type="number" min="0" max="12" required />
-                </label>
-                <label>همسر
-                  <select name="spouseId"></select>
-                </label>
-                <label>والد اول
-                  <select name="parentOne"></select>
-                </label>
-                <label>والد دوم
-                  <select name="parentTwo"></select>
-                </label>
-              </div>
-              <label>نشانی عکس اصلی
-                <input name="photo" type="url" placeholder="اختیاری" />
-              </label>
-              <label>زندگی نامه کوتاه
-                <textarea name="story" rows="5"></textarea>
-              </label>
-              <label>عکس های بیشتر
-                <textarea name="photos" rows="3" placeholder="هر نشانی عکس در یک خط"></textarea>
-              </label>
-              <div class="form-actions">
-                <button class="primary-action" type="submit">ذخیره فرد</button>
-                <button class="soft-action" type="button" data-clear-person-form>فرم تازه</button>
-                <button class="danger-action" type="button" data-delete-person>حذف فرد</button>
-              </div>
-            </form>
+            <div class="admin-note">
+              <p>ویرایش افراد از خود صفحه درخت خانوادگی انجام می‌شود.</p>
+              <button class="soft-action" type="button" data-admin-go-tree>رفتن به درخت</button>
+            </div>
             <div class="compact-list" id="peopleList"></div>
           </section>
           <section class="admin-tab" data-admin-panel="admins">

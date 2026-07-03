@@ -487,8 +487,7 @@ function openPerson(id) {
   if (editButton) {
     editButton.addEventListener("click", () => {
       $("#personDialog").close();
-      openAdminPanel("people");
-      fillPersonForm(person.id);
+      openPersonEditor(person.id);
     });
   }
   $("#personDialog").showModal();
@@ -522,6 +521,8 @@ function renderHistory() {
 function updateAdminStatus() {
   document.body.classList.toggle("admin-mode", isAdmin());
   const status = $("#adminStatus");
+  const loginButton = $("[data-open-login]");
+  if (loginButton) loginButton.textContent = isAdmin() ? "پنل مدیر" : "ورود مدیر";
   if (!isAdmin()) {
     status.textContent = "برای ویرایش، وارد حساب مدیر شوید.";
     return;
@@ -549,7 +550,11 @@ function refreshAdminLists() {
       const row = document.createElement("div");
       row.className = "compact-row";
       row.innerHTML = `<span>${person.name}</span><button class="soft-action" type="button">ویرایش</button>`;
-      $("button", row).addEventListener("click", () => fillPersonForm(person.id));
+      $("button", row).addEventListener("click", () => {
+        $("#adminDialog").close();
+        routeTo("tree");
+        openPersonEditor(person.id);
+      });
       peopleList.appendChild(row);
     });
 
@@ -584,6 +589,7 @@ function fillPersonForm(id) {
   const form = $("#personEditor");
   const fields = form.elements;
   if (!person) return;
+  $("#personEditorTitle").textContent = "ویرایش فرد";
   fields.id.value = person.id;
   fields.name.value = person.name || "";
   fields.birth.value = person.birth || "";
@@ -602,6 +608,7 @@ function clearPersonForm() {
   const form = $("#personEditor");
   const fields = form.elements;
   form.reset();
+  $("#personEditorTitle").textContent = "افزودن فرد";
   fields.id.value = "";
   fields.generation.value = 0;
   fields.slot.value = 0;
@@ -610,7 +617,20 @@ function clearPersonForm() {
   fields.parentTwo.innerHTML = personOptions();
 }
 
-function openAdminPanel(tab = "people") {
+function openPersonEditor(id = "") {
+  if (!isAdmin()) {
+    $("#loginDialog").showModal();
+    return;
+  }
+  if (id) {
+    fillPersonForm(id);
+  } else {
+    clearPersonForm();
+  }
+  $("#personEditorDialog").showModal();
+}
+
+function openAdminPanel(tab = "admins") {
   refreshAdminLists();
   setAdminTab(tab);
   $("#adminDialog").showModal();
@@ -628,7 +648,12 @@ function bindEvents() {
   $("[data-open-login]").addEventListener("click", () => (isAdmin() ? openAdminPanel() : $("#loginDialog").showModal()));
   $("[data-close-login]").addEventListener("click", () => $("#loginDialog").close());
   $("[data-close-admin]").addEventListener("click", () => $("#adminDialog").close());
-  $("[data-open-person-editor]").addEventListener("click", () => openAdminPanel("people"));
+  $("[data-close-person-editor]").addEventListener("click", () => $("#personEditorDialog").close());
+  $("[data-open-person-editor]").addEventListener("click", () => openPersonEditor());
+  $("[data-admin-go-tree]").addEventListener("click", () => {
+    $("#adminDialog").close();
+    routeTo("tree");
+  });
   $("[data-open-gallery-editor]").addEventListener("click", () => $("#galleryEditorDialog").showModal());
   $("[data-close-gallery-editor]").addEventListener("click", () => $("#galleryEditorDialog").close());
   $("[data-open-history-editor]").addEventListener("click", () => {
@@ -663,8 +688,8 @@ function bindEvents() {
     form.reset();
     $("#loginDialog").close();
     updateAdminStatus();
-    openAdminPanel();
     renderTree();
+    routeTo("tree");
   });
 
   $("#subscribeForm").addEventListener("submit", (event) => {
@@ -704,8 +729,10 @@ function bindEvents() {
       if (spouse && !spouse.spouseIds.includes(person.id)) spouse.spouseIds.push(person.id);
     }
     saveState();
+    selectedPersonId = id;
     refreshAll();
     fillPersonForm(id);
+    $("#personEditorDialog").close();
   });
 
   $("[data-clear-person-form]").addEventListener("click", clearPersonForm);
@@ -718,7 +745,9 @@ function bindEvents() {
       person.parentIds = (person.parentIds || []).filter((item) => item !== id);
     });
     saveState();
+    selectedPersonId = null;
     clearPersonForm();
+    $("#personEditorDialog").close();
     refreshAll();
   });
 
