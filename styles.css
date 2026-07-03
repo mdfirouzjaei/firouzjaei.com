@@ -277,8 +277,8 @@ h2 {
   overflow: hidden;
   border-radius: var(--radius);
   background:
-    linear-gradient(90deg, rgba(21, 34, 31, 0.82), rgba(21, 34, 31, 0.34) 52%, rgba(21, 34, 31, 0.08)),
-    url("assets/images/pirouz_king.png") center 36% / cover;
+    linear-gradient(to left, rgba(21, 34, 31, 0.82), rgba(21, 34, 31, 0.48) 48%, rgba(21, 34, 31, 0.08) 82%),
+    url("assets/images/pirouz_king.png") left 42% / cover;
   box-shadow: var(--shadow);
 }
 
@@ -286,6 +286,7 @@ h2 {
   width: min(720px, 100%);
   padding: clamp(24px, 5vw, 56px);
   color: #fff;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.24);
 }
 
 .intro-copy .eyebrow {
