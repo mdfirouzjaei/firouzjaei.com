@@ -6,6 +6,7 @@ const SESSION_KEY = "firouzjaei-family-site-session-v1";
 const VALID_ROUTES = ["home", "tree", "gallery", "history"];
 const TREE_CANVAS_WIDTH = 1420;
 const TREE_CANVAS_HEIGHT = 760;
+const MAX_TREE_SLOT = 24;
 
 const colors = [
   ["#24554c", "#dcebe6"],
@@ -226,6 +227,7 @@ let session = loadSession();
 let selectedPersonId = null;
 let treeScale = 1;
 let treeZoom = 1;
+let pendingRelationship = null;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -333,6 +335,15 @@ function nodePosition(person) {
   };
 }
 
+function treeCanvasSize() {
+  if (!state.people.length) return { width: TREE_CANVAS_WIDTH, height: TREE_CANVAS_HEIGHT };
+  const positions = state.people.map(nodePosition);
+  return {
+    width: Math.max(TREE_CANVAS_WIDTH, Math.max(...positions.map((position) => position.x)) + 190),
+    height: Math.max(TREE_CANVAS_HEIGHT, Math.max(...positions.map((position) => position.y)) + 170),
+  };
+}
+
 function renderTree() {
   const nodes = $("#treeNodes");
   const lines = $("#treeLines");
@@ -362,7 +373,27 @@ function renderTree() {
     image.src = person.photo || avatarSvg(person.name, index);
     avatar.appendChild(image);
     $(".person-name", node).textContent = person.name;
-    node.addEventListener("click", () => openPerson(person.id));
+    const parentButton = $('[data-add-relative="parent"]', node);
+    if ((person.parentIds || []).length >= 2) {
+      parentButton.disabled = true;
+      parentButton.title = "دو والد برای این فرد ثبت شده است.";
+    }
+    $$("[data-add-relative]", node).forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        openRelativeEditor(person.id, button.dataset.addRelative);
+      });
+    });
+    node.addEventListener("click", (event) => {
+      if (event.target.closest("button")) return;
+      openPerson(person.id);
+    });
+    node.addEventListener("keydown", (event) => {
+      if (event.target.closest("button")) return;
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      openPerson(person.id);
+    });
     nodes.appendChild(node);
   });
 
@@ -375,14 +406,15 @@ function fitTreeToStage() {
   const canvas = $("#treeCanvas");
   if (!stage || !canvas || !stage.clientWidth) return;
 
+  const { width, height } = treeCanvasSize();
   const availableWidth = Math.max(260, stage.clientWidth - 28);
-  const fitScale = Math.min(1, availableWidth / TREE_CANVAS_WIDTH);
+  const fitScale = Math.min(1, availableWidth / width);
   treeScale = fitScale * treeZoom;
 
-  const visualWidth = TREE_CANVAS_WIDTH * treeScale;
-  const visualHeight = TREE_CANVAS_HEIGHT * treeScale;
-  canvas.style.width = `${TREE_CANVAS_WIDTH}px`;
-  canvas.style.height = `${TREE_CANVAS_HEIGHT}px`;
+  const visualWidth = width * treeScale;
+  const visualHeight = height * treeScale;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
   canvas.style.transform = `scale(${treeScale})`;
   canvas.style.marginLeft = `${Math.max(0, (stage.clientWidth - visualWidth) / 2)}px`;
   canvas.style.marginTop = "14px";
@@ -540,6 +572,69 @@ function personOptions(selectedId = "", includeEmpty = true) {
   );
 }
 
+function nextAvailableSlot(generation, preferredSlot, excludeId = "") {
+  const occupied = new Set(
+    state.people
+      .filter((person) => person.id !== excludeId && Number(person.generation || 0) === generation)
+      .map((person) => Number(person.slot || 0))
+  );
+  const normalized = Math.min(MAX_TREE_SLOT, Math.max(0, Number(preferredSlot || 0)));
+  for (let offset = 0; offset <= MAX_TREE_SLOT; offset += 1) {
+    const candidates = offset === 0 ? [normalized] : [normalized + offset, normalized - offset];
+    const match = candidates.find((slot) => slot >= 0 && slot <= MAX_TREE_SLOT && !occupied.has(slot));
+    if (match !== undefined) return match;
+  }
+  return normalized;
+}
+
+function fillRelativeForm(baseId, relation) {
+  const base = state.people.find((person) => person.id === baseId);
+  const form = $("#personEditor");
+  const fields = form.elements;
+  if (!base) return;
+
+  clearPersonForm();
+  pendingRelationship = { type: relation, baseId };
+  const baseGeneration = Number(base.generation || 0);
+  const baseSlot = Number(base.slot || 0);
+  const spouseId = base.spouseIds?.[0] || "";
+
+  if (relation === "spouse") {
+    $("#personEditorTitle").textContent = `افزودن همسر برای ${base.name}`;
+    fields.generation.value = baseGeneration;
+    fields.slot.value = nextAvailableSlot(baseGeneration, baseSlot + 1);
+    fields.spouseId.innerHTML = personOptions(base.id);
+  }
+
+  if (relation === "child") {
+    const generation = baseGeneration + 1;
+    $("#personEditorTitle").textContent = `افزودن فرزند برای ${base.name}`;
+    fields.generation.value = generation;
+    fields.slot.value = nextAvailableSlot(generation, baseSlot);
+    fields.parentOne.innerHTML = personOptions(base.id);
+    fields.parentTwo.innerHTML = personOptions(spouseId);
+  }
+
+  if (relation === "parent") {
+    const generation = Math.max(0, baseGeneration - 1);
+    $("#personEditorTitle").textContent = `افزودن والد برای ${base.name}`;
+    fields.generation.value = generation;
+    fields.slot.value = nextAvailableSlot(generation, baseSlot);
+  }
+}
+
+function applyPendingRelationship(person) {
+  if (!pendingRelationship || pendingRelationship.type !== "parent") return;
+  const child = state.people.find((item) => item.id === pendingRelationship.baseId);
+  if (!child) return;
+  const parentIds = child.parentIds || [];
+  if (parentIds.includes(person.id)) return;
+  if (parentIds.length < 2) {
+    parentIds.push(person.id);
+  }
+  child.parentIds = parentIds.slice(0, 2);
+}
+
 function refreshAdminLists() {
   const peopleList = $("#peopleList");
   peopleList.innerHTML = "";
@@ -589,6 +684,7 @@ function fillPersonForm(id) {
   const form = $("#personEditor");
   const fields = form.elements;
   if (!person) return;
+  pendingRelationship = null;
   $("#personEditorTitle").textContent = "ویرایش فرد";
   fields.id.value = person.id;
   fields.name.value = person.name || "";
@@ -607,6 +703,7 @@ function fillPersonForm(id) {
 function clearPersonForm() {
   const form = $("#personEditor");
   const fields = form.elements;
+  pendingRelationship = null;
   form.reset();
   $("#personEditorTitle").textContent = "افزودن فرد";
   fields.id.value = "";
@@ -627,6 +724,15 @@ function openPersonEditor(id = "") {
   } else {
     clearPersonForm();
   }
+  $("#personEditorDialog").showModal();
+}
+
+function openRelativeEditor(baseId, relation) {
+  if (!isAdmin()) {
+    $("#loginDialog").showModal();
+    return;
+  }
+  fillRelativeForm(baseId, relation);
   $("#personEditorDialog").showModal();
 }
 
@@ -710,10 +816,27 @@ function bindEvents() {
     const existing = state.people.find((item) => item.id === id);
     const person = existing || { id, spouseIds: [], parentIds: [] };
     const spouseId = fields.spouseId.value;
+    let generation = Number(fields.generation.value || 0);
+    if (!existing && pendingRelationship?.type === "parent") {
+      const child = state.people.find((item) => item.id === pendingRelationship.baseId);
+      if (child) {
+        const childGeneration = Number(child.generation || 0);
+        if (generation >= childGeneration) {
+          if (childGeneration === 0) {
+            state.people.forEach((item) => {
+              item.generation = Number(item.generation || 0) + 1;
+            });
+            generation = 0;
+          } else {
+            generation = childGeneration - 1;
+          }
+        }
+      }
+    }
     person.name = fields.name.value.trim();
     person.birth = fields.birth.value.trim();
     person.death = fields.death.value.trim();
-    person.generation = Number(fields.generation.value || 0);
+    person.generation = generation;
     person.slot = Number(fields.slot.value || 0);
     person.photo = fields.photo.value.trim();
     person.story = fields.story.value.trim();
@@ -728,6 +851,8 @@ function bindEvents() {
       const spouse = state.people.find((item) => item.id === spouseId);
       if (spouse && !spouse.spouseIds.includes(person.id)) spouse.spouseIds.push(person.id);
     }
+    applyPendingRelationship(person);
+    pendingRelationship = null;
     saveState();
     selectedPersonId = id;
     refreshAll();

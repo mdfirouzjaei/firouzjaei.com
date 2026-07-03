@@ -202,7 +202,7 @@
             <input name="generation" type="number" min="0" max="8" required />
           </label>
           <label>جایگاه افقی
-            <input name="slot" type="number" min="0" max="12" required />
+            <input name="slot" type="number" min="0" max="24" required />
           </label>
           <label>همسر
             <select name="spouseId"></select>
@@ -352,10 +352,15 @@
     </dialog>
 
     <template id="nodeTemplate">
-      <button class="person-node" type="button">
+      <div class="person-node" role="button" tabindex="0">
         <span class="avatar"></span>
         <span class="person-name"></span>
-      </button>
+        <span class="node-actions" aria-label="افزودن نسبت خانوادگی">
+          <button type="button" data-add-relative="spouse">همسر</button>
+          <button type="button" data-add-relative="child">فرزند</button>
+          <button type="button" data-add-relative="parent">والد</button>
+        </span>
+      </div>
     </template>
 
     <script src="app.js"></script>
