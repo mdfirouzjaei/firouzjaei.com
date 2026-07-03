@@ -2,6 +2,7 @@ const OWNER_EMAIL = "mdfirouzjaei@gmail.com";
 const DEFAULT_OWNER_PASSWORD = "owner-demo-1403";
 const STORAGE_KEY = "firouzjaei-family-site-state-v1";
 const SESSION_KEY = "firouzjaei-family-site-session-v1";
+const VALID_ROUTES = ["home", "tree", "gallery", "history"];
 
 const colors = [
   ["#24554c", "#dcebe6"],
@@ -303,7 +304,7 @@ function gallerySvg(title, palette = colors[0]) {
 function routeTo(route) {
   $$(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.route === route));
   $$(".view").forEach((view) => view.classList.toggle("active", view.dataset.view === route));
-  window.location.hash = route;
+  if (window.location.hash !== `#${route}`) window.location.hash = route;
 }
 
 function nodePosition(person) {
@@ -600,7 +601,7 @@ function setAdminTab(tab) {
 }
 
 function bindEvents() {
-  $$(".nav-item").forEach((button) => button.addEventListener("click", () => routeTo(button.dataset.route)));
+  $$("[data-route]").forEach((button) => button.addEventListener("click", () => routeTo(button.dataset.route)));
   $("[data-open-subscribe]").addEventListener("click", () => $("#subscribeDialog").showModal());
   $("[data-close-subscribe]").addEventListener("click", () => $("#subscribeDialog").close());
   $("[data-open-login]").addEventListener("click", () => (isAdmin() ? openAdminPanel() : $("#loginDialog").showModal()));
@@ -765,6 +766,11 @@ function bindEvents() {
     refreshAll();
     $("#dataMessage").textContent = "داده آزمایشی بازگردانده شد.";
   });
+
+  window.addEventListener("hashchange", () => {
+    const route = window.location.hash.replace("#", "") || "home";
+    if (VALID_ROUTES.includes(route)) routeTo(route);
+  });
 }
 
 function setZoom(value) {
@@ -784,8 +790,8 @@ function init() {
   bindEvents();
   clearPersonForm();
   refreshAll();
-  const route = window.location.hash.replace("#", "") || "tree";
-  routeTo(["tree", "gallery", "history"].includes(route) ? route : "tree");
+  const route = window.location.hash.replace("#", "") || "home";
+  routeTo(VALID_ROUTES.includes(route) ? route : "home");
 }
 
 init();
