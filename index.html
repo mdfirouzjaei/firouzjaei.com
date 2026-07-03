@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="وب سایت خانوادگی فیروزجایی برای نمایش درخت خانوادگی، گالری عکس و تاریخچه خانواده."
+    />
+    <title>خاندان فیروزجایی</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="site-header">
+        <a class="brand" href="#tree" aria-label="خانه">
+          <span class="brand-mark" aria-hidden="true">ف</span>
+          <span>
+            <strong>خاندان فیروزجایی</strong>
+            <small>دفتر زنده خاطره ها</small>
+          </span>
+        </a>
+
+        <nav class="primary-nav" aria-label="بخش های اصلی">
+          <button class="nav-item active" type="button" data-route="tree">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M12 4v5m0 0H7a3 3 0 0 0-3 3v2m8-5h5a3 3 0 0 1 3 3v2M6 20a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm12 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+            </svg>
+            <span>درخت خانوادگی</span>
+          </button>
+          <button class="nav-item" type="button" data-route="gallery">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5Zm3 11 3.2-3.2a1.3 1.3 0 0 1 1.8 0L14 14.8l1-1a1.3 1.3 0 0 1 1.8 0L20 17M8.5 8.5h.01" />
+            </svg>
+            <span>گالری عکس</span>
+          </button>
+          <button class="nav-item" type="button" data-route="history">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4Zm3 0v13a3 3 0 0 0 3 3M9 8h6M9 12h6" />
+            </svg>
+            <span>تاریخچه</span>
+          </button>
+        </nav>
+
+        <div class="quick-actions" aria-label="دسترسی سریع">
+          <button class="quick-button" type="button" data-open-subscribe>اشتراک</button>
+          <button class="quick-button emphasis" type="button" data-open-login>ورود مدیر</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="view active" data-view="tree">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">نمای اصلی</p>
+              <h1>درخت خانوادگی</h1>
+            </div>
+            <div class="tree-tools" aria-label="ابزارهای درخت">
+              <button class="icon-button" type="button" data-zoom-out title="کوچک نمایی">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14" /></svg>
+              </button>
+              <button class="icon-button" type="button" data-zoom-reset title="اندازه اصلی">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h6v6M20 20h-6v-6M10 4 4 10M14 20l6-6" /></svg>
+              </button>
+              <button class="icon-button" type="button" data-zoom-in title="بزرگ نمایی">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+              </button>
+              <button class="admin-only soft-action" type="button" data-open-person-editor>افزودن فرد</button>
+            </div>
+          </div>
+
+          <div class="tree-layout">
+            <aside class="tree-sidebar">
+              <label class="search-box">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>
+                <input id="familySearch" type="search" placeholder="جست وجوی نام" autocomplete="off" />
+              </label>
+              <div class="legend">
+                <span><i class="legend-dot marriage"></i> پیوند همسری</span>
+                <span><i class="legend-dot descent"></i> فرزند</span>
+                <span><i class="legend-dot selected"></i> فرد انتخاب شده</span>
+              </div>
+              <div class="admin-status" id="adminStatus">برای ویرایش، وارد حساب مدیر شوید.</div>
+            </aside>
+
+            <div class="tree-stage" id="treeStage" aria-label="درخت خانوادگی تعاملی">
+              <div class="tree-canvas" id="treeCanvas">
+                <svg class="tree-lines" id="treeLines" aria-hidden="true"></svg>
+                <div class="tree-nodes" id="treeNodes"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" data-view="gallery">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">یادگاری ها</p>
+              <h1>گالری عکس</h1>
+            </div>
+            <button class="admin-only soft-action" type="button" data-open-gallery-editor>افزودن عکس</button>
+          </div>
+          <div class="gallery-grid" id="galleryGrid"></div>
+        </section>
+
+        <section class="view" data-view="history">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">روایت خانواده</p>
+              <h1>تاریخچه</h1>
+            </div>
+            <button class="admin-only soft-action" type="button" data-open-history-editor>ویرایش متن</button>
+          </div>
+          <article class="history-panel">
+            <div class="history-calligraphy">ریشه ها زنده اند</div>
+            <div id="historyContent"></div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="modal" id="personDialog">
+      <form method="dialog" class="modal-card large">
+        <button class="icon-button modal-close" value="cancel" title="بستن">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+        <div class="person-detail" id="personDetail"></div>
+      </form>
+    </dialog>
+
+    <dialog class="modal" id="loginDialog">
+      <form class="modal-card" id="loginForm">
+        <button class="icon-button modal-close" type="button" data-close-login title="بستن">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+        <h2>ورود مدیر</h2>
+        <p class="muted">در نسخه آزمایشی، حساب مالک از پیش ساخته شده است.</p>
+        <label>ایمیل
+          <input name="email" type="email" required autocomplete="username" />
+        </label>
+        <label>رمز عبور
+          <input name="password" type="password" required autocomplete="current-password" />
+        </label>
+        <button class="primary-action" type="submit">ورود</button>
+        <p class="form-message" id="loginMessage" role="status"></p>
+      </form>
+    </dialog>
+
+    <dialog class="modal" id="subscribeDialog">
+      <form class="modal-card" id="subscribeForm">
+        <button class="icon-button modal-close" type="button" data-close-subscribe title="بستن">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+        <h2>اشتراک خبرهای خانواده</h2>
+        <p class="muted">ایمیل خود را وارد کنید تا در نسخه نهایی، خبرهای تازه برای شما ارسال شود.</p>
+        <label>نام
+          <input name="name" type="text" required />
+        </label>
+        <label>ایمیل
+          <input name="email" type="email" required />
+        </label>
+        <button class="primary-action" type="submit">ثبت اشتراک</button>
+        <p class="form-message" id="subscribeMessage" role="status"></p>
+      </form>
+    </dialog>
+
+    <dialog class="modal" id="adminDialog">
+      <div class="modal-card large">
+        <button class="icon-button modal-close" type="button" data-close-admin title="بستن">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+        <div class="admin-panel">
+          <div class="admin-panel-head">
+            <div>
+              <p class="eyebrow">مدیریت</p>
+              <h2>پنل مدیران</h2>
+            </div>
+            <button class="danger-action" type="button" data-logout>خروج</button>
+          </div>
+          <div class="admin-tabs" role="tablist">
+            <button type="button" class="tab active" data-admin-tab="people">افراد</button>
+            <button type="button" class="tab" data-admin-tab="admins">مدیران</button>
+            <button type="button" class="tab" data-admin-tab="data">داده ها</button>
+          </div>
+          <section class="admin-tab active" data-admin-panel="people">
+            <form class="editor-form" id="personEditor">
+              <input type="hidden" name="id" />
+              <div class="form-grid">
+                <label>نام و نام خانوادگی
+                  <input name="name" type="text" required />
+                </label>
+                <label>سال تولد
+                  <input name="birth" type="text" />
+                </label>
+                <label>سال درگذشت
+                  <input name="death" type="text" />
+                </label>
+                <label>نسل
+                  <input name="generation" type="number" min="0" max="8" required />
+                </label>
+                <label>جایگاه افقی
+                  <input name="slot" type="number" min="0" max="12" required />
+                </label>
+                <label>همسر
+                  <select name="spouseId"></select>
+                </label>
+                <label>والد اول
+                  <select name="parentOne"></select>
+                </label>
+                <label>والد دوم
+                  <select name="parentTwo"></select>
+                </label>
+              </div>
+              <label>نشانی عکس اصلی
+                <input name="photo" type="url" placeholder="اختیاری" />
+              </label>
+              <label>زندگی نامه کوتاه
+                <textarea name="story" rows="5"></textarea>
+              </label>
+              <label>عکس های بیشتر
+                <textarea name="photos" rows="3" placeholder="هر نشانی عکس در یک خط"></textarea>
+              </label>
+              <div class="form-actions">
+                <button class="primary-action" type="submit">ذخیره فرد</button>
+                <button class="soft-action" type="button" data-clear-person-form>فرم تازه</button>
+                <button class="danger-action" type="button" data-delete-person>حذف فرد</button>
+              </div>
+            </form>
+            <div class="compact-list" id="peopleList"></div>
+          </section>
+          <section class="admin-tab" data-admin-panel="admins">
+            <form class="editor-form" id="adminEditor">
+              <div class="form-grid">
+                <label>ایمیل مدیر
+                  <input name="email" type="email" required />
+                </label>
+                <label>رمز عبور
+                  <input name="password" type="text" required />
+                </label>
+              </div>
+              <button class="primary-action" type="submit">افزودن مدیر</button>
+            </form>
+            <div class="compact-list" id="adminsList"></div>
+          </section>
+          <section class="admin-tab" data-admin-panel="data">
+            <div class="data-tools">
+              <button class="soft-action" type="button" data-export-data>خروجی گرفتن</button>
+              <button class="danger-action" type="button" data-reset-data>بازگشت به داده آزمایشی</button>
+            </div>
+            <label>ورود داده
+              <textarea id="dataImport" rows="8" placeholder="داده JSON را اینجا بگذارید"></textarea>
+            </label>
+            <button class="primary-action" type="button" data-import-data>جایگزینی داده</button>
+            <p class="form-message" id="dataMessage"></p>
+          </section>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog class="modal" id="galleryEditorDialog">
+      <form class="modal-card" id="galleryEditor">
+        <button class="icon-button modal-close" type="button" data-close-gallery-editor title="بستن">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+        <h2>افزودن عکس</h2>
+        <label>عنوان
+          <input name="title" type="text" required />
+        </label>
+        <label>شرح کوتاه
+          <input name="caption" type="text" />
+        </label>
+        <label>نشانی عکس
+          <input name="src" type="url" />
+        </label>
+        <button class="primary-action" type="submit">ذخیره عکس</button>
+      </form>
+    </dialog>
+
+    <dialog class="modal" id="historyEditorDialog">
+      <form class="modal-card large" id="historyEditor">
+        <button class="icon-button modal-close" type="button" data-close-history-editor title="بستن">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+        <h2>ویرایش تاریخچه</h2>
+        <textarea name="history" rows="12"></textarea>
+        <button class="primary-action" type="submit">ذخیره تاریخچه</button>
+      </form>
+    </dialog>
+
+    <template id="nodeTemplate">
+      <button class="person-node" type="button">
+        <span class="avatar"></span>
+        <span class="person-name"></span>
+      </button>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
