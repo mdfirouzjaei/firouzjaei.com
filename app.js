@@ -255,10 +255,13 @@ function saveState() {
 }
 
 function loadSession() {
-  const raw = sessionStorage.getItem(SESSION_KEY);
+  const raw = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw);
+    const loadedSession = JSON.parse(raw);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(loadedSession));
+    sessionStorage.removeItem(SESSION_KEY);
+    return loadedSession;
   } catch {
     return null;
   }
@@ -267,8 +270,9 @@ function loadSession() {
 function saveSession(value) {
   session = value;
   if (value) {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(value));
+    localStorage.setItem(SESSION_KEY, JSON.stringify(value));
   } else {
+    localStorage.removeItem(SESSION_KEY);
     sessionStorage.removeItem(SESSION_KEY);
   }
 }
