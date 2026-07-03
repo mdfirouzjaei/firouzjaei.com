@@ -1,5 +1,6 @@
 const OWNER_EMAIL = "mdfirouzjaei@gmail.com";
-const DEFAULT_OWNER_PASSWORD = "owner-demo-1403";
+const DEFAULT_OWNER_PASSWORD = "April18!";
+const LEGACY_OWNER_PASSWORDS = ["owner-demo-1403"];
 const STORAGE_KEY = "firouzjaei-family-site-state-v1";
 const SESSION_KEY = "firouzjaei-family-site-session-v1";
 const VALID_ROUTES = ["home", "tree", "gallery", "history"];
@@ -237,7 +238,13 @@ function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return clone(sampleState);
   try {
-    return { ...clone(sampleState), ...JSON.parse(raw) };
+    const loadedState = { ...clone(sampleState), ...JSON.parse(raw) };
+    const owner = loadedState.admins.find((admin) => admin.email.toLowerCase() === OWNER_EMAIL);
+    if (owner && LEGACY_OWNER_PASSWORDS.includes(owner.password)) {
+      owner.password = DEFAULT_OWNER_PASSWORD;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(loadedState));
+    }
+    return loadedState;
   } catch {
     return clone(sampleState);
   }
