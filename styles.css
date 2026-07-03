@@ -510,14 +510,10 @@ label select:focus,
   direction: ltr;
   width: 100%;
   min-height: 680px;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background:
-    linear-gradient(rgba(36, 85, 76, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(36, 85, 76, 0.04) 1px, transparent 1px),
-    #fff;
-  background-size: 34px 34px;
+  background: #f4faf7;
   box-shadow: var(--shadow);
 }
 

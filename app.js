@@ -3,6 +3,8 @@ const DEFAULT_OWNER_PASSWORD = "owner-demo-1403";
 const STORAGE_KEY = "firouzjaei-family-site-state-v1";
 const SESSION_KEY = "firouzjaei-family-site-session-v1";
 const VALID_ROUTES = ["home", "tree", "gallery", "history"];
+const TREE_CANVAS_WIDTH = 1420;
+const TREE_CANVAS_HEIGHT = 760;
 
 const colors = [
   ["#24554c", "#dcebe6"],
@@ -222,6 +224,7 @@ let state = loadState();
 let session = loadSession();
 let selectedPersonId = null;
 let treeScale = 1;
+let treeZoom = 1;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -304,6 +307,7 @@ function gallerySvg(title, palette = colors[0]) {
 function routeTo(route) {
   $$(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.route === route));
   $$(".view").forEach((view) => view.classList.toggle("active", view.dataset.view === route));
+  if (route === "tree") requestAnimationFrame(fitTreeToStage);
   if (window.location.hash !== `#${route}`) window.location.hash = route;
 }
 
@@ -351,21 +355,27 @@ function renderTree() {
     nodes.appendChild(node);
   });
 
-  $("#treeCanvas").style.transform = `scale(${treeScale})`;
-  centerTreeOnRoot();
+  fitTreeToStage();
   updateAdminStatus();
 }
 
-function centerTreeOnRoot() {
+function fitTreeToStage() {
   const stage = $("#treeStage");
-  if (stage.dataset.centered === "true") return;
-  const roots = state.people.filter((person) => Number(person.generation || 0) === 0);
-  if (!roots.length) return;
-  const rootCenter = roots.reduce((sum, person) => sum + nodePosition(person).x, 0) / roots.length;
-  requestAnimationFrame(() => {
-    stage.scrollLeft = Math.max(0, rootCenter - stage.clientWidth * 0.58);
-    stage.dataset.centered = "true";
-  });
+  const canvas = $("#treeCanvas");
+  if (!stage || !canvas || !stage.clientWidth) return;
+
+  const availableWidth = Math.max(260, stage.clientWidth - 28);
+  const fitScale = Math.min(1, availableWidth / TREE_CANVAS_WIDTH);
+  treeScale = fitScale * treeZoom;
+
+  const visualWidth = TREE_CANVAS_WIDTH * treeScale;
+  const visualHeight = TREE_CANVAS_HEIGHT * treeScale;
+  canvas.style.width = `${TREE_CANVAS_WIDTH}px`;
+  canvas.style.height = `${TREE_CANVAS_HEIGHT}px`;
+  canvas.style.transform = `scale(${treeScale})`;
+  canvas.style.marginLeft = `${Math.max(0, (stage.clientWidth - visualWidth) / 2)}px`;
+  canvas.style.marginTop = "14px";
+  stage.style.height = `${Math.ceil(visualHeight + 28)}px`;
 }
 
 function drawRelationships(svg, people, positions) {
@@ -623,8 +633,8 @@ function bindEvents() {
   });
 
   $("#familySearch").addEventListener("input", renderTree);
-  $("[data-zoom-in]").addEventListener("click", () => setZoom(treeScale + 0.1));
-  $("[data-zoom-out]").addEventListener("click", () => setZoom(treeScale - 0.1));
+  $("[data-zoom-in]").addEventListener("click", () => setZoom(treeZoom + 0.1));
+  $("[data-zoom-out]").addEventListener("click", () => setZoom(treeZoom - 0.1));
   $("[data-zoom-reset]").addEventListener("click", () => setZoom(1));
 
   $("#loginForm").addEventListener("submit", (event) => {
@@ -771,11 +781,12 @@ function bindEvents() {
     const route = window.location.hash.replace("#", "") || "home";
     if (VALID_ROUTES.includes(route)) routeTo(route);
   });
+  window.addEventListener("resize", fitTreeToStage);
 }
 
 function setZoom(value) {
-  treeScale = Math.min(1.35, Math.max(0.65, Number(value.toFixed(2))));
-  $("#treeCanvas").style.transform = `scale(${treeScale})`;
+  treeZoom = Math.min(1, Math.max(0.65, Number(value.toFixed(2))));
+  fitTreeToStage();
 }
 
 function refreshAll() {
