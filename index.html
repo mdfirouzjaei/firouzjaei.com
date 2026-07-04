@@ -9,7 +9,7 @@
     />
     <title>خاندان فیروزجایی</title>
     <link rel="icon" type="image/png" href="assets/brand/firouzjaei-logo.png" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=fold-generations-20260704" />
   </head>
   <body>
     <div class="app-shell">
@@ -374,6 +374,10 @@
 
     <template id="nodeTemplate">
       <div class="person-node" role="button" tabindex="0">
+        <button class="branch-toggle" type="button" data-toggle-branch title="باز کردن نسل های پایین تر">
+          <span data-branch-symbol>+</span>
+          <small data-branch-count></small>
+        </button>
         <span class="avatar"></span>
         <span class="person-name"></span>
         <span class="node-actions" aria-label="افزودن نسبت خانوادگی">
@@ -385,6 +389,6 @@
       </div>
     </template>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=fold-generations-20260704"></script>
   </body>
 </html>

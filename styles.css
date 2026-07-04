@@ -590,6 +590,40 @@ label select:focus,
   transform: translate(-50%, -50%);
 }
 
+.person-node.branch-open {
+  border-color: var(--gold);
+}
+
+.branch-toggle {
+  position: absolute;
+  top: -11px;
+  left: -11px;
+  z-index: 3;
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 3px;
+  min-width: 32px;
+  min-height: 28px;
+  padding: 0 7px;
+  border: 1px solid rgba(185, 133, 40, 0.36);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--gold);
+  font-weight: 820;
+  line-height: 1;
+  box-shadow: 0 8px 18px rgba(21, 34, 31, 0.1);
+}
+
+.branch-toggle[hidden] {
+  display: none;
+}
+
+.branch-toggle small {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
 .person-node.gender-male {
   border-color: rgba(49, 93, 126, 0.24);
 }

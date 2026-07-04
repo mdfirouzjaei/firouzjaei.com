@@ -204,6 +204,54 @@ const sampleState = {
       story: "جست وجو می تواند فرد مورد نظر را برجسته کند.",
       photos: [],
     },
+    {
+      id: "p15",
+      name: "ریشه شاخه دوم",
+      birth: "۱۲۸۲",
+      death: "۱۳۵۰",
+      generation: 0,
+      slot: 11,
+      spouseIds: ["p16"],
+      parentIds: [],
+      story: "این فرد نمونه برای نمایش شروع یک شاخه مستقل دیگر در ردیف بالای درخت است.",
+      photos: [],
+    },
+    {
+      id: "p16",
+      name: "همسر شاخه دوم",
+      birth: "۱۲۸۸",
+      death: "۱۳۶۰",
+      generation: 0,
+      slot: 12,
+      spouseIds: ["p15"],
+      parentIds: [],
+      story: "چند نقطه شروع می توانند در ردیف بالا کنار هم قرار بگیرند.",
+      photos: [],
+    },
+    {
+      id: "p17",
+      name: "فرزند شاخه دوم",
+      birth: "۱۳۱۵",
+      death: "",
+      generation: 1,
+      slot: 11,
+      spouseIds: [],
+      parentIds: ["p15", "p16"],
+      story: "این کارت پس از باز کردن شاخه دوم نمایش داده می شود.",
+      photos: [],
+    },
+    {
+      id: "p18",
+      name: "نوه شاخه دوم",
+      birth: "۱۳۴۴",
+      death: "",
+      generation: 2,
+      slot: 11,
+      spouseIds: [],
+      parentIds: ["p17"],
+      story: "این نسل پایین تر با باز کردن فرزند شاخه دوم ظاهر می شود.",
+      photos: [],
+    },
   ],
   gallery: [
     {
@@ -239,6 +287,7 @@ let selectedPersonId = null;
 let treeScale = 1;
 let treeZoom = 1;
 let pendingRelationship = null;
+let expandedPersonIds = new Set();
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -272,12 +321,26 @@ function defaultGenderForPerson(person) {
     p12: "female",
     p13: "male",
     p14: "female",
+    p15: "male",
+    p16: "female",
+    p17: "male",
+    p18: "female",
   };
   return sampleGenders[person.id] || "unknown";
 }
 
 function normalizeState(value) {
   const normalized = { ...clone(sampleState), ...value };
+  if (!Array.isArray(normalized.people) || !normalized.people.length) {
+    normalized.people = clone(sampleState.people);
+  }
+  const looksLikeDemoData = normalized.people.some((person) => person.id === "p1" && person.name === "بزرگ خاندان");
+  if (looksLikeDemoData) {
+    const existingIds = new Set(normalized.people.map((person) => person.id));
+    clone(sampleState.people).forEach((person) => {
+      if (!existingIds.has(person.id)) normalized.people.push(person);
+    });
+  }
   normalized.people = (normalized.people || []).map((person) => ({
     ...person,
     gender: normalizeGender(person.gender || defaultGenderForPerson(person)),
@@ -578,11 +641,115 @@ function alignSpouseSlots(person, spouseId) {
   female.slot = maleSlot;
 }
 
+function personById(id) {
+  return state.people.find((person) => person.id === id);
+}
+
+function sortTreePeople(people) {
+  return people
+    .slice()
+    .sort(
+      (a, b) =>
+        Number(a.generation || 0) - Number(b.generation || 0) ||
+        Number(a.slot || 0) - Number(b.slot || 0) ||
+        genderSortValue(a) - genderSortValue(b) ||
+        a.name.localeCompare(b.name, "fa")
+    );
+}
+
+function childPeopleOf(personId, people = state.people) {
+  return sortTreePeople(people.filter((person) => (person.parentIds || []).includes(personId)));
+}
+
+function isStartingPerson(person) {
+  if ((person.parentIds || []).length) return false;
+  const spouseHasParents = (person.spouseIds || []).some((spouseId) => (personById(spouseId)?.parentIds || []).length);
+  return !spouseHasParents;
+}
+
+function startingPeople() {
+  const roots = state.people.filter(isStartingPerson);
+  return sortTreePeople(roots.length ? roots : state.people.filter((person) => !(person.parentIds || []).length));
+}
+
+function descendantCount(personId, visited = new Set()) {
+  if (visited.has(personId)) return 0;
+  visited.add(personId);
+  return childPeopleOf(personId).reduce((total, child) => total + 1 + descendantCount(child.id, visited), 0);
+}
+
+function visibleTreePeople(searchTerm = "") {
+  if (searchTerm) return sortTreePeople(state.people);
+
+  const visibleIds = new Set(startingPeople().map((person) => person.id));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    Array.from(visibleIds).forEach((id) => {
+      const person = personById(id);
+      if (!person) return;
+      (person.spouseIds || []).forEach((spouseId) => {
+        if (personById(spouseId) && !visibleIds.has(spouseId)) {
+          visibleIds.add(spouseId);
+          changed = true;
+        }
+      });
+      if (!expandedPersonIds.has(id)) return;
+      childPeopleOf(id).forEach((child) => {
+        if (!visibleIds.has(child.id)) {
+          visibleIds.add(child.id);
+          changed = true;
+        }
+      });
+    });
+  }
+
+  return sortTreePeople(state.people.filter((person) => visibleIds.has(person.id)));
+}
+
+function treeDepthMap() {
+  const depths = new Map();
+  startingPeople().forEach((person) => depths.set(person.id, 0));
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    state.people.forEach((person) => {
+      const parentDepths = (person.parentIds || []).map((parentId) => depths.get(parentId)).filter((depth) => depth !== undefined);
+      if (parentDepths.length) {
+        const nextDepth = Math.min(...parentDepths) + 1;
+        if (depths.get(person.id) !== nextDepth) {
+          depths.set(person.id, nextDepth);
+          changed = true;
+        }
+      }
+      (person.spouseIds || []).forEach((spouseId) => {
+        const spouseDepth = depths.get(spouseId);
+        const currentDepth = depths.get(person.id);
+        if (spouseDepth !== undefined && currentDepth === undefined) {
+          depths.set(person.id, spouseDepth);
+          changed = true;
+        }
+        if (currentDepth !== undefined && spouseDepth === undefined && personById(spouseId)) {
+          depths.set(spouseId, currentDepth);
+          changed = true;
+        }
+      });
+    });
+  }
+
+  state.people.forEach((person) => {
+    if (!depths.has(person.id)) depths.set(person.id, Number(person.generation || 0));
+  });
+  return depths;
+}
+
 function treePositions(people = state.people) {
   const positions = new Map();
   const generationMap = new Map();
+  const depths = treeDepthMap();
   people.forEach((person) => {
-    const generation = Number(person.generation || 0);
+    const generation = depths.get(person.id) ?? Number(person.generation || 0);
     generationMap.set(generation, [...(generationMap.get(generation) || []), person]);
   });
 
@@ -608,8 +775,8 @@ function treePositions(people = state.people) {
 }
 
 function treeCanvasSize(positions = treePositions()) {
-  if (!state.people.length) return { width: TREE_CANVAS_WIDTH, height: TREE_CANVAS_HEIGHT };
   const positionList = Array.from(positions.values());
+  if (!positionList.length) return { width: TREE_CANVAS_WIDTH, height: TREE_CANVAS_HEIGHT };
   return {
     width: Math.max(TREE_CANVAS_WIDTH, Math.max(...positionList.map((position) => position.x)) + 230),
     height: Math.max(TREE_CANVAS_HEIGHT, Math.max(...positionList.map((position) => position.y)) + 220),
@@ -624,7 +791,7 @@ function renderTree() {
   nodes.innerHTML = "";
   lines.innerHTML = "";
 
-  const people = state.people;
+  const people = visibleTreePeople(searchTerm);
   const positions = treePositions(people);
 
   drawRelationships(lines, people, positions);
@@ -646,6 +813,28 @@ function renderTree() {
     image.src = person.photo || avatarSvg(person.name, index);
     avatar.appendChild(image);
     $(".person-name", node).textContent = person.name;
+    const toggleButton = $("[data-toggle-branch]", node);
+    const childCount = childPeopleOf(person.id).length;
+    if (toggleButton && childCount) {
+      const hiddenCount = descendantCount(person.id);
+      const isExpanded = expandedPersonIds.has(person.id) || Boolean(searchTerm);
+      node.classList.toggle("branch-open", isExpanded);
+      $("[data-branch-symbol]", toggleButton).textContent = isExpanded ? "-" : "+";
+      $("[data-branch-count]", toggleButton).textContent = hiddenCount;
+      toggleButton.title = isExpanded ? "بستن نسل های پایین تر" : "باز کردن نسل های پایین تر";
+      toggleButton.setAttribute("aria-label", toggleButton.title);
+      toggleButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (expandedPersonIds.has(person.id)) {
+          expandedPersonIds.delete(person.id);
+        } else {
+          expandedPersonIds.add(person.id);
+        }
+        renderTree();
+      });
+    } else if (toggleButton) {
+      toggleButton.hidden = true;
+    }
     const editButton = $("[data-edit-person]", node);
     editButton.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -684,7 +873,8 @@ function fitTreeToStage() {
   const canvas = $("#treeCanvas");
   if (!stage || !canvas || !stage.clientWidth) return;
 
-  const { width, height } = treeCanvasSize();
+  const searchTerm = $("#familySearch")?.value.trim() || "";
+  const { width, height } = treeCanvasSize(treePositions(visibleTreePeople(searchTerm)));
   const availableWidth = Math.max(260, stage.clientWidth - 28);
   const fitScale = Math.min(1, availableWidth / width);
   treeScale = fitScale * treeZoom;
