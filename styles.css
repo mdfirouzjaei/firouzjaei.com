@@ -854,6 +854,40 @@ body.admin-mode .person-node:focus-within .node-actions {
   font-size: 1.08rem;
 }
 
+.detail-admin-tools {
+  display: none;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(185, 133, 40, 0.24);
+  border-radius: var(--radius);
+  background: #fffaf0;
+}
+
+body.admin-mode .person-detail .detail-admin-tools.admin-only {
+  display: grid;
+}
+
+.detail-admin-head {
+  display: grid;
+  gap: 12px;
+}
+
+.detail-admin-head h3,
+.detail-admin-head p {
+  margin: 0;
+}
+
+.detail-admin-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.detail-upload-form {
+  display: grid;
+  gap: 12px;
+}
+
 .submission-list {
   display: grid;
   gap: 12px;

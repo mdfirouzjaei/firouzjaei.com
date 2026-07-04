@@ -793,6 +793,34 @@ function openPerson(id) {
     </div>
     ${person.story ? `<p>${escapeHtml(person.story)}</p>` : ""}
     ${media.length ? `<div class="detail-gallery">${media.map((item) => mediaPreviewMarkup(item, person.name)).join("")}</div>` : ""}
+    <section class="detail-admin-tools admin-only">
+      <div class="detail-admin-head">
+        <div>
+          <p class="eyebrow">ابزار مدیر</p>
+          <h3>ویرایش همین کارت</h3>
+        </div>
+        <div class="detail-admin-buttons">
+          <button class="soft-action" type="button" data-detail-edit-person>ویرایش کارت</button>
+          <button class="soft-action" type="button" data-detail-add-relative="spouse">افزودن همسر</button>
+          <button class="soft-action" type="button" data-detail-add-relative="child">افزودن فرزند</button>
+          <button class="soft-action" type="button" data-detail-add-relative="parent" ${(person.parentIds || []).length >= 2 ? "disabled" : ""}>افزودن والد</button>
+        </div>
+      </div>
+      <form class="detail-upload-form" data-detail-media-form>
+        <div class="form-grid">
+          <label>بارگذاری عکس اصلی
+            <input name="detailHeadshotFile" type="file" accept="image/*">
+          </label>
+          <label>بارگذاری عکس یا ویدیو برای گالری
+            <input name="detailMediaFiles" type="file" accept="image/*,video/*" multiple>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button class="primary-action" type="submit">ذخیره رسانه</button>
+        </div>
+        <p class="form-message" data-detail-upload-message role="status"></p>
+      </form>
+    </section>
     <form class="request-form" data-request-form>
       <h3>پیشنهاد اصلاح برای مدیران</h3>
       <div class="form-grid">
@@ -817,7 +845,68 @@ function openPerson(id) {
   `;
   const requestForm = $("[data-request-form]", detail);
   requestForm.addEventListener("submit", handleSubmissionRequest);
+  bindPersonDetailAdminTools(detail, person);
   $("#personDialog").showModal();
+}
+
+function bindPersonDetailAdminTools(detail, person) {
+  const editButton = $("[data-detail-edit-person]", detail);
+  if (editButton) {
+    editButton.addEventListener("click", () => {
+      closeDialog("#personDialog");
+      openPersonEditor(person.id);
+    });
+  }
+
+  $$("[data-detail-add-relative]", detail).forEach((button) => {
+    button.addEventListener("click", () => {
+      closeDialog("#personDialog");
+      openRelativeEditor(person.id, button.dataset.detailAddRelative);
+    });
+  });
+
+  const uploadForm = $("[data-detail-media-form]", detail);
+  if (uploadForm) uploadForm.addEventListener("submit", handleDetailMediaUpload);
+}
+
+async function handleDetailMediaUpload(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const fields = form.elements;
+  const message = $("[data-detail-upload-message]", form);
+  const person = state.people.find((item) => item.id === selectedPersonId);
+  if (!person) return;
+
+  message.textContent = "در حال ذخیره رسانه...";
+  try {
+    const previousPhoto = person.photo;
+    const previousMedia = [...(person.media || [])];
+    const headshotMedia = fields.detailHeadshotFile.files?.[0] ? await fileToMedia(fields.detailHeadshotFile.files[0]) : null;
+    const uploadedMedia = await filesToMedia(fields.detailMediaFiles.files);
+    if (!headshotMedia && !uploadedMedia.length) {
+      message.textContent = "ابتدا یک عکس یا ویدیو انتخاب کنید.";
+      return;
+    }
+
+    if (headshotMedia) person.photo = headshotMedia.src;
+    person.media = uniqueMedia([...(person.media || []), ...uploadedMedia]);
+    try {
+      saveState();
+    } catch {
+      person.photo = previousPhoto;
+      person.media = previousMedia;
+      message.textContent = "حجم فایل‌ها برای ذخیره در این نسخه زیاد است.";
+      return;
+    }
+    refreshAll();
+    const personId = person.id;
+    closeDialog("#personDialog");
+    openPerson(personId);
+    const refreshedMessage = $("[data-detail-upload-message]", $("#personDetail"));
+    if (refreshedMessage) refreshedMessage.textContent = "رسانه با موفقیت ذخیره شد.";
+  } catch (error) {
+    message.textContent = error.message || "ذخیره رسانه انجام نشد.";
+  }
 }
 
 async function handleSubmissionRequest(event) {
