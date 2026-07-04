@@ -169,12 +169,12 @@
     </div>
 
     <dialog class="modal" id="personDialog">
-      <form method="dialog" class="modal-card large">
-        <button class="icon-button modal-close" value="cancel" title="بستن">
+      <div class="modal-card large">
+        <button class="icon-button modal-close" type="button" data-close-person title="بستن">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
         </button>
         <div class="person-detail" id="personDetail"></div>
-      </form>
+      </div>
     </dialog>
 
     <dialog class="modal" id="personEditorDialog">
@@ -223,13 +223,19 @@
           </label>
         </div>
         <label>نشانی عکس اصلی
-          <input name="photo" type="url" placeholder="اختیاری" />
+          <input name="photo" type="text" placeholder="اختیاری" />
+        </label>
+        <label>بارگذاری عکس اصلی
+          <input name="headshotFile" type="file" accept="image/*" />
         </label>
         <label>زندگی نامه کوتاه
           <textarea name="story" rows="5"></textarea>
         </label>
-        <label>عکس های بیشتر
-          <textarea name="photos" rows="3" placeholder="هر نشانی عکس در یک خط"></textarea>
+        <label>نشانی رسانه های بیشتر
+          <textarea name="photos" rows="3" placeholder="هر نشانی عکس یا ویدیو در یک خط"></textarea>
+        </label>
+        <label>بارگذاری عکس یا ویدیو برای گالری فرد
+          <input name="mediaFiles" type="file" accept="image/*,video/*" multiple />
         </label>
         <div class="form-actions">
           <button class="primary-action" type="submit">ذخیره فرد</button>
@@ -290,6 +296,7 @@
           </div>
           <div class="admin-tabs" role="tablist">
             <button type="button" class="tab active" data-admin-tab="people">افراد</button>
+            <button type="button" class="tab" data-admin-tab="submissions">درخواست‌ها</button>
             <button type="button" class="tab" data-admin-tab="admins">مدیران</button>
             <button type="button" class="tab" data-admin-tab="data">داده ها</button>
           </div>
@@ -299,6 +306,12 @@
               <button class="soft-action" type="button" data-admin-go-tree>رفتن به درخت</button>
             </div>
             <div class="compact-list" id="peopleList"></div>
+          </section>
+          <section class="admin-tab" data-admin-panel="submissions">
+            <div class="admin-note">
+              <p>درخواست‌های اصلاح و رسانه‌های پیشنهادی هر فرد اینجا بررسی می‌شود.</p>
+            </div>
+            <div class="submission-list" id="submissionsList"></div>
           </section>
           <section class="admin-tab" data-admin-panel="admins">
             <form class="editor-form" id="adminEditor">

@@ -70,6 +70,11 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
 svg {
   fill: none;
   stroke: currentColor;
@@ -824,11 +829,93 @@ body.admin-mode .person-node:focus-within .node-actions {
   gap: 10px;
 }
 
-.detail-gallery img {
+.detail-gallery img,
+.detail-gallery video,
+.submission-media img,
+.submission-media video {
   width: 100%;
   aspect-ratio: 1;
   border-radius: var(--radius);
   object-fit: cover;
+  background: #eef2ef;
+}
+
+.request-form {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(36, 85, 76, 0.14);
+  border-radius: var(--radius);
+  background: #f7faf8;
+}
+
+.request-form h3 {
+  margin: 0;
+  font-size: 1.08rem;
+}
+
+.submission-list {
+  display: grid;
+  gap: 12px;
+}
+
+.submission-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.submission-card.status-pending {
+  border-color: rgba(185, 133, 40, 0.34);
+  background: #fffaf0;
+}
+
+.submission-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.submission-head h3,
+.submission-head p,
+.submission-card p {
+  margin: 0;
+}
+
+.submission-head > span,
+.submission-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.submission-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.submission-meta span {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #f1f4f3;
+}
+
+.submission-media {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.empty-state {
+  padding: 16px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  background: #fbfcfb;
 }
 
 .editor-heading {

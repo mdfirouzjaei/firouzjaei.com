@@ -3,6 +3,7 @@ const DEFAULT_OWNER_PASSWORD = "April18!";
 const LEGACY_OWNER_PASSWORDS = ["owner-demo-1403"];
 const STORAGE_KEY = "firouzjaei-family-site-state-v1";
 const SESSION_KEY = "firouzjaei-family-site-session-v1";
+const MAX_LOCAL_UPLOAD_BYTES = 2 * 1024 * 1024;
 const VALID_ROUTES = ["home", "tree", "gallery", "history"];
 const TREE_CANVAS_WIDTH = 1420;
 const TREE_CANVAS_HEIGHT = 760;
@@ -227,6 +228,7 @@ const sampleState = {
       palette: ["#315d7e", "#e2edf4"],
     },
   ],
+  submissions: [],
   history:
     "این متن نمونه برای صفحه تاریخچه است. در نسخه نهایی، می توانید روایت رسمی خانواده، نام روستاها، شاخه های اصلی، خاطرات بزرگان و رویدادهای مهم را اینجا وارد کنید.\n\nهدف این وب سایت این است که هر نسل بتواند با احترام به گذشته، اطلاعات خانوادگی را به شکلی مرتب، خوانا و قابل نگهداری ببیند. درخت خانوادگی، گالری عکس و تاریخچه در کنار هم یک دفتر زنده می سازند؛ دفتری که هم رسمی است و هم برای خانواده صمیمی و قابل استفاده می ماند.",
 };
@@ -240,6 +242,15 @@ let pendingRelationship = null;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+
+function escapeHtml(value = "") {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
 
 function normalizeGender(value) {
   return value === "male" || value === "female" ? value : "unknown";
@@ -270,6 +281,7 @@ function normalizeState(value) {
   normalized.people = (normalized.people || []).map((person) => ({
     ...person,
     gender: normalizeGender(person.gender || defaultGenderForPerson(person)),
+    media: (person.media || []).map(normalizeMediaItem).filter(Boolean),
     spouseIds: Array.from(new Set(person.spouseIds || [])).filter(Boolean),
     parentIds: Array.from(new Set(person.parentIds || [])).filter(Boolean).slice(0, 2),
   }));
@@ -283,6 +295,7 @@ function normalizeState(value) {
   normalized.gallery = normalized.gallery || [];
   normalized.admins = normalized.admins || clone(sampleState).admins;
   normalized.subscribers = normalized.subscribers || [];
+  normalized.submissions = (normalized.submissions || []).map(normalizeSubmission).filter(Boolean);
   return normalized;
 }
 
@@ -369,6 +382,133 @@ function gallerySvg(title, palette = colors[0]) {
     <text x="450" y="140" text-anchor="middle" font-size="46" font-family="Tahoma" fill="${dark}">${title}</text>
   </svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function makeId(prefix) {
+  return `${prefix}${Date.now()}${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function mediaTypeFromSource(src = "", mimeType = "") {
+  if (
+    mimeType === "video" ||
+    mimeType.startsWith("video/") ||
+    src.startsWith("data:video/") ||
+    /\.(mp4|webm|mov|m4v|ogg)(\?|#|$)/i.test(src)
+  ) {
+    return "video";
+  }
+  return "image";
+}
+
+function normalizeMediaItem(item) {
+  if (!item) return null;
+  if (typeof item === "string") {
+    const src = item.trim();
+    if (!src) return null;
+    return {
+      id: makeId("m"),
+      type: mediaTypeFromSource(src),
+      src,
+      name: "رسانه",
+      addedAt: "",
+    };
+  }
+  const src = (item.src || item.url || "").trim();
+  if (!src) return null;
+  return {
+    id: item.id || makeId("m"),
+    type: mediaTypeFromSource(src, item.mimeType || item.type || ""),
+    src,
+    name: item.name || "رسانه",
+    addedAt: item.addedAt || "",
+  };
+}
+
+function normalizeSubmission(item) {
+  if (!item || !item.personId || !item.message) return null;
+  return {
+    id: item.id || makeId("s"),
+    personId: item.personId,
+    personName: item.personName || "",
+    name: item.name || "",
+    contact: item.contact || "",
+    message: item.message || "",
+    media: (item.media || []).map(normalizeMediaItem).filter(Boolean),
+    status: item.status || "pending",
+    createdAt: item.createdAt || new Date().toISOString(),
+  };
+}
+
+function uniqueMedia(items) {
+  const seen = new Set();
+  return items
+    .map(normalizeMediaItem)
+    .filter(Boolean)
+    .filter((item) => {
+      if (seen.has(item.src)) return false;
+      seen.add(item.src);
+      return true;
+    });
+}
+
+function personMedia(person) {
+  return uniqueMedia([...(person.media || []), ...(person.photos || [])]);
+}
+
+function mediaPreviewMarkup(media, alt = "") {
+  const item = normalizeMediaItem(media);
+  if (!item) return "";
+  const safeSrc = escapeHtml(item.src);
+  const safeAlt = escapeHtml(alt || item.name || "رسانه");
+  if (item.type === "video") {
+    return `<video src="${safeSrc}" controls preload="metadata"></video>`;
+  }
+  return `<img src="${safeSrc}" alt="${safeAlt}">`;
+}
+
+function formatDateTime(value) {
+  if (!value) return "";
+  try {
+    return new Intl.DateTimeFormat("fa-IR", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
+  } catch {
+    return "";
+  }
+}
+
+function fileToMedia(file) {
+  if (!file) return Promise.resolve(null);
+  if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+    return Promise.reject(new Error("فقط عکس یا ویدیو قابل بارگذاری است."));
+  }
+  if (file.size > MAX_LOCAL_UPLOAD_BYTES) {
+    return Promise.reject(new Error("در نسخه فعلی، هر فایل باید کمتر از ۲ مگابایت باشد."));
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      resolve({
+        id: makeId("m"),
+        type: mediaTypeFromSource(reader.result, file.type),
+        src: reader.result,
+        name: file.name,
+        addedAt: new Date().toISOString(),
+      });
+    });
+    reader.addEventListener("error", () => reject(new Error("خواندن فایل انجام نشد.")));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function filesToMedia(fileList) {
+  const files = Array.from(fileList || []);
+  const media = await Promise.all(files.map(fileToMedia));
+  return media.filter(Boolean);
 }
 
 function routeTo(route) {
@@ -636,25 +776,90 @@ function openPerson(id) {
   const spouses = person.spouseIds
     ?.map((spouseId) => state.people.find((item) => item.id === spouseId)?.name)
     .filter(Boolean);
-  const photos = (person.photos || []).filter(Boolean);
+  const media = personMedia(person);
   detail.innerHTML = `
     <div class="detail-head">
-      <span class="avatar"><img src="${person.photo || avatarSvg(person.name, index)}" alt="${person.name}"></span>
+      <span class="avatar"><img src="${escapeHtml(person.photo || avatarSvg(person.name, index))}" alt="${escapeHtml(person.name)}"></span>
       <div>
         <p class="eyebrow">پرونده خانوادگی</p>
-        <h2>${person.name}</h2>
+        <h2>${escapeHtml(person.name)}</h2>
         <div class="detail-meta">
-          ${dates.map((item) => `<span>${item}</span>`).join("")}
+          ${dates.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
           ${gender !== "unknown" ? `<span>جنسیت: ${genderLabel(gender)}</span>` : ""}
-          ${parents?.length ? `<span>والدین: ${parents.join(" و ")}</span>` : ""}
-          ${spouses?.length ? `<span>${spouses.length > 1 ? "همسران" : "همسر"}: ${spouses.join("، ")}</span>` : ""}
+          ${parents?.length ? `<span>والدین: ${escapeHtml(parents.join(" و "))}</span>` : ""}
+          ${spouses?.length ? `<span>${spouses.length > 1 ? "همسران" : "همسر"}: ${escapeHtml(spouses.join("، "))}</span>` : ""}
         </div>
       </div>
     </div>
-    ${person.story ? `<p>${person.story}</p>` : ""}
-    ${photos.length ? `<div class="detail-gallery">${photos.map((src) => `<img src="${src}" alt="${person.name}">`).join("")}</div>` : ""}
+    ${person.story ? `<p>${escapeHtml(person.story)}</p>` : ""}
+    ${media.length ? `<div class="detail-gallery">${media.map((item) => mediaPreviewMarkup(item, person.name)).join("")}</div>` : ""}
+    <form class="request-form" data-request-form>
+      <h3>پیشنهاد اصلاح برای مدیران</h3>
+      <div class="form-grid">
+        <label>نام شما
+          <input name="name" type="text" required>
+        </label>
+        <label>راه تماس
+          <input name="contact" type="text" placeholder="ایمیل یا تلفن">
+        </label>
+      </div>
+      <label>درخواست اصلاح یا اطلاعات پیشنهادی
+        <textarea name="message" rows="4" required></textarea>
+      </label>
+      <label>ارسال عکس یا ویدیو برای بررسی
+        <input name="media" type="file" accept="image/*,video/*" multiple>
+      </label>
+      <div class="form-actions">
+        <button class="primary-action" type="submit">ارسال برای بررسی</button>
+      </div>
+      <p class="form-message" data-request-message role="status"></p>
+    </form>
   `;
+  const requestForm = $("[data-request-form]", detail);
+  requestForm.addEventListener("submit", handleSubmissionRequest);
   $("#personDialog").showModal();
+}
+
+async function handleSubmissionRequest(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const fields = form.elements;
+  const message = $("[data-request-message]", form);
+  const person = state.people.find((item) => item.id === selectedPersonId);
+  if (!person) return;
+  if (!fields.name.value.trim() || !fields.message.value.trim()) {
+    message.textContent = "نام و متن درخواست را کامل وارد کنید.";
+    return;
+  }
+
+  message.textContent = "در حال ثبت درخواست...";
+  try {
+    const media = await filesToMedia(fields.media.files);
+    const submission = normalizeSubmission({
+      id: makeId("s"),
+      personId: person.id,
+      personName: person.name,
+      name: fields.name.value.trim(),
+      contact: fields.contact.value.trim(),
+      message: fields.message.value.trim(),
+      media,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    });
+    state.submissions.unshift(submission);
+    try {
+      saveState();
+    } catch {
+      state.submissions = state.submissions.filter((item) => item.id !== submission.id);
+      message.textContent = "حجم فایل‌ها برای ذخیره در این نسخه زیاد است.";
+      return;
+    }
+    form.reset();
+    message.textContent = "درخواست شما برای مدیران ثبت شد.";
+    renderSubmissions();
+  } catch (error) {
+    message.textContent = error.message || "ثبت درخواست انجام نشد.";
+  }
 }
 
 function renderGallery() {
@@ -777,6 +982,112 @@ function applyPendingRelationship(person) {
   child.parentIds = orderedParentIds(parentIds);
 }
 
+function submissionStatusLabel(status) {
+  return (
+    {
+      pending: "در انتظار بررسی",
+      approved: "رسانه افزوده شد",
+      headshot: "عکس اصلی به‌روز شد",
+      done: "انجام شد",
+    }[status] || "ثبت شده"
+  );
+}
+
+function renderSubmissions() {
+  const list = $("#submissionsList");
+  if (!list) return;
+  list.innerHTML = "";
+
+  const submissions = (state.submissions || [])
+    .slice()
+    .sort((a, b) => {
+      const statusOrder = { pending: 0, approved: 1, headshot: 1, done: 2 };
+      return (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3) || new Date(b.createdAt) - new Date(a.createdAt);
+    });
+
+  if (!submissions.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "هنوز درخواستی ثبت نشده است.";
+    list.appendChild(empty);
+    return;
+  }
+
+  submissions.forEach((submission) => {
+    const person = state.people.find((item) => item.id === submission.personId);
+    const media = (submission.media || []).map(normalizeMediaItem).filter(Boolean);
+    const firstImage = media.find((item) => item.type === "image");
+    const card = document.createElement("article");
+    card.className = `submission-card status-${submission.status || "pending"}`;
+    card.innerHTML = `
+      <div class="submission-head">
+        <div>
+          <p class="eyebrow">${escapeHtml(submissionStatusLabel(submission.status))}</p>
+          <h3>${escapeHtml(person?.name || submission.personName || "فرد حذف شده")}</h3>
+        </div>
+        <span>${escapeHtml(formatDateTime(submission.createdAt))}</span>
+      </div>
+      <div class="submission-meta">
+        ${submission.name ? `<span>فرستنده: ${escapeHtml(submission.name)}</span>` : ""}
+        ${submission.contact ? `<span>تماس: ${escapeHtml(submission.contact)}</span>` : ""}
+      </div>
+      <p>${escapeHtml(submission.message)}</p>
+      ${media.length ? `<div class="submission-media">${media.map((item) => mediaPreviewMarkup(item, submission.personName)).join("")}</div>` : ""}
+      <div class="form-actions">
+        <button class="soft-action" type="button" data-add-submission-media ${!person || !media.length ? "disabled" : ""}>افزودن رسانه به گالری فرد</button>
+        <button class="soft-action" type="button" data-use-submission-headshot ${!person || !firstImage ? "disabled" : ""}>اولین عکس به عنوان عکس اصلی</button>
+        <button class="primary-action" type="button" data-resolve-submission>انجام شد</button>
+        <button class="danger-action" type="button" data-delete-submission>حذف</button>
+      </div>
+    `;
+    $("[data-add-submission-media]", card).addEventListener("click", () => approveSubmissionMedia(submission.id, false));
+    $("[data-use-submission-headshot]", card).addEventListener("click", () => approveSubmissionMedia(submission.id, true));
+    $("[data-resolve-submission]", card).addEventListener("click", () => updateSubmissionStatus(submission.id, "done"));
+    $("[data-delete-submission]", card).addEventListener("click", () => deleteSubmission(submission.id));
+    list.appendChild(card);
+  });
+}
+
+function approveSubmissionMedia(submissionId, useFirstImageAsHeadshot) {
+  const submission = state.submissions.find((item) => item.id === submissionId);
+  const person = state.people.find((item) => item.id === submission?.personId);
+  if (!submission || !person) return;
+
+  const media = (submission.media || []).map(normalizeMediaItem).filter(Boolean);
+  if (!media.length) return;
+
+  let mediaForGallery = media;
+  if (useFirstImageAsHeadshot) {
+    const firstImage = media.find((item) => item.type === "image");
+    if (firstImage) {
+      person.photo = firstImage.src;
+      mediaForGallery = media.filter((item) => item.id !== firstImage.id);
+      submission.status = "headshot";
+    }
+  } else {
+    submission.status = "approved";
+  }
+
+  person.media = uniqueMedia([...(person.media || []), ...mediaForGallery]);
+  submission.media = [];
+  saveState();
+  refreshAll();
+}
+
+function updateSubmissionStatus(submissionId, status) {
+  const submission = state.submissions.find((item) => item.id === submissionId);
+  if (!submission) return;
+  submission.status = status;
+  saveState();
+  renderSubmissions();
+}
+
+function deleteSubmission(submissionId) {
+  state.submissions = state.submissions.filter((item) => item.id !== submissionId);
+  saveState();
+  renderSubmissions();
+}
+
 function refreshAdminLists() {
   const peopleList = $("#peopleList");
   peopleList.innerHTML = "";
@@ -817,6 +1128,7 @@ function refreshAdminLists() {
   $$('select[name="parentOne"], select[name="parentTwo"]').forEach((select) => {
     select.innerHTML = personOptions();
   });
+  renderSubmissions();
 }
 
 function fillPersonForm(id) {
@@ -834,8 +1146,10 @@ function fillPersonForm(id) {
   fields.generation.value = person.generation ?? 0;
   fields.slot.value = person.slot ?? 0;
   fields.photo.value = person.photo || "";
+  fields.headshotFile.value = "";
   fields.story.value = person.story || "";
   fields.photos.value = (person.photos || []).join("\n");
+  fields.mediaFiles.value = "";
   fields.spouseId.innerHTML = personOptions(person.spouseIds || [], false);
   fields.parentOne.innerHTML = personOptions(person.parentIds?.[0] || "");
   fields.parentTwo.innerHTML = personOptions(person.parentIds?.[1] || "");
@@ -910,6 +1224,7 @@ function bindEvents() {
   $("[data-open-login]").addEventListener("click", () => (isAdmin() ? openAdminPanel() : $("#loginDialog").showModal()));
   $("[data-close-login]").addEventListener("click", () => $("#loginDialog").close());
   $("[data-close-admin]").addEventListener("click", () => $("#adminDialog").close());
+  $("[data-close-person]").addEventListener("click", () => $("#personDialog").close());
   $("[data-close-person-editor]").addEventListener("click", () => $("#personEditorDialog").close());
   const openPersonButton = $("[data-open-person-editor]");
   if (openPersonButton) openPersonButton.addEventListener("click", () => openPersonEditor());
@@ -960,7 +1275,7 @@ function bindEvents() {
     $("#subscribeMessage").textContent = "اشتراک ثبت شد.";
   });
 
-  $("#personEditor").addEventListener("submit", (event) => {
+  $("#personEditor").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
     const fields = form.elements;
@@ -968,6 +1283,15 @@ function bindEvents() {
     const existing = state.people.find((item) => item.id === id);
     const person = existing || { id, spouseIds: [], parentIds: [] };
     const spouseIds = selectedSelectValues(fields.spouseId).filter((spouseId) => spouseId !== id);
+    let headshotMedia = null;
+    let uploadedMedia = [];
+    try {
+      headshotMedia = fields.headshotFile.files?.[0] ? await fileToMedia(fields.headshotFile.files[0]) : null;
+      uploadedMedia = await filesToMedia(fields.mediaFiles.files);
+    } catch (error) {
+      alert(error.message || "بارگذاری فایل انجام نشد.");
+      return;
+    }
     let generation = Number(fields.generation.value || 0);
     if (!existing && pendingRelationship?.type === "parent") {
       const child = state.people.find((item) => item.id === pendingRelationship.baseId);
@@ -991,9 +1315,10 @@ function bindEvents() {
     person.death = fields.death.value.trim();
     person.generation = generation;
     person.slot = Number(fields.slot.value || 0);
-    person.photo = fields.photo.value.trim();
+    person.photo = headshotMedia?.src || fields.photo.value.trim();
     person.story = fields.story.value.trim();
     person.photos = fields.photos.value.split(/\n+/).map((item) => item.trim()).filter(Boolean);
+    person.media = uniqueMedia([...(person.media || []), ...uploadedMedia]);
     person.parentIds = orderedParentIds([fields.parentOne.value, fields.parentTwo.value]);
     person.spouseIds = Array.from(new Set(spouseIds));
     if (!existing) state.people.push(person);
