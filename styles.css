@@ -420,6 +420,33 @@ h2 {
   box-shadow: 0 12px 28px rgba(21, 34, 31, 0.06);
 }
 
+.tree-navigation {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  align-items: end;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.tree-navigation label {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.tree-nav-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tree-focus-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
 .tree-view .section-head {
   max-width: none;
 }
@@ -588,6 +615,40 @@ label select:focus,
   box-shadow: 0 12px 28px rgba(21, 34, 31, 0.09);
   cursor: pointer;
   transform: translate(-50%, -50%);
+}
+
+.person-node.collapsed {
+  border-style: dashed;
+  background: #fffaf0;
+}
+
+.branch-toggle {
+  position: absolute;
+  top: -11px;
+  left: -11px;
+  z-index: 2;
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 3px;
+  min-width: 32px;
+  min-height: 28px;
+  padding: 0 7px;
+  border: 1px solid rgba(185, 133, 40, 0.36);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--gold);
+  font-weight: 820;
+  box-shadow: 0 8px 18px rgba(21, 34, 31, 0.1);
+}
+
+.branch-toggle[hidden] {
+  display: none;
+}
+
+.branch-toggle small {
+  color: var(--muted);
+  font-size: 0.68rem;
 }
 
 .person-node.gender-male {
@@ -854,6 +915,59 @@ body.admin-mode .person-node:focus-within .node-actions {
   font-size: 1.08rem;
 }
 
+.detail-branch-nav {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(49, 93, 126, 0.16);
+  border-radius: var(--radius);
+  background: #f4f8fb;
+}
+
+.detail-branch-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.detail-branch-head h3,
+.detail-branch-head p {
+  margin: 0;
+}
+
+.detail-link-group {
+  display: grid;
+  gap: 6px;
+}
+
+.detail-link-group > span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.detail-link-group > div {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.link-chip {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(49, 93, 126, 0.16);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--blue);
+  font-size: 0.84rem;
+  font-weight: 760;
+}
+
+.link-chip:hover {
+  border-color: rgba(49, 93, 126, 0.38);
+}
+
 .detail-admin-tools {
   display: none;
   gap: 14px;
@@ -1097,6 +1211,10 @@ body.admin-mode .admin-only {
   .tree-sidebar {
     grid-template-columns: 1fr;
     order: 2;
+  }
+
+  .tree-navigation {
+    grid-template-columns: 1fr;
   }
 
   .site-directory {

@@ -124,6 +124,19 @@
                 <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>
                 <input id="familySearch" type="search" placeholder="جست وجوی نام" autocomplete="off" />
               </label>
+              <div class="tree-navigation" aria-label="ناوبری درخت">
+                <label>شاخه اصلی
+                  <select id="treeRootSelect"></select>
+                </label>
+                <div class="tree-nav-buttons">
+                  <button class="soft-action" type="button" data-tree-focus-selected>تمرکز روی انتخاب</button>
+                  <button class="soft-action" type="button" data-tree-focus-parent>بالا: والد</button>
+                  <button class="soft-action" type="button" data-tree-focus-child>پایین: فرزند</button>
+                  <button class="soft-action" type="button" data-tree-clear-focus>نمایش همه</button>
+                  <button class="soft-action" type="button" data-tree-expand-all>باز کردن همه</button>
+                </div>
+                <p class="tree-focus-note" id="treeFocusNote"></p>
+              </div>
               <div class="legend">
                 <span><i class="legend-dot marriage"></i> پیوند همسری</span>
                 <span><i class="legend-dot descent"></i> فرزند</span>
@@ -374,6 +387,10 @@
 
     <template id="nodeTemplate">
       <div class="person-node" role="button" tabindex="0">
+        <button class="branch-toggle" type="button" data-toggle-branch title="بستن شاخه">
+          <span data-branch-symbol>−</span>
+          <small data-branch-count></small>
+        </button>
         <span class="avatar"></span>
         <span class="person-name"></span>
         <span class="node-actions" aria-label="افزودن نسبت خانوادگی">
