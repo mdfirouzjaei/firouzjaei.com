@@ -918,7 +918,7 @@ function renderTree() {
     $(".person-name", node).textContent = person.name;
     const toggleButton = $("[data-toggle-branch]", node);
     const descendantTotal = descendantCount(person.id);
-    if (descendantTotal) {
+    if (toggleButton && descendantTotal) {
       const isCollapsed = collapsedPersonIds.has(person.id);
       node.classList.toggle("collapsed", isCollapsed);
       $("[data-branch-symbol]", toggleButton).textContent = isCollapsed ? "+" : "−";
@@ -934,7 +934,7 @@ function renderTree() {
         }
         renderTree();
       });
-    } else {
+    } else if (toggleButton) {
       toggleButton.hidden = true;
     }
     const editButton = $("[data-edit-person]", node);
@@ -1670,27 +1670,41 @@ function bindEvents() {
   $$("[data-logout]").forEach((button) => button.addEventListener("click", logoutAdmin));
 
   $("#familySearch").addEventListener("input", renderTree);
-  $("#treeRootSelect").addEventListener("change", (event) => {
-    treeFocusId = event.currentTarget.value;
-    if (treeFocusId) {
-      selectedPersonId = treeFocusId;
-      collapsedPersonIds.delete(treeFocusId);
-    }
-    renderTree();
-  });
-  $("[data-tree-focus-selected]").addEventListener("click", () => {
-    if (selectedPersonId) focusTreeOnPerson(selectedPersonId);
-  });
-  $("[data-tree-focus-parent]").addEventListener("click", () => moveTreeSelection("parent"));
-  $("[data-tree-focus-child]").addEventListener("click", () => moveTreeSelection("child"));
-  $("[data-tree-clear-focus]").addEventListener("click", () => {
-    treeFocusId = "";
-    renderTree();
-  });
-  $("[data-tree-expand-all]").addEventListener("click", () => {
-    collapsedPersonIds.clear();
-    renderTree();
-  });
+  const treeRootSelect = $("#treeRootSelect");
+  if (treeRootSelect) {
+    treeRootSelect.addEventListener("change", (event) => {
+      treeFocusId = event.currentTarget.value;
+      if (treeFocusId) {
+        selectedPersonId = treeFocusId;
+        collapsedPersonIds.delete(treeFocusId);
+      }
+      renderTree();
+    });
+  }
+  const treeFocusSelected = $("[data-tree-focus-selected]");
+  if (treeFocusSelected) {
+    treeFocusSelected.addEventListener("click", () => {
+      if (selectedPersonId) focusTreeOnPerson(selectedPersonId);
+    });
+  }
+  const treeFocusParent = $("[data-tree-focus-parent]");
+  if (treeFocusParent) treeFocusParent.addEventListener("click", () => moveTreeSelection("parent"));
+  const treeFocusChild = $("[data-tree-focus-child]");
+  if (treeFocusChild) treeFocusChild.addEventListener("click", () => moveTreeSelection("child"));
+  const treeClearFocus = $("[data-tree-clear-focus]");
+  if (treeClearFocus) {
+    treeClearFocus.addEventListener("click", () => {
+      treeFocusId = "";
+      renderTree();
+    });
+  }
+  const treeExpandAll = $("[data-tree-expand-all]");
+  if (treeExpandAll) {
+    treeExpandAll.addEventListener("click", () => {
+      collapsedPersonIds.clear();
+      renderTree();
+    });
+  }
   $("[data-zoom-in]").addEventListener("click", () => setZoom(treeZoom + 0.1));
   $("[data-zoom-out]").addEventListener("click", () => setZoom(treeZoom - 0.1));
   $("[data-zoom-reset]").addEventListener("click", () => setZoom(1));
