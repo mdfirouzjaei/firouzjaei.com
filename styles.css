@@ -464,6 +464,14 @@ label textarea {
   resize: vertical;
 }
 
+.field-note {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
 label input:focus,
 label textarea:focus,
 label select:focus,

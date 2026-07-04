@@ -270,7 +270,16 @@ function normalizeState(value) {
   normalized.people = (normalized.people || []).map((person) => ({
     ...person,
     gender: normalizeGender(person.gender || defaultGenderForPerson(person)),
+    spouseIds: Array.from(new Set(person.spouseIds || [])).filter(Boolean),
+    parentIds: Array.from(new Set(person.parentIds || [])).filter(Boolean).slice(0, 2),
   }));
+  normalized.people.forEach((person) => {
+    person.spouseIds = person.spouseIds.filter((spouseId) => spouseId !== person.id);
+    person.spouseIds.forEach((spouseId) => {
+      const spouse = normalized.people.find((item) => item.id === spouseId);
+      if (spouse && !spouse.spouseIds.includes(person.id)) spouse.spouseIds.push(person.id);
+    });
+  });
   normalized.gallery = normalized.gallery || [];
   normalized.admins = normalized.admins || clone(sampleState).admins;
   normalized.subscribers = normalized.subscribers || [];
@@ -638,7 +647,7 @@ function openPerson(id) {
           ${dates.map((item) => `<span>${item}</span>`).join("")}
           ${gender !== "unknown" ? `<span>جنسیت: ${genderLabel(gender)}</span>` : ""}
           ${parents?.length ? `<span>والدین: ${parents.join(" و ")}</span>` : ""}
-          ${spouses?.length ? `<span>همسر: ${spouses.join("، ")}</span>` : ""}
+          ${spouses?.length ? `<span>${spouses.length > 1 ? "همسران" : "همسر"}: ${spouses.join("، ")}</span>` : ""}
         </div>
       </div>
     </div>
@@ -686,13 +695,20 @@ function updateAdminStatus() {
 }
 
 function personOptions(selectedId = "", includeEmpty = true) {
+  const selectedIds = new Set(Array.isArray(selectedId) ? selectedId.filter(Boolean) : selectedId ? [selectedId] : []);
   const empty = includeEmpty ? `<option value="">انتخاب نشده</option>` : "";
   return (
     empty +
     state.people
-      .map((person) => `<option value="${person.id}" ${person.id === selectedId ? "selected" : ""}>${person.name}</option>`)
+      .map((person) => `<option value="${person.id}" ${selectedIds.has(person.id) ? "selected" : ""}>${person.name}</option>`)
       .join("")
   );
+}
+
+function selectedSelectValues(select) {
+  return Array.from(select.selectedOptions)
+    .map((option) => option.value)
+    .filter(Boolean);
 }
 
 function nextAvailableSlot(generation, preferredSlot, excludeId = "") {
@@ -728,7 +744,7 @@ function fillRelativeForm(baseId, relation) {
     fields.generation.value = baseGeneration;
     fields.gender.value = suggestedSpouseGender;
     fields.slot.value = nextAvailableSlot(baseGeneration, preferredSpouseSlot(base, suggestedSpouseGender));
-    fields.spouseId.innerHTML = personOptions(base.id);
+    fields.spouseId.innerHTML = personOptions([base.id], false);
   }
 
   if (relation === "child") {
@@ -795,7 +811,10 @@ function refreshAdminLists() {
     adminsList.appendChild(row);
   });
 
-  $$('select[name="spouseId"], select[name="parentOne"], select[name="parentTwo"]').forEach((select) => {
+  $$('select[name="spouseId"]').forEach((select) => {
+    select.innerHTML = personOptions([], false);
+  });
+  $$('select[name="parentOne"], select[name="parentTwo"]').forEach((select) => {
     select.innerHTML = personOptions();
   });
 }
@@ -817,7 +836,7 @@ function fillPersonForm(id) {
   fields.photo.value = person.photo || "";
   fields.story.value = person.story || "";
   fields.photos.value = (person.photos || []).join("\n");
-  fields.spouseId.innerHTML = personOptions(person.spouseIds?.[0] || "");
+  fields.spouseId.innerHTML = personOptions(person.spouseIds || [], false);
   fields.parentOne.innerHTML = personOptions(person.parentIds?.[0] || "");
   fields.parentTwo.innerHTML = personOptions(person.parentIds?.[1] || "");
 }
@@ -832,7 +851,7 @@ function clearPersonForm() {
   fields.gender.value = "unknown";
   fields.generation.value = 0;
   fields.slot.value = 0;
-  fields.spouseId.innerHTML = personOptions();
+  fields.spouseId.innerHTML = personOptions([], false);
   fields.parentOne.innerHTML = personOptions();
   fields.parentTwo.innerHTML = personOptions();
 }
@@ -948,7 +967,7 @@ function bindEvents() {
     const id = fields.id.value || `p${Date.now()}`;
     const existing = state.people.find((item) => item.id === id);
     const person = existing || { id, spouseIds: [], parentIds: [] };
-    const spouseId = fields.spouseId.value;
+    const spouseIds = selectedSelectValues(fields.spouseId).filter((spouseId) => spouseId !== id);
     let generation = Number(fields.generation.value || 0);
     if (!existing && pendingRelationship?.type === "parent") {
       const child = state.people.find((item) => item.id === pendingRelationship.baseId);
@@ -976,19 +995,25 @@ function bindEvents() {
     person.story = fields.story.value.trim();
     person.photos = fields.photos.value.split(/\n+/).map((item) => item.trim()).filter(Boolean);
     person.parentIds = orderedParentIds([fields.parentOne.value, fields.parentTwo.value]);
-    person.spouseIds = spouseId ? [spouseId] : [];
+    person.spouseIds = Array.from(new Set(spouseIds));
     if (!existing) state.people.push(person);
     state.people.forEach((item) => {
-      if (item.id !== person.id) item.spouseIds = (item.spouseIds || []).filter((spouse) => spouse !== person.id);
+      if (item.id === person.id) return;
+      item.spouseIds = item.spouseIds || [];
+      if (person.spouseIds.includes(item.id)) {
+        if (!item.spouseIds.includes(person.id)) item.spouseIds.push(person.id);
+      } else {
+        item.spouseIds = item.spouseIds.filter((spouse) => spouse !== person.id);
+      }
     });
-    if (spouseId) {
+    person.spouseIds.forEach((spouseId) => {
       const spouse = state.people.find((item) => item.id === spouseId);
       if (spouse) {
         spouse.spouseIds = spouse.spouseIds || [];
         if (!spouse.spouseIds.includes(person.id)) spouse.spouseIds.push(person.id);
         alignSpouseSlots(person, spouseId);
       }
-    }
+    });
     applyPendingRelationship(person);
     pendingRelationship = null;
     saveState();
