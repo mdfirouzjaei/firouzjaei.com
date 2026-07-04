@@ -54,6 +54,7 @@
         <div class="quick-actions" aria-label="دسترسی سریع">
           <button class="quick-button" type="button" data-open-subscribe>اشتراک</button>
           <button class="quick-button emphasis" type="button" data-open-login>ورود مدیر</button>
+          <button class="quick-button admin-only signout-button" type="button" data-logout>خروج</button>
         </div>
       </header>
 
@@ -114,7 +115,6 @@
               <button class="icon-button" type="button" data-zoom-in title="بزرگ نمایی">
                 <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
               </button>
-              <button class="admin-only soft-action" type="button" data-open-person-editor>افزودن فرد</button>
             </div>
           </div>
 
@@ -194,6 +194,13 @@
           </label>
           <label>سال تولد
             <input name="birth" type="text" />
+          </label>
+          <label>جنسیت
+            <select name="gender">
+              <option value="unknown">نامشخص</option>
+              <option value="male">مرد</option>
+              <option value="female">زن</option>
+            </select>
           </label>
           <label>سال درگذشت
             <input name="death" type="text" />
@@ -356,6 +363,7 @@
         <span class="avatar"></span>
         <span class="person-name"></span>
         <span class="node-actions" aria-label="افزودن نسبت خانوادگی">
+          <button type="button" data-edit-person>ویرایش</button>
           <button type="button" data-add-relative="spouse">همسر</button>
           <button type="button" data-add-relative="child">فرزند</button>
           <button type="button" data-add-relative="parent">والد</button>

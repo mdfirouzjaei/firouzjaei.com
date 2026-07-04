@@ -202,6 +202,12 @@ svg {
   border-color: var(--green);
 }
 
+.signout-button {
+  background: #fff1f3;
+  color: #9a243d;
+  border-color: rgba(138, 47, 69, 0.2);
+}
+
 .danger-action {
   min-height: 40px;
   padding: 0 14px;
@@ -559,8 +565,8 @@ label select:focus,
   direction: rtl;
   display: grid;
   justify-items: center;
-  width: 124px;
-  min-height: 150px;
+  width: 138px;
+  min-height: 158px;
   padding: 10px 8px;
   border: 1px solid rgba(36, 85, 76, 0.18);
   border-radius: var(--radius);
@@ -569,6 +575,14 @@ label select:focus,
   box-shadow: 0 12px 28px rgba(21, 34, 31, 0.09);
   cursor: pointer;
   transform: translate(-50%, -50%);
+}
+
+.person-node.gender-male {
+  border-color: rgba(49, 93, 126, 0.24);
+}
+
+.person-node.gender-female {
+  border-color: rgba(138, 47, 69, 0.22);
 }
 
 .person-node:hover,
@@ -622,10 +636,12 @@ label select:focus,
   left: 50%;
   z-index: 4;
   display: none;
-  gap: 4px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  width: 148px;
   padding: 5px;
   border: 1px solid rgba(36, 85, 76, 0.16);
-  border-radius: 999px;
+  border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 10px 24px rgba(21, 34, 31, 0.12);
   opacity: 0;
@@ -635,7 +651,7 @@ label select:focus,
 }
 
 body.admin-mode .node-actions {
-  display: flex;
+  display: grid;
 }
 
 body.admin-mode .person-node:hover .node-actions,
@@ -647,7 +663,7 @@ body.admin-mode .person-node:focus-within .node-actions {
 
 .node-actions button {
   min-height: 26px;
-  padding: 0 8px;
+  padding: 0 6px;
   border: 1px solid transparent;
   border-radius: 999px;
   background: #f4faf7;

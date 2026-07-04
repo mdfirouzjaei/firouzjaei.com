@@ -7,6 +7,15 @@ const VALID_ROUTES = ["home", "tree", "gallery", "history"];
 const TREE_CANVAS_WIDTH = 1420;
 const TREE_CANVAS_HEIGHT = 760;
 const MAX_TREE_SLOT = 24;
+const NODE_BASE_X = 150;
+const NODE_BASE_Y = 120;
+const NODE_X_GAP = 190;
+const NODE_Y_GAP = 250;
+const GENDER_LABELS = {
+  male: "مرد",
+  female: "زن",
+  unknown: "نامشخص",
+};
 
 const colors = [
   ["#24554c", "#dcebe6"],
@@ -232,15 +241,51 @@ let pendingRelationship = null;
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 
+function normalizeGender(value) {
+  return value === "male" || value === "female" ? value : "unknown";
+}
+
+function defaultGenderForPerson(person) {
+  const sampleGenders = {
+    p1: "male",
+    p2: "female",
+    p3: "male",
+    p4: "male",
+    p5: "male",
+    p6: "female",
+    p7: "female",
+    p8: "male",
+    p9: "male",
+    p10: "male",
+    p11: "male",
+    p12: "female",
+    p13: "male",
+    p14: "female",
+  };
+  return sampleGenders[person.id] || "unknown";
+}
+
+function normalizeState(value) {
+  const normalized = { ...clone(sampleState), ...value };
+  normalized.people = (normalized.people || []).map((person) => ({
+    ...person,
+    gender: normalizeGender(person.gender || defaultGenderForPerson(person)),
+  }));
+  normalized.gallery = normalized.gallery || [];
+  normalized.admins = normalized.admins || clone(sampleState).admins;
+  normalized.subscribers = normalized.subscribers || [];
+  return normalized;
+}
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
 function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return clone(sampleState);
+  if (!raw) return normalizeState(clone(sampleState));
   try {
-    const loadedState = { ...clone(sampleState), ...JSON.parse(raw) };
+    const loadedState = normalizeState(JSON.parse(raw));
     const owner = loadedState.admins.find((admin) => admin.email.toLowerCase() === OWNER_EMAIL);
     if (owner && LEGACY_OWNER_PASSWORDS.includes(owner.password)) {
       owner.password = DEFAULT_OWNER_PASSWORD;
@@ -248,7 +293,7 @@ function loadState() {
     }
     return loadedState;
   } catch {
-    return clone(sampleState);
+    return normalizeState(clone(sampleState));
   }
 }
 
@@ -325,22 +370,100 @@ function routeTo(route) {
 }
 
 function nodePosition(person) {
-  const baseX = 130;
-  const baseY = 110;
-  const xGap = 145;
-  const yGap = 178;
   return {
-    x: baseX + Number(person.slot || 0) * xGap,
-    y: baseY + Number(person.generation || 0) * yGap,
+    x: NODE_BASE_X + Number(person.slot || 0) * NODE_X_GAP,
+    y: NODE_BASE_Y + Number(person.generation || 0) * NODE_Y_GAP,
   };
 }
 
-function treeCanvasSize() {
+function genderSortValue(person) {
+  if (person.gender === "male") return 0;
+  if (person.gender === "female") return 1;
+  return 2;
+}
+
+function genderLabel(gender) {
+  return GENDER_LABELS[normalizeGender(gender)];
+}
+
+function oppositeSpouseGender(gender) {
+  if (gender === "male") return "female";
+  if (gender === "female") return "male";
+  return "unknown";
+}
+
+function preferredSpouseSlot(basePerson, newGender = "unknown") {
+  const baseSlot = Number(basePerson.slot || 0);
+  const baseGender = normalizeGender(basePerson.gender);
+  const gender = normalizeGender(newGender);
+  if (baseGender === "female" || gender === "male") return Math.max(0, baseSlot - 1);
+  return baseSlot + 1;
+}
+
+function orderedParentIds(parentIds) {
+  return parentIds
+    .filter(Boolean)
+    .slice(0, 2)
+    .sort((a, b) => {
+      const parentA = state.people.find((person) => person.id === a);
+      const parentB = state.people.find((person) => person.id === b);
+      return genderSortValue(parentA || {}) - genderSortValue(parentB || {});
+    });
+}
+
+function alignSpouseSlots(person, spouseId) {
+  const spouse = state.people.find((item) => item.id === spouseId);
+  if (!spouse || Number(spouse.generation || 0) !== Number(person.generation || 0)) return;
+  const people = [person, spouse];
+  const male = people.find((item) => item.gender === "male");
+  const female = people.find((item) => item.gender === "female");
+  if (!male || !female) return;
+  const maleSlot = Number(male.slot || 0);
+  const femaleSlot = Number(female.slot || 0);
+  if (maleSlot < femaleSlot) return;
+  if (maleSlot === femaleSlot) {
+    female.slot = nextAvailableSlot(Number(female.generation || 0), maleSlot + 1, female.id);
+    return;
+  }
+  male.slot = femaleSlot;
+  female.slot = maleSlot;
+}
+
+function treePositions(people = state.people) {
+  const positions = new Map();
+  const generationMap = new Map();
+  people.forEach((person) => {
+    const generation = Number(person.generation || 0);
+    generationMap.set(generation, [...(generationMap.get(generation) || []), person]);
+  });
+
+  generationMap.forEach((generationPeople) => {
+    let nextSlot = -1;
+    generationPeople
+      .slice()
+      .sort(
+        (a, b) =>
+          Number(a.slot || 0) - Number(b.slot || 0) ||
+          genderSortValue(a) - genderSortValue(b) ||
+          a.name.localeCompare(b.name, "fa")
+      )
+      .forEach((person) => {
+        const requestedSlot = Math.max(0, Number(person.slot || 0));
+        const displaySlot = Math.max(requestedSlot, nextSlot + 1);
+        nextSlot = displaySlot;
+        positions.set(person.id, nodePosition({ ...person, slot: displaySlot }));
+      });
+  });
+
+  return positions;
+}
+
+function treeCanvasSize(positions = treePositions()) {
   if (!state.people.length) return { width: TREE_CANVAS_WIDTH, height: TREE_CANVAS_HEIGHT };
-  const positions = state.people.map(nodePosition);
+  const positionList = Array.from(positions.values());
   return {
-    width: Math.max(TREE_CANVAS_WIDTH, Math.max(...positions.map((position) => position.x)) + 190),
-    height: Math.max(TREE_CANVAS_HEIGHT, Math.max(...positions.map((position) => position.y)) + 170),
+    width: Math.max(TREE_CANVAS_WIDTH, Math.max(...positionList.map((position) => position.x)) + 230),
+    height: Math.max(TREE_CANVAS_HEIGHT, Math.max(...positionList.map((position) => position.y)) + 220),
   };
 }
 
@@ -353,8 +476,7 @@ function renderTree() {
   lines.innerHTML = "";
 
   const people = state.people;
-  const positions = new Map();
-  people.forEach((person) => positions.set(person.id, nodePosition(person)));
+  const positions = treePositions(people);
 
   drawRelationships(lines, people, positions);
 
@@ -364,6 +486,8 @@ function renderTree() {
     node.style.left = `${position.x}px`;
     node.style.top = `${position.y}px`;
     node.dataset.id = person.id;
+    node.dataset.gender = normalizeGender(person.gender);
+    node.classList.add(`gender-${normalizeGender(person.gender)}`);
     node.classList.toggle("selected", selectedPersonId === person.id);
     if (searchTerm && !person.name.includes(searchTerm)) node.classList.add("dimmed");
 
@@ -373,6 +497,11 @@ function renderTree() {
     image.src = person.photo || avatarSvg(person.name, index);
     avatar.appendChild(image);
     $(".person-name", node).textContent = person.name;
+    const editButton = $("[data-edit-person]", node);
+    editButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openPersonEditor(person.id);
+    });
     const parentButton = $('[data-add-relative="parent"]', node);
     if ((person.parentIds || []).length >= 2) {
       parentButton.disabled = true;
@@ -491,6 +620,7 @@ function openPerson(id) {
   const index = state.people.findIndex((item) => item.id === id);
   const detail = $("#personDetail");
   const dates = [person.birth && `زادروز: ${person.birth}`, person.death && `درگذشت: ${person.death}`].filter(Boolean);
+  const gender = normalizeGender(person.gender);
   const parents = person.parentIds
     ?.map((parentId) => state.people.find((item) => item.id === parentId)?.name)
     .filter(Boolean);
@@ -506,6 +636,7 @@ function openPerson(id) {
         <h2>${person.name}</h2>
         <div class="detail-meta">
           ${dates.map((item) => `<span>${item}</span>`).join("")}
+          ${gender !== "unknown" ? `<span>جنسیت: ${genderLabel(gender)}</span>` : ""}
           ${parents?.length ? `<span>والدین: ${parents.join(" و ")}</span>` : ""}
           ${spouses?.length ? `<span>همسر: ${spouses.join("، ")}</span>` : ""}
         </div>
@@ -513,15 +644,7 @@ function openPerson(id) {
     </div>
     ${person.story ? `<p>${person.story}</p>` : ""}
     ${photos.length ? `<div class="detail-gallery">${photos.map((src) => `<img src="${src}" alt="${person.name}">`).join("")}</div>` : ""}
-    ${isAdmin() ? `<button class="soft-action" type="button" data-edit-current="${person.id}">ویرایش این فرد</button>` : ""}
   `;
-  const editButton = $("[data-edit-current]", detail);
-  if (editButton) {
-    editButton.addEventListener("click", () => {
-      $("#personDialog").close();
-      openPersonEditor(person.id);
-    });
-  }
   $("#personDialog").showModal();
 }
 
@@ -598,11 +721,13 @@ function fillRelativeForm(baseId, relation) {
   const baseGeneration = Number(base.generation || 0);
   const baseSlot = Number(base.slot || 0);
   const spouseId = base.spouseIds?.[0] || "";
+  const suggestedSpouseGender = oppositeSpouseGender(normalizeGender(base.gender));
 
   if (relation === "spouse") {
     $("#personEditorTitle").textContent = `افزودن همسر برای ${base.name}`;
     fields.generation.value = baseGeneration;
-    fields.slot.value = nextAvailableSlot(baseGeneration, baseSlot + 1);
+    fields.gender.value = suggestedSpouseGender;
+    fields.slot.value = nextAvailableSlot(baseGeneration, preferredSpouseSlot(base, suggestedSpouseGender));
     fields.spouseId.innerHTML = personOptions(base.id);
   }
 
@@ -611,8 +736,9 @@ function fillRelativeForm(baseId, relation) {
     $("#personEditorTitle").textContent = `افزودن فرزند برای ${base.name}`;
     fields.generation.value = generation;
     fields.slot.value = nextAvailableSlot(generation, baseSlot);
-    fields.parentOne.innerHTML = personOptions(base.id);
-    fields.parentTwo.innerHTML = personOptions(spouseId);
+    const parentIds = orderedParentIds([base.id, spouseId]);
+    fields.parentOne.innerHTML = personOptions(parentIds[0] || base.id);
+    fields.parentTwo.innerHTML = personOptions(parentIds[1] || "");
   }
 
   if (relation === "parent") {
@@ -632,7 +758,7 @@ function applyPendingRelationship(person) {
   if (parentIds.length < 2) {
     parentIds.push(person.id);
   }
-  child.parentIds = parentIds.slice(0, 2);
+  child.parentIds = orderedParentIds(parentIds);
 }
 
 function refreshAdminLists() {
@@ -644,12 +770,7 @@ function refreshAdminLists() {
     .forEach((person) => {
       const row = document.createElement("div");
       row.className = "compact-row";
-      row.innerHTML = `<span>${person.name}</span><button class="soft-action" type="button">ویرایش</button>`;
-      $("button", row).addEventListener("click", () => {
-        $("#adminDialog").close();
-        routeTo("tree");
-        openPersonEditor(person.id);
-      });
+      row.innerHTML = `<span>${person.name}</span>`;
       peopleList.appendChild(row);
     });
 
@@ -689,6 +810,7 @@ function fillPersonForm(id) {
   fields.id.value = person.id;
   fields.name.value = person.name || "";
   fields.birth.value = person.birth || "";
+  fields.gender.value = normalizeGender(person.gender);
   fields.death.value = person.death || "";
   fields.generation.value = person.generation ?? 0;
   fields.slot.value = person.slot ?? 0;
@@ -707,6 +829,7 @@ function clearPersonForm() {
   form.reset();
   $("#personEditorTitle").textContent = "افزودن فرد";
   fields.id.value = "";
+  fields.gender.value = "unknown";
   fields.generation.value = 0;
   fields.slot.value = 0;
   fields.spouseId.innerHTML = personOptions();
@@ -742,6 +865,20 @@ function openAdminPanel(tab = "admins") {
   $("#adminDialog").showModal();
 }
 
+function closeDialog(selector) {
+  const dialog = $(selector);
+  if (dialog?.open) dialog.close();
+}
+
+function logoutAdmin() {
+  saveSession(null);
+  closeDialog("#adminDialog");
+  closeDialog("#personEditorDialog");
+  closeDialog("#personDialog");
+  updateAdminStatus();
+  renderTree();
+}
+
 function setAdminTab(tab) {
   $$(".admin-tabs .tab").forEach((button) => button.classList.toggle("active", button.dataset.adminTab === tab));
   $$("[data-admin-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.adminPanel === tab));
@@ -755,7 +892,8 @@ function bindEvents() {
   $("[data-close-login]").addEventListener("click", () => $("#loginDialog").close());
   $("[data-close-admin]").addEventListener("click", () => $("#adminDialog").close());
   $("[data-close-person-editor]").addEventListener("click", () => $("#personEditorDialog").close());
-  $("[data-open-person-editor]").addEventListener("click", () => openPersonEditor());
+  const openPersonButton = $("[data-open-person-editor]");
+  if (openPersonButton) openPersonButton.addEventListener("click", () => openPersonEditor());
   $("[data-admin-go-tree]").addEventListener("click", () => {
     $("#adminDialog").close();
     routeTo("tree");
@@ -767,12 +905,7 @@ function bindEvents() {
     $("#historyEditorDialog").showModal();
   });
   $("[data-close-history-editor]").addEventListener("click", () => $("#historyEditorDialog").close());
-  $("[data-logout]").addEventListener("click", () => {
-    saveSession(null);
-    $("#adminDialog").close();
-    updateAdminStatus();
-    renderTree();
-  });
+  $$("[data-logout]").forEach((button) => button.addEventListener("click", logoutAdmin));
 
   $("#familySearch").addEventListener("input", renderTree);
   $("[data-zoom-in]").addEventListener("click", () => setZoom(treeZoom + 0.1));
@@ -835,13 +968,14 @@ function bindEvents() {
     }
     person.name = fields.name.value.trim();
     person.birth = fields.birth.value.trim();
+    person.gender = normalizeGender(fields.gender.value);
     person.death = fields.death.value.trim();
     person.generation = generation;
     person.slot = Number(fields.slot.value || 0);
     person.photo = fields.photo.value.trim();
     person.story = fields.story.value.trim();
     person.photos = fields.photos.value.split(/\n+/).map((item) => item.trim()).filter(Boolean);
-    person.parentIds = [fields.parentOne.value, fields.parentTwo.value].filter(Boolean);
+    person.parentIds = orderedParentIds([fields.parentOne.value, fields.parentTwo.value]);
     person.spouseIds = spouseId ? [spouseId] : [];
     if (!existing) state.people.push(person);
     state.people.forEach((item) => {
@@ -849,7 +983,11 @@ function bindEvents() {
     });
     if (spouseId) {
       const spouse = state.people.find((item) => item.id === spouseId);
-      if (spouse && !spouse.spouseIds.includes(person.id)) spouse.spouseIds.push(person.id);
+      if (spouse) {
+        spouse.spouseIds = spouse.spouseIds || [];
+        if (!spouse.spouseIds.includes(person.id)) spouse.spouseIds.push(person.id);
+        alignSpouseSlots(person, spouseId);
+      }
     }
     applyPendingRelationship(person);
     pendingRelationship = null;
@@ -927,7 +1065,7 @@ function bindEvents() {
   });
   $("[data-import-data]").addEventListener("click", () => {
     try {
-      state = JSON.parse($("#dataImport").value);
+      state = normalizeState(JSON.parse($("#dataImport").value));
       saveState();
       refreshAll();
       $("#dataMessage").textContent = "داده جایگزین شد.";
@@ -936,7 +1074,7 @@ function bindEvents() {
     }
   });
   $("[data-reset-data]").addEventListener("click", () => {
-    state = clone(sampleState);
+    state = normalizeState(clone(sampleState));
     saveState();
     refreshAll();
     $("#dataMessage").textContent = "داده آزمایشی بازگردانده شد.";
