@@ -278,7 +278,7 @@ const sampleState = {
   ],
   submissions: [],
   history:
-    "این متن نمونه برای صفحه تاریخچه است. در نسخه نهایی، می توانید روایت رسمی خانواده، نام روستاها، شاخه های اصلی، خاطرات بزرگان و رویدادهای مهم را اینجا وارد کنید.\n\nهدف این وب سایت این است که هر نسل بتواند با احترام به گذشته، اطلاعات خانوادگی را به شکلی مرتب، خوانا و قابل نگهداری ببیند. درخت خانوادگی، گالری عکس و تاریخچه در کنار هم یک دفتر زنده می سازند؛ دفتری که هم رسمی است و هم برای خانواده صمیمی و قابل استفاده می ماند.",
+    "این متن نمونه برای صفحه تاریخچه است. در نسخه نهایی، می توانید روایت رسمی خانواده، نام روستاها، شاخه های اصلی، خاطرات بزرگان و رویدادهای مهم را اینجا وارد کنید.\n\nهدف این وب سایت این است که هر نسل بتواند با احترام به گذشته، اطلاعات خانوادگی را به شکلی مرتب، خوانا و قابل نگهداری ببیند. درخت خانوادگی، عکس و تاریخچه در کنار هم یک دفتر زنده می سازند؛ دفتری که هم رسمی است و هم برای خانواده صمیمی و قابل استفاده می ماند.",
 };
 
 let state = loadState();
@@ -1210,6 +1210,14 @@ function nextAvailableSlot(generation, preferredSlot, excludeId = "") {
   return normalized;
 }
 
+function nextRootSlot() {
+  const rootSlots = state.people
+    .filter((person) => Number(person.generation || 0) === 0 && !(person.parentIds || []).length)
+    .map((person) => Number(person.slot || 0));
+  const preferredSlot = rootSlots.length ? Math.max(...rootSlots) + 2 : 0;
+  return nextAvailableSlot(0, preferredSlot);
+}
+
 function fillRelativeForm(baseId, relation) {
   const base = state.people.find((person) => person.id === baseId);
   const form = $("#personEditor");
@@ -1462,6 +1470,22 @@ function openPersonEditor(id = "") {
   $("#personEditorDialog").showModal();
 }
 
+function openRootEditor() {
+  if (!isAdmin()) {
+    $("#loginDialog").showModal();
+    return;
+  }
+  clearPersonForm();
+  const fields = $("#personEditor").elements;
+  $("#personEditorTitle").textContent = "افزودن ریشه اصلی";
+  fields.generation.value = 0;
+  fields.slot.value = nextRootSlot();
+  fields.parentOne.value = "";
+  fields.parentTwo.value = "";
+  fields.spouseId.innerHTML = personOptions([], false);
+  $("#personEditorDialog").showModal();
+}
+
 function openRelativeEditor(baseId, relation) {
   if (!isAdmin()) {
     $("#loginDialog").showModal();
@@ -1507,6 +1531,8 @@ function bindEvents() {
   $("[data-close-person-editor]").addEventListener("click", () => $("#personEditorDialog").close());
   const openPersonButton = $("[data-open-person-editor]");
   if (openPersonButton) openPersonButton.addEventListener("click", () => openPersonEditor());
+  const openRootButton = $("[data-open-root-editor]");
+  if (openRootButton) openRootButton.addEventListener("click", openRootEditor);
   $("[data-admin-go-tree]").addEventListener("click", () => {
     $("#adminDialog").close();
     routeTo("tree");

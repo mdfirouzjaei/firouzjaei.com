@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="وب سایت خانوادگی فیروزجایی برای نمایش درخت خانوادگی، گالری عکس و تاریخچه خانواده."
+      content="وب سایت خانوادگی فیروزجایی برای نمایش درخت خانوادگی، عکس و تاریخچه خانواده."
     />
     <title>خاندان فیروزجایی</title>
     <link rel="icon" type="image/png" href="assets/brand/firouzjaei-logo.png" />
-    <link rel="stylesheet" href="styles.css?v=fold-generations-20260704" />
+    <link rel="stylesheet" href="styles.css?v=root-admin-20260704" />
   </head>
   <body>
     <div class="app-shell">
@@ -41,7 +41,7 @@
             <svg aria-hidden="true" viewBox="0 0 24 24">
               <path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5Zm3 11 3.2-3.2a1.3 1.3 0 0 1 1.8 0L14 14.8l1-1a1.3 1.3 0 0 1 1.8 0L20 17M8.5 8.5h.01" />
             </svg>
-            <span>گالری عکس</span>
+            <span>عکس</span>
           </button>
           <button class="nav-item" type="button" data-route="history">
             <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -83,7 +83,7 @@
                 <path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5Zm3 11 3.2-3.2a1.3 1.3 0 0 1 1.8 0L14 14.8l1-1a1.3 1.3 0 0 1 1.8 0L20 17M8.5 8.5h.01" />
               </svg>
               <span>
-                <strong>گالری عکس</strong>
+                <strong>عکس</strong>
                 <small>چهره ها، خانه ها و گردهمایی ها</small>
               </span>
             </button>
@@ -106,6 +106,7 @@
               <h1>درخت خانوادگی</h1>
             </div>
             <div class="tree-tools" aria-label="ابزارهای درخت">
+              <button class="admin-only soft-action" type="button" data-open-root-editor>افزودن ریشه اصلی</button>
               <button class="icon-button" type="button" data-zoom-out title="کوچک نمایی">
                 <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14" /></svg>
               </button>
@@ -145,7 +146,7 @@
           <div class="section-head">
             <div>
               <p class="eyebrow">یادگاری ها</p>
-              <h1>گالری عکس</h1>
+              <h1>عکس</h1>
             </div>
             <button class="admin-only soft-action" type="button" data-open-gallery-editor>افزودن عکس</button>
           </div>
@@ -389,6 +390,6 @@
       </div>
     </template>
 
-    <script src="app.js?v=fold-generations-20260704"></script>
+    <script src="app.js?v=root-admin-20260704"></script>
   </body>
 </html>
