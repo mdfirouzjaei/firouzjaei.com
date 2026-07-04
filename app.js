@@ -204,6 +204,90 @@ const sampleState = {
       story: "جست وجو می تواند فرد مورد نظر را برجسته کند.",
       photos: [],
     },
+    {
+      id: "p15",
+      name: "ریشه شاخه دوم",
+      birth: "۱۲۸۲",
+      death: "۱۳۵۱",
+      generation: 0,
+      slot: 11,
+      spouseIds: ["p16"],
+      parentIds: [],
+      story: "این شاخه مصنوعی برای نمایش خانواده هایی ساخته شده که از یک فرد مبدا دیگر آغاز می شوند.",
+      photos: [],
+    },
+    {
+      id: "p16",
+      name: "همسر ریشه شاخه دوم",
+      birth: "۱۲۸۹",
+      death: "۱۳۶۲",
+      generation: 0,
+      slot: 12,
+      spouseIds: ["p15"],
+      parentIds: [],
+      story: "با انتخاب شاخه اصلی می توانید فقط همین خانواده مستقل را ببینید.",
+      photos: [],
+    },
+    {
+      id: "p17",
+      name: "فرزند شاخه دوم",
+      birth: "۱۳۱۱",
+      death: "",
+      generation: 1,
+      slot: 10,
+      spouseIds: ["p18"],
+      parentIds: ["p15", "p16"],
+      story: "روی دکمه کوچک کنار کارت کلیک کنید تا فرزندان این فرد بسته یا باز شوند.",
+      photos: [],
+    },
+    {
+      id: "p18",
+      name: "همسر فرزند شاخه دوم",
+      birth: "۱۳۱۷",
+      death: "",
+      generation: 1,
+      slot: 11,
+      spouseIds: ["p17"],
+      parentIds: [],
+      story: "همسران در کنار شاخه انتخاب شده حفظ می شوند تا پیوند خانوادگی روشن بماند.",
+      photos: [],
+    },
+    {
+      id: "p19",
+      name: "فرزند دوم شاخه دوم",
+      birth: "۱۳۲۰",
+      death: "",
+      generation: 1,
+      slot: 13,
+      spouseIds: [],
+      parentIds: ["p15", "p16"],
+      story: "این فرد برای نشان دادن چند فرزند در یک شاخه مستقل اضافه شده است.",
+      photos: [],
+    },
+    {
+      id: "p20",
+      name: "نوه شاخه دوم",
+      birth: "۱۳۴۲",
+      death: "",
+      generation: 2,
+      slot: 10,
+      spouseIds: [],
+      parentIds: ["p17", "p18"],
+      story: "از داخل پنجره هر فرد می توانید به والدین، همسران و فرزندان حرکت کنید.",
+      photos: [],
+    },
+    {
+      id: "p21",
+      name: "نوه دوم شاخه دوم",
+      birth: "۱۳۴۸",
+      death: "",
+      generation: 2,
+      slot: 12,
+      spouseIds: [],
+      parentIds: ["p17", "p18"],
+      story: "این کارت برای تست حرکت پایین به فرزندان و تمرکز روی شاخه استفاده می شود.",
+      photos: [],
+    },
   ],
   gallery: [
     {
@@ -276,12 +360,29 @@ function defaultGenderForPerson(person) {
     p12: "female",
     p13: "male",
     p14: "female",
+    p15: "male",
+    p16: "female",
+    p17: "male",
+    p18: "female",
+    p19: "female",
+    p20: "male",
+    p21: "female",
   };
   return sampleGenders[person.id] || "unknown";
 }
 
 function normalizeState(value) {
   const normalized = { ...clone(sampleState), ...value };
+  if (!Array.isArray(normalized.people) || !normalized.people.length) {
+    normalized.people = clone(sampleState.people);
+  }
+  const looksLikeDemoData = normalized.people.some((person) => person.id === "p1" && person.name === "بزرگ خاندان");
+  if (looksLikeDemoData) {
+    const existingIds = new Set(normalized.people.map((person) => person.id));
+    clone(sampleState.people).forEach((person) => {
+      if (!existingIds.has(person.id)) normalized.people.push(person);
+    });
+  }
   normalized.people = (normalized.people || []).map((person) => ({
     ...person,
     gender: normalizeGender(person.gender || defaultGenderForPerson(person)),
