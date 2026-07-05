@@ -4,7 +4,7 @@ const LEGACY_OWNER_PASSWORDS = ["owner-demo-1403"];
 const STORAGE_KEY = "firouzjaei-family-site-state-v1";
 const SESSION_KEY = "firouzjaei-family-site-session-v1";
 const MAX_LOCAL_UPLOAD_BYTES = 2 * 1024 * 1024;
-const VALID_ROUTES = ["home", "tree", "gallery", "history"];
+const VALID_ROUTES = ["home", "tree", "gallery", "history", "article"];
 const TREE_CANVAS_WIDTH = 1420;
 const TREE_CANVAS_HEIGHT = 760;
 const MAX_TREE_SLOT = 24;
@@ -277,6 +277,7 @@ const sampleState = {
     },
   ],
   submissions: [],
+  articleComments: [],
   history:
     "این متن نمونه برای بخش نوشتار تاریخ است. در نسخه نهایی، می توانید مقاله هایی درباره تاریخ خانواده، روستاها، منطقه، شاخه های اصلی، خاطرات بزرگان و رویدادهای مهم اینجا منتشر کنید.\n\nهدف این بخش این است که نوشته های تاریخی خانواده و سرزمین مادری در کنار درخت خانوادگی و عکس ها نگهداری شوند؛ جایی برای روایت های مستند، یادداشت های پژوهشی، خاطره ها و مقاله هایی که نسل های بعد بتوانند به آن رجوع کنند.",
   historyArticles: [
@@ -350,6 +351,7 @@ let treeScale = 1;
 let treeZoom = 1;
 let pendingRelationship = null;
 let expandedPersonIds = new Set();
+let selectedArticleId = null;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -421,6 +423,7 @@ function normalizeState(value) {
   normalized.admins = normalized.admins || clone(sampleState).admins;
   normalized.subscribers = normalized.subscribers || [];
   normalized.submissions = (normalized.submissions || []).map(normalizeSubmission).filter(Boolean);
+  normalized.articleComments = (normalized.articleComments || []).map(normalizeArticleComment).filter(Boolean);
   const historyArticleSource = Array.isArray(normalized.historyArticles) ? normalized.historyArticles : [];
   normalized.historyArticles = historyArticleSource.map(normalizeHistoryArticle).filter(Boolean);
   if (!normalized.historyArticles.length && normalized.history) {
@@ -579,6 +582,20 @@ function normalizeSubmission(item) {
   };
 }
 
+function normalizeArticleComment(item) {
+  if (!item || !item.articleId || !item.message) return null;
+  return {
+    id: item.id || makeId("ac"),
+    articleId: item.articleId,
+    articleTitle: item.articleTitle || "",
+    name: item.name || "",
+    contact: item.contact || "",
+    message: item.message || "",
+    status: item.status || "pending",
+    createdAt: item.createdAt || new Date().toISOString(),
+  };
+}
+
 function textToParagraphs(value) {
   if (Array.isArray(value)) return value.map((item) => String(item || "").trim()).filter(Boolean);
   return String(value || "")
@@ -641,6 +658,14 @@ function normalizeHistoryArticle(item) {
 
 function compareHistoryArticles(a, b) {
   return (Date.parse(a.sortDate) || 0) - (Date.parse(b.sortDate) || 0);
+}
+
+function sortedHistoryArticles() {
+  return (state.historyArticles || []).map(normalizeHistoryArticle).filter(Boolean).sort(compareHistoryArticles);
+}
+
+function findHistoryArticle(articleId = selectedArticleId) {
+  return sortedHistoryArticles().find((article) => article.id === articleId) || null;
 }
 
 function uniqueMedia(items) {
@@ -715,11 +740,32 @@ async function filesToMedia(fileList) {
   return media.filter(Boolean);
 }
 
-function routeTo(route) {
-  $$(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.route === route));
-  $$(".view").forEach((view) => view.classList.toggle("active", view.dataset.view === route));
-  if (route === "tree") requestAnimationFrame(fitTreeToStage);
-  if (window.location.hash !== `#${route}`) window.location.hash = route;
+function parseRouteHash() {
+  const hash = decodeURIComponent(window.location.hash.replace(/^#/, "")) || "home";
+  const [route, ...rest] = hash.split("/");
+  if (route === "article") return { route: "article", articleId: rest.join("/") };
+  return { route: VALID_ROUTES.includes(route) ? route : "home", articleId: "" };
+}
+
+function routeHash(route, articleId = "") {
+  return route === "article" ? `#article/${encodeURIComponent(articleId)}` : `#${route}`;
+}
+
+function routeTo(route, options = {}) {
+  const nextRoute = VALID_ROUTES.includes(route) ? route : "home";
+  if (nextRoute === "article") {
+    selectedArticleId = options.articleId || selectedArticleId || sortedHistoryArticles()[0]?.id || "";
+    if (!selectedArticleId) {
+      routeTo("history");
+      return;
+    }
+    renderArticlePage();
+  }
+  $$(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.route === nextRoute || (nextRoute === "article" && button.dataset.route === "history")));
+  $$(".view").forEach((view) => view.classList.toggle("active", view.dataset.view === nextRoute));
+  if (nextRoute === "tree") requestAnimationFrame(fitTreeToStage);
+  const nextHash = routeHash(nextRoute, selectedArticleId);
+  if (window.location.hash !== nextHash) window.location.hash = nextHash;
 }
 
 function nodePosition(person) {
@@ -1282,6 +1328,49 @@ async function handleSubmissionRequest(event) {
   }
 }
 
+function handleArticleComment(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const fields = form.elements;
+  const message = $("[data-article-comment-message]", form);
+  const article = findHistoryArticle();
+  if (!article) return;
+  if (!fields.name.value.trim() || !fields.message.value.trim()) {
+    message.textContent = "نام و متن نظر را کامل وارد کنید.";
+    return;
+  }
+  const comment = normalizeArticleComment({
+    id: makeId("ac"),
+    articleId: article.id,
+    articleTitle: article.title,
+    name: fields.name.value.trim(),
+    contact: fields.contact.value.trim(),
+    message: fields.message.value.trim(),
+    status: "pending",
+    createdAt: new Date().toISOString(),
+  });
+  state.articleComments.unshift(comment);
+  saveState();
+  form.reset();
+  renderArticlePage();
+  const refreshedMessage = $("[data-article-comment-message]");
+  if (refreshedMessage) refreshedMessage.textContent = "نظر شما برای مدیران ثبت شد.";
+}
+
+function updateArticleCommentStatus(commentId, status) {
+  const comment = state.articleComments.find((item) => item.id === commentId);
+  if (!comment) return;
+  comment.status = status;
+  saveState();
+  renderArticlePage();
+}
+
+function deleteArticleComment(commentId) {
+  state.articleComments = state.articleComments.filter((item) => item.id !== commentId);
+  saveState();
+  renderArticlePage();
+}
+
 function renderGallery() {
   const grid = $("#galleryGrid");
   grid.innerHTML = "";
@@ -1316,7 +1405,17 @@ function historyFigureMarkup(figure, article, index) {
   `;
 }
 
-function historyArticleMarkup(article, index) {
+function historyListItemMarkup(article) {
+  return `
+    <article class="history-index-item">
+      <time>${escapeHtml(article.date || "بدون تاریخ")}</time>
+      <h2>${escapeHtml(article.title)}</h2>
+      <button class="soft-action" type="button" data-read-article="${escapeHtml(article.id)}">خواندن</button>
+    </article>
+  `;
+}
+
+function historyArticleDetailMarkup(article) {
   const figures = article.figures.length
     ? `<div class="history-figures">${article.figures.map((figure, figureIndex) => historyFigureMarkup(figure, article, figureIndex)).join("")}</div>`
     : "";
@@ -1329,12 +1428,10 @@ function historyArticleMarkup(article, index) {
     `
     : "";
   return `
-    <article class="history-article" style="--article-index: ${index + 1}">
-      <div class="article-time">
-        <span>${escapeHtml(article.date || "بدون تاریخ")}</span>
-      </div>
+    <article class="history-article">
       <div class="article-body">
         <header class="article-head">
+          <time>${escapeHtml(article.date || "بدون تاریخ")}</time>
           <h2>${escapeHtml(article.title)}</h2>
           <p>نویسنده: ${escapeHtml(article.author || "دبیرخانه خاندان")}</p>
         </header>
@@ -1347,10 +1444,139 @@ function historyArticleMarkup(article, index) {
 }
 
 function renderHistory() {
-  const articles = (state.historyArticles || []).map(normalizeHistoryArticle).filter(Boolean).sort(compareHistoryArticles);
+  const articles = sortedHistoryArticles();
   $("#historyContent").innerHTML = articles.length
-    ? articles.map(historyArticleMarkup).join("")
+    ? articles.map(historyListItemMarkup).join("")
     : `<p class="empty-state">هنوز مقاله ای برای این بخش ثبت نشده است.</p>`;
+  $$("[data-read-article]").forEach((button) => {
+    button.addEventListener("click", () => routeTo("article", { articleId: button.dataset.readArticle }));
+  });
+}
+
+function articleCommentsFor(articleId) {
+  return (state.articleComments || [])
+    .filter((comment) => comment.articleId === articleId)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+function articleCommentStatusLabel(status) {
+  return (
+    {
+      pending: "در انتظار بررسی",
+      done: "انجام شد",
+    }[status] || "ثبت شده"
+  );
+}
+
+function articleCommentsMarkup(article) {
+  const comments = articleCommentsFor(article.id);
+  if (!comments.length) return `<div class="empty-state">هنوز نظری برای این مقاله ثبت نشده است.</div>`;
+  return comments
+    .map(
+      (comment) => `
+        <article class="submission-card status-${escapeHtml(comment.status || "pending")}">
+          <div class="submission-head">
+            <div>
+              <p class="eyebrow">${escapeHtml(articleCommentStatusLabel(comment.status))}</p>
+              <h3>${escapeHtml(comment.name || "فرستنده بدون نام")}</h3>
+            </div>
+            <span>${escapeHtml(formatDateTime(comment.createdAt))}</span>
+          </div>
+          <div class="submission-meta">
+            ${comment.contact ? `<span>تماس: ${escapeHtml(comment.contact)}</span>` : ""}
+          </div>
+          <p>${escapeHtml(comment.message)}</p>
+          <div class="form-actions">
+            <button class="primary-action" type="button" data-resolve-article-comment="${escapeHtml(comment.id)}">انجام شد</button>
+            <button class="danger-action" type="button" data-delete-article-comment="${escapeHtml(comment.id)}">حذف</button>
+          </div>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function renderArticlePage() {
+  const article = findHistoryArticle();
+  const title = $("#articlePageTitle");
+  const page = $("#articlePage");
+  if (!page || !title) return;
+  if (!article) {
+    title.textContent = "مقاله پیدا نشد";
+    page.innerHTML = `
+      <div class="empty-state">این مقاله پیدا نشد.</div>
+    `;
+    return;
+  }
+
+  title.textContent = article.title;
+  page.innerHTML = `
+    <div class="article-detail-panel">
+      ${historyArticleDetailMarkup(article)}
+    </div>
+    <section class="article-comment-box">
+      <h2>ارسال نظر برای مدیران</h2>
+      <p class="muted">اگر درباره این مقاله اصلاح، توضیح، منبع یا نکته ای دارید، اینجا برای مدیران ثبت کنید.</p>
+      <form class="article-comment-form" data-article-comment-form>
+        <div class="form-grid">
+          <label>نام
+            <input name="name" type="text" required />
+          </label>
+          <label>ایمیل یا شماره تماس
+            <input name="contact" type="text" />
+          </label>
+        </div>
+        <label>نظر برای مدیران
+          <textarea name="message" rows="4" required></textarea>
+        </label>
+        <button class="primary-action" type="submit">ثبت نظر</button>
+        <p class="form-message" data-article-comment-message role="status"></p>
+      </form>
+    </section>
+    <section class="article-admin-comments admin-only">
+      <div class="detail-admin-head">
+        <h2>نظرهای ثبت شده برای این مقاله</h2>
+        <p class="muted">این بخش فقط برای مدیران دیده می شود.</p>
+      </div>
+      <div class="submission-list">${articleCommentsMarkup(article)}</div>
+    </section>
+  `;
+  const commentForm = $("[data-article-comment-form]", page);
+  if (commentForm) commentForm.addEventListener("submit", handleArticleComment);
+  $$("[data-resolve-article-comment]", page).forEach((button) => {
+    button.addEventListener("click", () => updateArticleCommentStatus(button.dataset.resolveArticleComment, "done"));
+  });
+  $$("[data-delete-article-comment]", page).forEach((button) => {
+    button.addEventListener("click", () => deleteArticleComment(button.dataset.deleteArticleComment));
+  });
+}
+
+function openHistoryEditor(articleId = "") {
+  const form = $("#historyEditor");
+  const title = $("#historyEditorTitle");
+  form.reset();
+  form.elements.articleId.value = articleId;
+  const article = articleId ? findHistoryArticle(articleId) : null;
+  if (!article) {
+    title.textContent = "افزودن مقاله تاریخی";
+    form.elements.author.value = session.email || "دبیرخانه خاندان";
+    form.elements.sortDate.value = new Date().toISOString().slice(0, 10);
+    $("#historyEditorDialog").showModal();
+    return;
+  }
+
+  const firstFigure = article.figures[0] || {};
+  title.textContent = "ویرایش مقاله تاریخی";
+  form.elements.title.value = article.title;
+  form.elements.author.value = article.author;
+  form.elements.date.value = article.date;
+  form.elements.sortDate.value = article.sortDate || "";
+  form.elements.body.value = article.body.join("\n\n");
+  form.elements.figureTitle.value = firstFigure.title || "";
+  form.elements.figureSrc.value = firstFigure.src || "";
+  form.elements.figureCaption.value = firstFigure.caption || "";
+  form.elements.references.value = article.references.join("\n");
+  $("#historyEditorDialog").showModal();
 }
 
 function updateAdminStatus() {
@@ -1726,14 +1952,10 @@ function bindEvents() {
   });
   $("[data-open-gallery-editor]").addEventListener("click", () => $("#galleryEditorDialog").showModal());
   $("[data-close-gallery-editor]").addEventListener("click", () => $("#galleryEditorDialog").close());
-  $("[data-open-history-editor]").addEventListener("click", () => {
-    const form = $("#historyEditor");
-    form.reset();
-    form.elements.author.value = session.email || "دبیرخانه خاندان";
-    form.elements.sortDate.value = new Date().toISOString().slice(0, 10);
-    $("#historyEditorDialog").showModal();
-  });
+  $("[data-open-history-editor]").addEventListener("click", () => openHistoryEditor());
   $("[data-close-history-editor]").addEventListener("click", () => $("#historyEditorDialog").close());
+  $("[data-back-history]").addEventListener("click", () => routeTo("history"));
+  $("[data-edit-current-article]").addEventListener("click", () => openHistoryEditor(selectedArticleId));
   $$("[data-logout]").forEach((button) => button.addEventListener("click", logoutAdmin));
 
   $("#familySearch").addEventListener("input", renderTree);
@@ -1745,6 +1967,7 @@ function bindEvents() {
     event.preventDefault();
     const form = event.currentTarget;
     const fields = form.elements;
+    const returnRoute = parseRouteHash();
     const email = fields.email.value.trim().toLowerCase();
     const password = fields.password.value;
     const admin = state.admins.find((item) => item.email.toLowerCase() === email && item.password === password);
@@ -1757,7 +1980,13 @@ function bindEvents() {
     $("#loginDialog").close();
     updateAdminStatus();
     renderTree();
-    routeTo("tree");
+    if (returnRoute.route === "article") {
+      routeTo("article", { articleId: returnRoute.articleId });
+    } else if (returnRoute.route === "history") {
+      routeTo("history");
+    } else {
+      routeTo("tree");
+    }
   });
 
   $("#subscribeForm").addEventListener("submit", (event) => {
@@ -1900,6 +2129,8 @@ function bindEvents() {
     event.preventDefault();
     const form = event.currentTarget;
     const fields = form.elements;
+    const articleId = fields.articleId.value;
+    const existing = articleId ? state.historyArticles.find((item) => item.id === articleId) : null;
     let uploadedFigure = null;
     try {
       uploadedFigure = fields.figureFile.files?.[0] ? await fileToMedia(fields.figureFile.files[0]) : null;
@@ -1922,23 +2153,29 @@ function bindEvents() {
             },
           ]
         : [];
-    state.historyArticles.push(
-      normalizeHistoryArticle({
-        id: makeId("ha"),
-        title: fields.title.value.trim(),
-        author: fields.author.value.trim(),
-        date: fields.date.value.trim(),
-        sortDate: fields.sortDate.value,
-        body: fields.body.value,
-        figures,
-        references: fields.references.value,
-      })
-    );
+    const nextArticle = normalizeHistoryArticle({
+      id: existing?.id || makeId("ha"),
+      title: fields.title.value.trim(),
+      author: fields.author.value.trim(),
+      date: fields.date.value.trim(),
+      sortDate: fields.sortDate.value,
+      body: fields.body.value,
+      figures,
+      references: fields.references.value,
+      createdAt: existing?.createdAt,
+    });
+    if (existing) {
+      Object.assign(existing, nextArticle);
+    } else {
+      state.historyArticles.push(nextArticle);
+    }
     state.historyArticles = state.historyArticles.filter(Boolean).sort(compareHistoryArticles);
+    selectedArticleId = nextArticle.id;
     saveState();
     form.reset();
     $("#historyEditorDialog").close();
-    renderHistory();
+    refreshAll();
+    routeTo("article", { articleId: nextArticle.id });
   });
 
   $("[data-export-data]").addEventListener("click", () => {
@@ -1963,8 +2200,8 @@ function bindEvents() {
   });
 
   window.addEventListener("hashchange", () => {
-    const route = window.location.hash.replace("#", "") || "home";
-    if (VALID_ROUTES.includes(route)) routeTo(route);
+    const next = parseRouteHash();
+    if (VALID_ROUTES.includes(next.route)) routeTo(next.route, { articleId: next.articleId });
   });
   window.addEventListener("resize", fitTreeToStage);
 }
@@ -1978,6 +2215,7 @@ function refreshAll() {
   renderTree();
   renderGallery();
   renderHistory();
+  if (selectedArticleId) renderArticlePage();
   refreshAdminLists();
   updateAdminStatus();
 }
@@ -1986,8 +2224,8 @@ function init() {
   bindEvents();
   clearPersonForm();
   refreshAll();
-  const route = window.location.hash.replace("#", "") || "home";
-  routeTo(VALID_ROUTES.includes(route) ? route : "home");
+  const next = parseRouteHash();
+  routeTo(VALID_ROUTES.includes(next.route) ? next.route : "home", { articleId: next.articleId });
 }
 
 init();

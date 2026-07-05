@@ -9,7 +9,7 @@
     />
     <title>خاندان فیروزجایی</title>
     <link rel="icon" type="image/png" href="assets/brand/firouzjaei-logo.png" />
-    <link rel="stylesheet" href="styles.css?v=history-articles-20260705" />
+    <link rel="stylesheet" href="styles.css?v=article-pages-20260705" />
   </head>
   <body>
     <div class="app-shell">
@@ -150,9 +150,22 @@
             <button class="admin-only soft-action" type="button" data-open-history-editor>افزودن مقاله</button>
           </div>
           <article class="history-panel">
-            <div class="history-calligraphy">ریشه ها زنده اند</div>
             <div class="history-articles" id="historyContent"></div>
           </article>
+        </section>
+
+        <section class="view article-view" data-view="article">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">نوشتار تاریخ</p>
+              <h1 id="articlePageTitle">مقاله</h1>
+            </div>
+            <div class="form-actions">
+              <button class="soft-action" type="button" data-back-history>بازگشت به مقاله ها</button>
+              <button class="admin-only soft-action" type="button" data-edit-current-article>ویرایش مقاله</button>
+            </div>
+          </div>
+          <div class="article-page" id="articlePage"></div>
         </section>
       </main>
     </div>
@@ -355,7 +368,8 @@
         <button class="icon-button modal-close" type="button" data-close-history-editor title="بستن">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
         </button>
-        <h2>افزودن مقاله تاریخی</h2>
+        <h2 id="historyEditorTitle">افزودن مقاله تاریخی</h2>
+        <input type="hidden" name="articleId" />
         <div class="form-grid">
           <label>عنوان مقاله
             <input name="title" type="text" required />
@@ -412,6 +426,6 @@
       </div>
     </template>
 
-    <script src="app.js?v=history-articles-20260705"></script>
+    <script src="app.js?v=article-pages-20260705"></script>
   </body>
 </html>
