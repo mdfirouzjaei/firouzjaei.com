@@ -285,8 +285,8 @@ const sampleState = {
       id: "ha1",
       title: "آغاز شاخه های فیروزجایی در کوهپایه",
       author: "گروه گردآوری خاندان",
-      date: "۱۲۸۵ خورشیدی",
-      sortDate: "1906-03-21",
+      date: "۱ پیتک ۱۴۱۷ تبری",
+      sortDate: "1906-03-22",
       body: [
         "این مقاله نمونه، آغاز یک روایت تاریخی درباره شکل گیری شاخه های نخست خانواده را نشان می دهد. در نسخه نهایی، این متن می تواند با اطلاعات کتاب خانوادگی، گفت وگو با بزرگان و سندهای معتبر جایگزین شود.",
         "تمرکز این نوشته بر پیوند میان خانواده، زمین، مسیرهای کوچ و روستاهای پیرامون است؛ یعنی همان زمینه ای که بسیاری از نام ها و خاطره های خانوادگی از آن معنا می گیرند.",
@@ -305,7 +305,7 @@ const sampleState = {
       id: "ha2",
       title: "نقش بزرگان در پیوندهای محلی",
       author: "دبیرخانه خاندان فیروزجایی",
-      date: "۱۳۲۰ خورشیدی",
+      date: "۱ پیتک ۱۴۵۲ تبری",
       sortDate: "1941-03-21",
       body: [
         "این نوشته نمونه به جایگاه بزرگان خانواده در حفظ پیوندهای اجتماعی، حل اختلاف ها و انتقال خاطره ها می پردازد. چنین مقاله هایی می توانند نام افراد، رویدادها و نسبت های خانوادگی را با درخت خانواده مرتبط کنند.",
@@ -325,7 +325,7 @@ const sampleState = {
       id: "ha3",
       title: "از خاطره های پراکنده تا آرشیو دیجیتال",
       author: "مصطفی فیروزجایی",
-      date: "۱۴۰۳ خورشیدی",
+      date: "۱ پیتک ۱۵۳۵ تبری",
       sortDate: "2024-03-20",
       body: [
         "این مقاله نمونه توضیح می دهد که چرا گردآوری تاریخ خانواده در یک وب سایت مشترک اهمیت دارد. هدف، تبدیل خاطره های پراکنده به نوشته های قابل جست وجو، قابل ارجاع و قابل تکمیل برای نسل های بعد است.",
@@ -612,6 +612,104 @@ function normalizeReferenceList(value) {
     .filter(Boolean);
 }
 
+const PERSIAN_DIGITS = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
+
+function toPersianDigits(value) {
+  return String(value).replace(/\d/g, (digit) => PERSIAN_DIGITS[Number(digit)]);
+}
+
+function toEnglishDigits(value) {
+  return String(value)
+    .replace(/[۰-۹]/g, (digit) => String(PERSIAN_DIGITS.indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
+}
+
+function gregorianToJalali(gy, gm, gd) {
+  const gMonthDays = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+  let jy = gy <= 1600 ? 0 : 979;
+  gy -= gy <= 1600 ? 621 : 1600;
+  const gy2 = gm > 2 ? gy + 1 : gy;
+  let days = 365 * gy + Math.floor((gy2 + 3) / 4) - Math.floor((gy2 + 99) / 100) + Math.floor((gy2 + 399) / 400) - 80 + gd + gMonthDays[gm - 1];
+  jy += 33 * Math.floor(days / 12053);
+  days %= 12053;
+  jy += 4 * Math.floor(days / 1461);
+  days %= 1461;
+  if (days > 365) {
+    jy += Math.floor((days - 1) / 365);
+    days = (days - 1) % 365;
+  }
+  const jm = days < 186 ? 1 + Math.floor(days / 31) : 7 + Math.floor((days - 186) / 30);
+  const jd = 1 + (days < 186 ? days % 31 : (days - 186) % 30);
+  return { jy, jm, jd };
+}
+
+function tabariFromJalali(jy, jm, jd) {
+  const year = jy + (jm > 5 || (jm === 5 && jd >= 2) ? 133 : 132);
+  let day = 0;
+  let month = "";
+
+  if (jm === 5 && jd >= 2) {
+    day = jd - 1;
+    month = "فردینه ما";
+  } else if (jm === 6 && jd <= 30) {
+    day = jd;
+    month = "کرچه ما";
+  } else if ((jm === 6 && jd === 31) || (jm === 7 && jd <= 29)) {
+    day = jm === 6 ? 1 : jd + 1;
+    month = "هره ما";
+  } else if ((jm === 7 && jd >= 30) || (jm === 8 && jd <= 29)) {
+    day = jm === 7 ? 1 : jd + 1;
+    month = "تیر ما";
+  } else if ((jm === 8 && jd >= 30) || (jm === 9 && jd <= 29)) {
+    day = jm === 8 ? 1 : jd + 1;
+    month = "ملاره ما";
+  } else if ((jm === 9 && jd >= 30) || (jm === 10 && jd <= 29)) {
+    day = jm === 9 ? 1 : jd + 1;
+    month = "شروینه ما";
+  } else if ((jm === 10 && jd >= 30) || (jm === 11 && jd <= 29)) {
+    day = jm === 10 ? 1 : jd + 1;
+    month = "میر ما";
+  } else if ((jm === 11 && jd >= 30) || (jm === 12 && jd <= 29)) {
+    day = jm === 11 ? 1 : jd + 1;
+    month = "اونه ما";
+  } else if (jm === 12 && jd === 30) {
+    return `شیشک ${toPersianDigits(year)} تبری`;
+  } else if (jm === 1 && jd <= 5) {
+    return `${toPersianDigits(jd)} پیتک ${toPersianDigits(year)} تبری`;
+  } else if ((jm === 1 && jd >= 6) || (jm === 2 && jd <= 4)) {
+    day = jm === 1 ? jd - 5 : jd + 26;
+    month = "ارکه ما";
+  } else if ((jm === 2 && jd >= 5) || (jm === 3 && jd <= 3)) {
+    day = jm === 2 ? jd - 4 : jd + 27;
+    month = "دِه ما";
+  } else if ((jm === 3 && jd >= 4) || (jm === 4 && jd <= 2)) {
+    day = jm === 3 ? jd - 3 : jd + 28;
+    month = "وهنه ما";
+  } else if ((jm === 4 && jd >= 3) || (jm === 5 && jd <= 1)) {
+    day = jm === 4 ? jd - 2 : jd + 29;
+    month = "نوروز ما";
+  }
+
+  return day && month ? `${toPersianDigits(day)} ${month} ${toPersianDigits(year)} تبری` : `سال ${toPersianDigits(year)} تبری`;
+}
+
+function tabariDateFromIso(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  const [, gy, gm, gd] = match.map(Number);
+  const jalali = gregorianToJalali(gy, gm, gd);
+  return tabariFromJalali(jalali.jy, jalali.jm, jalali.jd);
+}
+
+function normalizeArticleDate(date, sortDate) {
+  const rawDate = String(date || "").trim();
+  const tabariDate = tabariDateFromIso(sortDate);
+  const solarYearOnly = rawDate.match(/^([۰-۹٠-٩0-9]{3,4})\s*(خورشیدی|شمسی)$/);
+  if (solarYearOnly) return `سال ${toPersianDigits(Number(toEnglishDigits(solarYearOnly[1])) + 132)} تبری`;
+  if (!rawDate || /خورشیدی|شمسی|میلادی|هجری|بدون تاریخ/.test(rawDate)) return tabariDate || rawDate;
+  return rawDate;
+}
+
 function normalizeHistoryFigure(item) {
   if (!item) return null;
   if (typeof item === "string") {
@@ -643,12 +741,13 @@ function normalizeHistoryArticle(item) {
   const title = (item.title || "").trim();
   const body = textToParagraphs(item.body || item.content || item.text);
   if (!title && !body.length) return null;
+  const sortDate = (item.sortDate || item.dateSort || "").trim();
   return {
     id: item.id || makeId("ha"),
     title: title || "مقاله بدون عنوان",
     author: (item.author || "دبیرخانه خاندان").trim(),
-    date: (item.date || "").trim(),
-    sortDate: (item.sortDate || item.dateSort || "").trim(),
+    date: normalizeArticleDate(item.date, sortDate),
+    sortDate,
     body,
     figures: (item.figures || item.media || []).map(normalizeHistoryFigure).filter(Boolean),
     references: normalizeReferenceList(item.references),
@@ -1561,6 +1660,7 @@ function openHistoryEditor(articleId = "") {
     title.textContent = "افزودن مقاله تاریخی";
     form.elements.author.value = session.email || "دبیرخانه خاندان";
     form.elements.sortDate.value = new Date().toISOString().slice(0, 10);
+    form.elements.date.value = tabariDateFromIso(form.elements.sortDate.value);
     $("#historyEditorDialog").showModal();
     return;
   }
@@ -1954,6 +2054,12 @@ function bindEvents() {
   $("[data-close-gallery-editor]").addEventListener("click", () => $("#galleryEditorDialog").close());
   $("[data-open-history-editor]").addEventListener("click", () => openHistoryEditor());
   $("[data-close-history-editor]").addEventListener("click", () => $("#historyEditorDialog").close());
+  $("#historyEditor").elements.sortDate.addEventListener("change", (event) => {
+    const fields = $("#historyEditor").elements;
+    if (!fields.date.value.trim() || fields.date.value.includes("تبری")) {
+      fields.date.value = tabariDateFromIso(event.currentTarget.value);
+    }
+  });
   $("[data-back-history]").addEventListener("click", () => routeTo("history"));
   $("[data-edit-current-article]").addEventListener("click", () => openHistoryEditor(selectedArticleId));
   $$("[data-logout]").forEach((button) => button.addEventListener("click", logoutAdmin));
@@ -2157,7 +2263,7 @@ function bindEvents() {
       id: existing?.id || makeId("ha"),
       title: fields.title.value.trim(),
       author: fields.author.value.trim(),
-      date: fields.date.value.trim(),
+      date: normalizeArticleDate(fields.date.value, fields.sortDate.value),
       sortDate: fields.sortDate.value,
       body: fields.body.value,
       figures,
