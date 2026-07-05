@@ -397,7 +397,7 @@ def build_articles() -> list[dict]:
 def build_data() -> dict:
     gallery = build_gallery()
     return {
-        "version": "blank-family-tree-2026-07-05",
+        "version": "demo-scenarios-2026-07-05",
         "source": {
             "title": "از بالاگنجکلا تا پایین‌شالینگچال (خاندان تقی فیروزجایی)",
             "authors": ["علی فیروزیان حاجی", "حسین بیگلرنیا"],

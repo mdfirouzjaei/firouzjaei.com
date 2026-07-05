@@ -5,7 +5,7 @@ const STORAGE_KEY = "firouzjaei-family-site-state-v1";
 const SESSION_KEY = "firouzjaei-family-site-session-v1";
 const BOOK_DATA = window.FIROUZJAEI_BOOK_DATA || null;
 const BOOK_SEED_VERSION = BOOK_DATA?.version || "synthetic-seed-v1";
-const TREE_RESET_VERSION = "blank-family-tree-2026-07-05";
+const TREE_RESET_VERSION = "demo-scenarios-2026-07-05";
 const BOOK_PHOTO_ASSET_PATH = "assets/book/photos/";
 const MAX_LOCAL_UPLOAD_BYTES = 2 * 1024 * 1024;
 const VALID_ROUTES = ["home", "tree", "gallery", "history", "article"];
@@ -30,6 +30,217 @@ const colors = [
   ["#315d7e", "#e2edf4"],
   ["#b98528", "#f7eddc"],
   ["#4d5874", "#e8ebf2"],
+];
+
+const DEMO_SCENARIO_PEOPLE = [
+  {
+    id: "demo-arash",
+    name: "آرش نمونه",
+    birth: "۱۲۶۰",
+    death: "۱۳۲۸",
+    gender: "male",
+    generation: 0,
+    slot: 0,
+    spouseIds: ["demo-leila"],
+    parentIds: [],
+    story: "ریشه نمونه برای نمایش شاخه اصلی، همسر، فرزندان مستقیم و پیوندهای نسل‌های پایین‌تر.",
+    photos: [],
+  },
+  {
+    id: "demo-leila",
+    name: "لیلا نمونه",
+    birth: "۱۲۶۸",
+    death: "۱۳۳۶",
+    gender: "female",
+    generation: 0,
+    slot: 1,
+    spouseIds: ["demo-arash"],
+    parentIds: [],
+    story: "همسر ریشه نمونه؛ پیوند همسری با خط جداگانه نمایش داده می‌شود.",
+    photos: [],
+  },
+  {
+    id: "demo-behram",
+    name: "بهرام نمونه",
+    birth: "۱۲۹۲",
+    death: "۱۳۷۰",
+    gender: "male",
+    generation: 1,
+    slot: 0,
+    spouseIds: ["demo-narges"],
+    parentIds: ["demo-arash", "demo-leila"],
+    story: "فرزند مستقیم ریشه اول؛ همسر او خودش از یک ریشه دیگر می‌آید.",
+    photos: [],
+  },
+  {
+    id: "demo-mahtab",
+    name: "مهتاب نمونه",
+    birth: "۱۲۹۸",
+    death: "",
+    gender: "female",
+    generation: 1,
+    slot: 2,
+    spouseIds: [],
+    parentIds: ["demo-arash", "demo-leila"],
+    story: "فرزند مستقیم بدون همسر، برای نمایش کارت ساده در نسل اول.",
+    photos: [],
+  },
+  {
+    id: "demo-parviz",
+    name: "پرویز نمونه",
+    birth: "۱۳۰۴",
+    death: "",
+    gender: "male",
+    generation: 1,
+    slot: 4,
+    spouseIds: ["demo-mina", "demo-roya"],
+    parentIds: ["demo-arash", "demo-leila"],
+    story: "نمونه فردی با بیش از یک همسر.",
+    photos: [],
+  },
+  {
+    id: "demo-mina",
+    name: "مینا نمونه",
+    birth: "۱۳۰۸",
+    death: "",
+    gender: "female",
+    generation: 1,
+    slot: 5,
+    spouseIds: ["demo-parviz"],
+    parentIds: [],
+    story: "همسر اول در نمونه چندهمسری.",
+    photos: [],
+  },
+  {
+    id: "demo-roya",
+    name: "رویا نمونه",
+    birth: "۱۳۱۲",
+    death: "",
+    gender: "female",
+    generation: 1,
+    slot: 6,
+    spouseIds: ["demo-parviz"],
+    parentIds: [],
+    story: "همسر دوم در نمونه چندهمسری.",
+    photos: [],
+  },
+  {
+    id: "demo-kaveh",
+    name: "کاوه نمونه",
+    birth: "۱۳۲۲",
+    death: "",
+    gender: "male",
+    generation: 2,
+    slot: 0,
+    spouseIds: [],
+    parentIds: ["demo-behram", "demo-narges"],
+    story: "نوه مستقیم؛ پس از باز کردن شاخه بهرام دیده می‌شود.",
+    photos: [],
+  },
+  {
+    id: "demo-taraneh",
+    name: "ترانه نمونه",
+    birth: "۱۳۲۹",
+    death: "",
+    gender: "female",
+    generation: 2,
+    slot: 1,
+    spouseIds: [],
+    parentIds: ["demo-behram", "demo-narges"],
+    story: "نوه دوم برای نمایش چند فرزند در یک نسل.",
+    photos: [],
+  },
+  {
+    id: "demo-mani",
+    name: "مانی نمونه",
+    birth: "۱۳۳۶",
+    death: "",
+    gender: "male",
+    generation: 2,
+    slot: 4,
+    spouseIds: [],
+    parentIds: ["demo-parviz", "demo-mina"],
+    story: "فرزند حاصل از همسر اول در نمونه چندهمسری.",
+    photos: [],
+  },
+  {
+    id: "demo-sara-gap",
+    name: "سارا نسل گمشده",
+    birth: "۱۳۵۸",
+    death: "",
+    gender: "female",
+    generation: 3,
+    slot: 3,
+    spouseIds: [],
+    parentIds: ["demo-arash", "demo-leila"],
+    story: "نمونه پیوندی که ریشه اصلی مشخص است اما نسل‌های میانی هنوز معلوم نیستند؛ خط آن باید خط‌چین باشد.",
+    photos: [],
+  },
+  {
+    id: "demo-farhad",
+    name: "فرهاد سرشاخه دوم",
+    birth: "۱۲۷۲",
+    death: "۱۳۴۱",
+    gender: "male",
+    generation: 0,
+    slot: 8,
+    spouseIds: ["demo-shokuh"],
+    parentIds: [],
+    story: "ریشه مستقل دوم برای نمایش چند نقطه شروع در ردیف بالا.",
+    photos: [],
+  },
+  {
+    id: "demo-shokuh",
+    name: "شکوه سرشاخه دوم",
+    birth: "۱۲۷۹",
+    death: "۱۳۴۸",
+    gender: "female",
+    generation: 0,
+    slot: 9,
+    spouseIds: ["demo-farhad"],
+    parentIds: [],
+    story: "همسر ریشه دوم.",
+    photos: [],
+  },
+  {
+    id: "demo-narges",
+    name: "نرگس پیوندی",
+    birth: "۱۳۰۱",
+    death: "",
+    gender: "female",
+    generation: 1,
+    slot: 8,
+    spouseIds: ["demo-behram"],
+    parentIds: ["demo-farhad", "demo-shokuh"],
+    story: "همسر بهرام که خودش از سرشاخه دوم می‌آید؛ برای دیدن پیوند میان شاخه‌ها.",
+    photos: [],
+  },
+  {
+    id: "demo-homa",
+    name: "هما سرشاخه سوم",
+    birth: "۱۲۸۴",
+    death: "۱۳۵۲",
+    gender: "female",
+    generation: 0,
+    slot: 13,
+    spouseIds: [],
+    parentIds: [],
+    story: "ریشه مستقل بدون همسر برای نمایش شاخه تک‌والدی.",
+    photos: [],
+  },
+  {
+    id: "demo-nima-gap",
+    name: "نیما نسل دور",
+    birth: "۱۳۷۲",
+    death: "",
+    gender: "male",
+    generation: 4,
+    slot: 13,
+    spouseIds: [],
+    parentIds: ["demo-homa"],
+    story: "نمونه دیگری از پیوند دور با نسل‌های میانی نامشخص؛ خط از ریشه تا این کارت باید خط‌چین باشد.",
+    photos: [],
+  },
 ];
 
 const sampleState = {
@@ -353,14 +564,14 @@ const sampleState = {
 function applyBookSeed(target, bookData) {
   if (!bookData || typeof bookData !== "object") return;
   target.bookSeedVersion = TREE_RESET_VERSION;
-  target.people = [];
+  target.people = clone(DEMO_SCENARIO_PEOPLE);
   if (Array.isArray(bookData.gallery)) target.gallery = clone(bookData.gallery);
   if (Array.isArray(bookData.historyArticles)) target.historyArticles = clone(bookData.historyArticles);
   if (bookData.history) target.history = bookData.history;
 }
 
 applyBookSeed(sampleState, BOOK_DATA);
-sampleState.people = [];
+sampleState.people = clone(DEMO_SCENARIO_PEOPLE);
 sampleState.bookSeedVersion = TREE_RESET_VERSION;
 
 let state = loadState();
@@ -451,27 +662,26 @@ function defaultGenderForPerson(person) {
 
 function normalizeState(value) {
   const loadedBookSeedVersion = value?.bookSeedVersion;
+  const incomingPeopleCount = Array.isArray(value?.people) ? value.people.length : 0;
   const normalized = { ...clone(sampleState), ...value };
-  if (!Array.isArray(normalized.people) || !normalized.people.length) {
+  if (!Array.isArray(normalized.people)) {
     normalized.people = clone(sampleState.people);
   }
-  const shouldResetFamilyTree =
+  const hasOutdatedTreeVersion =
     sampleState.bookSeedVersion === TREE_RESET_VERSION && loadedBookSeedVersion !== TREE_RESET_VERSION;
+  const shouldSeedFamilyTree = hasOutdatedTreeVersion && !incomingPeopleCount;
   const looksLikeDemoData = normalized.people.some((person) => person.id === "p1" && person.name === "بزرگ خاندان");
   const shouldReplaceDemoData =
     looksLikeDemoData && sampleState.bookSeedVersion && loadedBookSeedVersion !== sampleState.bookSeedVersion;
+  const shouldReplaceBookSeed = hasOutdatedTreeVersion && loadedBookSeedVersion === "book-ocr-assets-only-2026-07-05";
   const shouldRemovePublishedBookPhotos =
     sampleState.bookSeedVersion && loadedBookSeedVersion !== sampleState.bookSeedVersion;
-  if (shouldResetFamilyTree) {
-    normalized.people = [];
+  if (shouldSeedFamilyTree || shouldReplaceBookSeed || shouldReplaceDemoData) {
+    normalized.people = clone(sampleState.people);
     normalized.submissions = [];
     normalized.bookSeedVersion = TREE_RESET_VERSION;
-  } else if (shouldReplaceDemoData) {
-    normalized.people = clone(sampleState.people);
-    normalized.gallery = clone(sampleState.gallery);
-    normalized.historyArticles = clone(sampleState.historyArticles);
-    normalized.history = sampleState.history;
-    normalized.bookSeedVersion = sampleState.bookSeedVersion;
+  } else if (hasOutdatedTreeVersion) {
+    normalized.bookSeedVersion = TREE_RESET_VERSION;
   } else if (looksLikeDemoData) {
     const existingIds = new Set(normalized.people.map((person) => person.id));
     clone(sampleState.people).forEach((person) => {
@@ -1307,7 +1517,7 @@ function treeDepthMap() {
     state.people.forEach((person) => {
       const parentDepths = (person.parentIds || []).map((parentId) => depths.get(parentId)).filter((depth) => depth !== undefined);
       if (parentDepths.length) {
-        const nextDepth = Math.min(...parentDepths) + 1;
+        const nextDepth = Math.max(Math.min(...parentDepths) + 1, Number(person.generation || 0));
         if (depths.get(person.id) !== nextDepth) {
           depths.set(person.id, nextDepth);
           changed = true;

@@ -1,5 +1,5 @@
 window.FIROUZJAEI_BOOK_DATA = {
-  "version": "blank-family-tree-2026-07-05",
+  "version": "demo-scenarios-2026-07-05",
   "source": {
     "title": "از بالاگنجکلا تا پایین‌شالینگچال (خاندان تقی فیروزجایی)",
     "authors": [
