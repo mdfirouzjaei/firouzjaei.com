@@ -1408,6 +1408,13 @@ function collapsePersonBranch(personId) {
   descendantIdsOf(personId).forEach((id) => expandedPersonIds.delete(id));
 }
 
+function openPersonBranchOnly(personId) {
+  const rootId = startingPersonIds().has(personId) ? personId : activeRootId || primaryRootForPerson(personId);
+  activeRootId = rootId && personById(rootId) ? rootId : null;
+  const path = activeRootId ? pathFromRootToPerson(activeRootId, personId) : [];
+  expandedPersonIds = new Set(path.length ? path : [activeRootId, personId].filter(Boolean));
+}
+
 function setActiveRoot(rootId = null) {
   activeRootId = rootId && personById(rootId) ? rootId : null;
   expandedPersonIds = activeRootId ? new Set([activeRootId]) : new Set();
@@ -1475,7 +1482,7 @@ function visibleTreePeople(searchTerm = "") {
   if (normalizeSearchText(searchTerm)) return searchContextPeople(searchTerm);
 
   if (activeRootId && !personById(activeRootId)) activeRootId = null;
-  const visibleIds = new Set(startingPeople().map((person) => person.id));
+  const visibleIds = new Set(activeRootId ? [activeRootId] : startingPeople().map((person) => person.id));
   if (!activeRootId) {
     return sortTreePeople(state.people.filter((person) => visibleIds.has(person.id)));
   }
@@ -1752,15 +1759,14 @@ function renderTree() {
       toggleButton.addEventListener("click", (event) => {
         event.stopPropagation();
         if (expandedPersonIds.has(person.id)) {
-          collapsePersonBranch(person.id);
-        } else {
-          if (startingPersonIds().has(person.id)) {
-            activeRootId = person.id;
+          if (startingPersonIds().has(person.id) && activeRootId === person.id) {
+            activeRootId = null;
             expandedPersonIds = new Set();
-          } else if (!activeRootId) {
-            activeRootId = primaryRootForPerson(person.id);
+          } else {
+            collapsePersonBranch(person.id);
           }
-          expandedPersonIds.add(person.id);
+        } else {
+          openPersonBranchOnly(person.id);
         }
         renderTree();
       });
