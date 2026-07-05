@@ -18,11 +18,11 @@ const TABARI_CALENDAR_PERIODS = [
   { id: "sharvineh", monthNumber: 6, name: "شروینه ما", note: "" },
   { id: "mir", monthNumber: 7, name: "میر ما", note: "" },
   { id: "oneh", monthNumber: 8, name: "اونه ما", note: "" },
-  { id: "pitek", monthNumber: null, name: "پیتک", note: "روزهای افزوده پایان سال" },
   { id: "arkeh", monthNumber: 9, name: "ارکه ما", note: "" },
   { id: "deh", monthNumber: 10, name: "دِه ما", note: "" },
   { id: "vahneh", monthNumber: 11, name: "وهنه ما", note: "" },
   { id: "nowruz", monthNumber: 12, name: "نوروز ما", note: "پایان سال تبری" },
+  { id: "pitek", monthNumber: null, name: "پیتک ما", note: "روزهای افزوده پایان سال" },
 ];
 const MAZANDARAN_CALENDAR_EVENTS = [
   {
