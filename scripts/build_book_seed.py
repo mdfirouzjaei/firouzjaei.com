@@ -397,7 +397,7 @@ def build_articles() -> list[dict]:
 def build_data() -> dict:
     gallery = build_gallery()
     return {
-        "version": "book-ocr-assets-only-2026-07-05",
+        "version": "blank-family-tree-2026-07-05",
         "source": {
             "title": "از بالاگنجکلا تا پایین‌شالینگچال (خاندان تقی فیروزجایی)",
             "authors": ["علی فیروزیان حاجی", "حسین بیگلرنیا"],
@@ -406,7 +406,7 @@ def build_data() -> dict:
             "pages": 366,
             "ocrNote": "متن و روابط از OCR فارسی و بازخوانی دستی چند صفحه کلیدی استخراج شده‌اند و نیازمند بازبینی خانوادگی هستند.",
         },
-        "people": build_people(),
+        "people": [],
         "gallery": gallery,
         "history": "این بخش از این نسخه به بعد بر پایه کتاب خانوادگی «از بالاگنجکلا تا پایین‌شالینگچال» تکمیل شده است. مقاله‌ها خلاصه و بازنویسی‌شده‌اند و برای هر مورد صفحه‌های منبع ذکر شده است.",
         "historyArticles": build_articles(),

@@ -5,6 +5,7 @@ const STORAGE_KEY = "firouzjaei-family-site-state-v1";
 const SESSION_KEY = "firouzjaei-family-site-session-v1";
 const BOOK_DATA = window.FIROUZJAEI_BOOK_DATA || null;
 const BOOK_SEED_VERSION = BOOK_DATA?.version || "synthetic-seed-v1";
+const TREE_RESET_VERSION = "blank-family-tree-2026-07-05";
 const BOOK_PHOTO_ASSET_PATH = "assets/book/photos/";
 const MAX_LOCAL_UPLOAD_BYTES = 2 * 1024 * 1024;
 const VALID_ROUTES = ["home", "tree", "gallery", "history", "article"];
@@ -351,14 +352,16 @@ const sampleState = {
 
 function applyBookSeed(target, bookData) {
   if (!bookData || typeof bookData !== "object") return;
-  target.bookSeedVersion = bookData.version || BOOK_SEED_VERSION;
-  if (Array.isArray(bookData.people) && bookData.people.length) target.people = clone(bookData.people);
+  target.bookSeedVersion = TREE_RESET_VERSION;
+  target.people = [];
   if (Array.isArray(bookData.gallery)) target.gallery = clone(bookData.gallery);
   if (Array.isArray(bookData.historyArticles)) target.historyArticles = clone(bookData.historyArticles);
   if (bookData.history) target.history = bookData.history;
 }
 
 applyBookSeed(sampleState, BOOK_DATA);
+sampleState.people = [];
+sampleState.bookSeedVersion = TREE_RESET_VERSION;
 
 let state = loadState();
 let session = loadSession();
@@ -452,12 +455,18 @@ function normalizeState(value) {
   if (!Array.isArray(normalized.people) || !normalized.people.length) {
     normalized.people = clone(sampleState.people);
   }
+  const shouldResetFamilyTree =
+    sampleState.bookSeedVersion === TREE_RESET_VERSION && loadedBookSeedVersion !== TREE_RESET_VERSION;
   const looksLikeDemoData = normalized.people.some((person) => person.id === "p1" && person.name === "بزرگ خاندان");
   const shouldReplaceDemoData =
     looksLikeDemoData && sampleState.bookSeedVersion && loadedBookSeedVersion !== sampleState.bookSeedVersion;
   const shouldRemovePublishedBookPhotos =
     sampleState.bookSeedVersion && loadedBookSeedVersion !== sampleState.bookSeedVersion;
-  if (shouldReplaceDemoData) {
+  if (shouldResetFamilyTree) {
+    normalized.people = [];
+    normalized.submissions = [];
+    normalized.bookSeedVersion = TREE_RESET_VERSION;
+  } else if (shouldReplaceDemoData) {
     normalized.people = clone(sampleState.people);
     normalized.gallery = clone(sampleState.gallery);
     normalized.historyArticles = clone(sampleState.historyArticles);
@@ -1443,10 +1452,17 @@ function renderRootNavigator(searchTerm = "", matchCount = 0) {
 function renderTreeEmpty(nodes, searchTerm = "") {
   const empty = document.createElement("div");
   empty.className = "tree-empty";
-  empty.innerHTML = `
-    <strong>نتیجه‌ای پیدا نشد</strong>
-    <span>برای «${escapeHtml(searchTerm)}» فردی در درخت ثبت نشده است.</span>
-  `;
+  if (searchTerm) {
+    empty.innerHTML = `
+      <strong>نتیجه‌ای پیدا نشد</strong>
+      <span>برای «${escapeHtml(searchTerm)}» فردی در درخت ثبت نشده است.</span>
+    `;
+  } else {
+    empty.innerHTML = `
+      <strong>درخت خانوادگی هنوز خالی است</strong>
+      <span>برای شروع، وارد حساب مدیر شوید و ریشه اصلی را اضافه کنید.</span>
+    `;
+  }
   nodes.appendChild(empty);
 }
 
@@ -1466,6 +1482,13 @@ function renderTree() {
   const positions = treePositions(people);
 
   drawRelationships(lines, people, positions);
+
+  if (!hasSearch && !people.length) {
+    renderTreeEmpty(nodes);
+    fitTreeToStage();
+    updateAdminStatus();
+    return;
+  }
 
   if (hasSearch && !searchMatches.length) {
     renderTreeEmpty(nodes, searchTerm);
