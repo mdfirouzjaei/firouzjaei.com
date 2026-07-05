@@ -279,6 +279,68 @@ const sampleState = {
   submissions: [],
   history:
     "این متن نمونه برای بخش نوشتار تاریخ است. در نسخه نهایی، می توانید مقاله هایی درباره تاریخ خانواده، روستاها، منطقه، شاخه های اصلی، خاطرات بزرگان و رویدادهای مهم اینجا منتشر کنید.\n\nهدف این بخش این است که نوشته های تاریخی خانواده و سرزمین مادری در کنار درخت خانوادگی و عکس ها نگهداری شوند؛ جایی برای روایت های مستند، یادداشت های پژوهشی، خاطره ها و مقاله هایی که نسل های بعد بتوانند به آن رجوع کنند.",
+  historyArticles: [
+    {
+      id: "ha1",
+      title: "آغاز شاخه های فیروزجایی در کوهپایه",
+      author: "گروه گردآوری خاندان",
+      date: "۱۲۸۵ خورشیدی",
+      sortDate: "1906-03-21",
+      body: [
+        "این مقاله نمونه، آغاز یک روایت تاریخی درباره شکل گیری شاخه های نخست خانواده را نشان می دهد. در نسخه نهایی، این متن می تواند با اطلاعات کتاب خانوادگی، گفت وگو با بزرگان و سندهای معتبر جایگزین شود.",
+        "تمرکز این نوشته بر پیوند میان خانواده، زمین، مسیرهای کوچ و روستاهای پیرامون است؛ یعنی همان زمینه ای که بسیاری از نام ها و خاطره های خانوادگی از آن معنا می گیرند.",
+      ],
+      figures: [
+        {
+          id: "hf1",
+          title: "نقشه مسیرهای خانوادگی",
+          caption: "شکل نمونه برای نمایش مسیرهای فرضی رفت وآمد، سکونت و پیوندهای محلی.",
+          src: "",
+        },
+      ],
+      references: ["دفترچه های شفاهی خانواده، نسخه آزمایشی", "مصاحبه نمونه با بزرگان خاندان، ۱۴۰۳"],
+    },
+    {
+      id: "ha2",
+      title: "نقش بزرگان در پیوندهای محلی",
+      author: "دبیرخانه خاندان فیروزجایی",
+      date: "۱۳۲۰ خورشیدی",
+      sortDate: "1941-03-21",
+      body: [
+        "این نوشته نمونه به جایگاه بزرگان خانواده در حفظ پیوندهای اجتماعی، حل اختلاف ها و انتقال خاطره ها می پردازد. چنین مقاله هایی می توانند نام افراد، رویدادها و نسبت های خانوادگی را با درخت خانواده مرتبط کنند.",
+        "در آینده، هر پاراگراف می تواند به عکس، سند یا کارت افراد در درخت خانوادگی پیوند بخورد تا تاریخ نوشتاری و داده های شجره نامه در کنار هم خوانده شوند.",
+      ],
+      figures: [
+        {
+          id: "hf2",
+          title: "مجلس خانوادگی",
+          caption: "شکل نمونه از یک گردهمایی خانوادگی برای نمایش جایگاه روایت شفاهی.",
+          src: "",
+        },
+      ],
+      references: ["یادداشت های گردآوری شده از خانواده، نسخه نمونه", "آرشیو عکس های خانوادگی، بخش آزمایشی"],
+    },
+    {
+      id: "ha3",
+      title: "از خاطره های پراکنده تا آرشیو دیجیتال",
+      author: "مصطفی فیروزجایی",
+      date: "۱۴۰۳ خورشیدی",
+      sortDate: "2024-03-20",
+      body: [
+        "این مقاله نمونه توضیح می دهد که چرا گردآوری تاریخ خانواده در یک وب سایت مشترک اهمیت دارد. هدف، تبدیل خاطره های پراکنده به نوشته های قابل جست وجو، قابل ارجاع و قابل تکمیل برای نسل های بعد است.",
+        "اعضای خانواده می توانند پیشنهاد اصلاح، عکس، ویدیو و سند بفرستند و مدیران پس از بررسی، مقاله ها و کارت های افراد را به روز کنند.",
+      ],
+      figures: [
+        {
+          id: "hf3",
+          title: "آرشیو دیجیتال خانواده",
+          caption: "شکل نمونه برای نمایش پیوند میان مقاله، عکس، سند و درخت خانوادگی.",
+          src: "",
+        },
+      ],
+      references: ["راهنمای داخلی وب سایت خاندان فیروزجایی، ۱۴۰۳", "فهرست پیشنهادی منابع خانوادگی، نسخه آزمایشی"],
+    },
+  ],
 };
 
 let state = loadState();
@@ -359,6 +421,21 @@ function normalizeState(value) {
   normalized.admins = normalized.admins || clone(sampleState).admins;
   normalized.subscribers = normalized.subscribers || [];
   normalized.submissions = (normalized.submissions || []).map(normalizeSubmission).filter(Boolean);
+  const historyArticleSource = Array.isArray(normalized.historyArticles) ? normalized.historyArticles : [];
+  normalized.historyArticles = historyArticleSource.map(normalizeHistoryArticle).filter(Boolean);
+  if (!normalized.historyArticles.length && normalized.history) {
+    const legacyArticle = normalizeHistoryArticle({
+      id: "ha-legacy",
+      title: "یادداشت پیشین نوشتار تاریخ",
+      author: "دبیرخانه خاندان",
+      date: "بدون تاریخ",
+      sortDate: "1900-01-01",
+      body: normalized.history,
+      figures: [],
+      references: [],
+    });
+    if (legacyArticle) normalized.historyArticles = [legacyArticle];
+  }
   return normalized;
 }
 
@@ -500,6 +577,70 @@ function normalizeSubmission(item) {
     status: item.status || "pending",
     createdAt: item.createdAt || new Date().toISOString(),
   };
+}
+
+function textToParagraphs(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item || "").trim()).filter(Boolean);
+  return String(value || "")
+    .split(/\n+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeReferenceList(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item || "").trim()).filter(Boolean);
+  return String(value || "")
+    .split(/\n+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeHistoryFigure(item) {
+  if (!item) return null;
+  if (typeof item === "string") {
+    const src = item.trim();
+    if (!src) return null;
+    return {
+      id: makeId("hf"),
+      title: "شکل مقاله",
+      caption: "",
+      src,
+      type: mediaTypeFromSource(src),
+    };
+  }
+  const src = (item.src || item.url || "").trim();
+  const title = (item.title || item.name || "").trim();
+  const caption = (item.caption || "").trim();
+  if (!src && !title && !caption) return null;
+  return {
+    id: item.id || makeId("hf"),
+    title: title || "شکل مقاله",
+    caption,
+    src,
+    type: mediaTypeFromSource(src, item.mimeType || item.type || ""),
+  };
+}
+
+function normalizeHistoryArticle(item) {
+  if (!item) return null;
+  const title = (item.title || "").trim();
+  const body = textToParagraphs(item.body || item.content || item.text);
+  if (!title && !body.length) return null;
+  return {
+    id: item.id || makeId("ha"),
+    title: title || "مقاله بدون عنوان",
+    author: (item.author || "دبیرخانه خاندان").trim(),
+    date: (item.date || "").trim(),
+    sortDate: (item.sortDate || item.dateSort || "").trim(),
+    body,
+    figures: (item.figures || item.media || []).map(normalizeHistoryFigure).filter(Boolean),
+    references: normalizeReferenceList(item.references),
+    createdAt: item.createdAt || new Date().toISOString(),
+  };
+}
+
+function compareHistoryArticles(a, b) {
+  return (Date.parse(a.sortDate) || 0) - (Date.parse(b.sortDate) || 0);
 }
 
 function uniqueMedia(items) {
@@ -1158,12 +1299,58 @@ function renderGallery() {
   });
 }
 
+function historyFigureMarkup(figure, article, index) {
+  const safeFigure = normalizeHistoryFigure(figure);
+  if (!safeFigure) return "";
+  const src = safeFigure.src || gallerySvg(safeFigure.title || article.title, colors[index % colors.length]);
+  const media =
+    safeFigure.type === "video" && safeFigure.src
+      ? `<video src="${escapeHtml(src)}" controls preload="metadata"></video>`
+      : `<img src="${escapeHtml(src)}" alt="${escapeHtml(safeFigure.title || article.title)}">`;
+  const caption = [safeFigure.title, safeFigure.caption].filter(Boolean).join(" - ");
+  return `
+    <figure class="history-figure">
+      ${media}
+      ${caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : ""}
+    </figure>
+  `;
+}
+
+function historyArticleMarkup(article, index) {
+  const figures = article.figures.length
+    ? `<div class="history-figures">${article.figures.map((figure, figureIndex) => historyFigureMarkup(figure, article, figureIndex)).join("")}</div>`
+    : "";
+  const references = article.references.length
+    ? `
+      <section class="article-references">
+        <h4>منابع</h4>
+        <ol>${article.references.map((reference) => `<li>${escapeHtml(reference)}</li>`).join("")}</ol>
+      </section>
+    `
+    : "";
+  return `
+    <article class="history-article" style="--article-index: ${index + 1}">
+      <div class="article-time">
+        <span>${escapeHtml(article.date || "بدون تاریخ")}</span>
+      </div>
+      <div class="article-body">
+        <header class="article-head">
+          <h2>${escapeHtml(article.title)}</h2>
+          <p>نویسنده: ${escapeHtml(article.author || "دبیرخانه خاندان")}</p>
+        </header>
+        ${article.body.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("")}
+        ${figures}
+        ${references}
+      </div>
+    </article>
+  `;
+}
+
 function renderHistory() {
-  $("#historyContent").innerHTML = state.history
-    .split(/\n+/)
-    .filter(Boolean)
-    .map((paragraph) => `<p>${paragraph}</p>`)
-    .join("");
+  const articles = (state.historyArticles || []).map(normalizeHistoryArticle).filter(Boolean).sort(compareHistoryArticles);
+  $("#historyContent").innerHTML = articles.length
+    ? articles.map(historyArticleMarkup).join("")
+    : `<p class="empty-state">هنوز مقاله ای برای این بخش ثبت نشده است.</p>`;
 }
 
 function updateAdminStatus() {
@@ -1540,7 +1727,10 @@ function bindEvents() {
   $("[data-open-gallery-editor]").addEventListener("click", () => $("#galleryEditorDialog").showModal());
   $("[data-close-gallery-editor]").addEventListener("click", () => $("#galleryEditorDialog").close());
   $("[data-open-history-editor]").addEventListener("click", () => {
-    $("#historyEditor").elements.history.value = state.history;
+    const form = $("#historyEditor");
+    form.reset();
+    form.elements.author.value = session.email || "دبیرخانه خاندان";
+    form.elements.sortDate.value = new Date().toISOString().slice(0, 10);
     $("#historyEditorDialog").showModal();
   });
   $("[data-close-history-editor]").addEventListener("click", () => $("#historyEditorDialog").close());
@@ -1706,10 +1896,47 @@ function bindEvents() {
     renderGallery();
   });
 
-  $("#historyEditor").addEventListener("submit", (event) => {
+  $("#historyEditor").addEventListener("submit", async (event) => {
     event.preventDefault();
-    state.history = event.currentTarget.elements.history.value.trim();
+    const form = event.currentTarget;
+    const fields = form.elements;
+    let uploadedFigure = null;
+    try {
+      uploadedFigure = fields.figureFile.files?.[0] ? await fileToMedia(fields.figureFile.files[0]) : null;
+    } catch (error) {
+      alert(error.message || "بارگذاری شکل انجام نشد.");
+      return;
+    }
+    const figureSrc = fields.figureSrc.value.trim() || uploadedFigure?.src || "";
+    const figureTitle = fields.figureTitle.value.trim();
+    const figureCaption = fields.figureCaption.value.trim();
+    const figures =
+      figureSrc || figureTitle || figureCaption
+        ? [
+            {
+              id: makeId("hf"),
+              title: figureTitle,
+              caption: figureCaption,
+              src: figureSrc,
+              type: uploadedFigure?.type || mediaTypeFromSource(figureSrc),
+            },
+          ]
+        : [];
+    state.historyArticles.push(
+      normalizeHistoryArticle({
+        id: makeId("ha"),
+        title: fields.title.value.trim(),
+        author: fields.author.value.trim(),
+        date: fields.date.value.trim(),
+        sortDate: fields.sortDate.value,
+        body: fields.body.value,
+        figures,
+        references: fields.references.value,
+      })
+    );
+    state.historyArticles = state.historyArticles.filter(Boolean).sort(compareHistoryArticles);
     saveState();
+    form.reset();
     $("#historyEditorDialog").close();
     renderHistory();
   });

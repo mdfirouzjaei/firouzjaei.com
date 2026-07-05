@@ -9,7 +9,7 @@
     />
     <title>خاندان فیروزجایی</title>
     <link rel="icon" type="image/png" href="assets/brand/firouzjaei-logo.png" />
-    <link rel="stylesheet" href="styles.css?v=history-writing-20260705" />
+    <link rel="stylesheet" href="styles.css?v=history-articles-20260705" />
   </head>
   <body>
     <div class="app-shell">
@@ -147,11 +147,11 @@
               <p class="eyebrow">مقاله های تاریخی</p>
               <h1>نوشتار تاریخ</h1>
             </div>
-            <button class="admin-only soft-action" type="button" data-open-history-editor>ویرایش متن</button>
+            <button class="admin-only soft-action" type="button" data-open-history-editor>افزودن مقاله</button>
           </div>
           <article class="history-panel">
             <div class="history-calligraphy">ریشه ها زنده اند</div>
-            <div id="historyContent"></div>
+            <div class="history-articles" id="historyContent"></div>
           </article>
         </section>
       </main>
@@ -355,9 +355,43 @@
         <button class="icon-button modal-close" type="button" data-close-history-editor title="بستن">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
         </button>
-        <h2>ویرایش نوشتار تاریخ</h2>
-        <textarea name="history" rows="12"></textarea>
-        <button class="primary-action" type="submit">ذخیره نوشتار تاریخ</button>
+        <h2>افزودن مقاله تاریخی</h2>
+        <div class="form-grid">
+          <label>عنوان مقاله
+            <input name="title" type="text" required />
+          </label>
+          <label>نام نویسنده
+            <input name="author" type="text" required />
+          </label>
+          <label>تاریخ نمایشی
+            <input name="date" type="text" placeholder="مثلا ۱۲۸۵ خورشیدی" required />
+          </label>
+          <label>تاریخ مرتب سازی
+            <input name="sortDate" type="date" required />
+          </label>
+        </div>
+        <label>متن مقاله
+          <textarea name="body" rows="7" required></textarea>
+        </label>
+        <div class="form-grid">
+          <label>عنوان شکل
+            <input name="figureTitle" type="text" />
+          </label>
+          <label>نشانی شکل
+            <input name="figureSrc" type="url" />
+          </label>
+        </div>
+        <label>بارگذاری شکل
+          <input name="figureFile" type="file" accept="image/*,video/*" />
+          <small class="field-note">اختیاری؛ اگر نشانی شکل وارد شود، همان نشانی استفاده می شود.</small>
+        </label>
+        <label>شرح شکل
+          <textarea name="figureCaption" rows="2"></textarea>
+        </label>
+        <label>منابع
+          <textarea name="references" rows="4" placeholder="هر منبع در یک خط"></textarea>
+        </label>
+        <button class="primary-action" type="submit">ذخیره مقاله</button>
       </form>
     </dialog>
 
@@ -378,6 +412,6 @@
       </div>
     </template>
 
-    <script src="app.js?v=history-writing-20260705"></script>
+    <script src="app.js?v=history-articles-20260705"></script>
   </body>
 </html>
