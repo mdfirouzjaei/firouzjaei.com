@@ -114,6 +114,7 @@
                 <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>
                 <input id="familySearch" type="search" placeholder="جست وجوی نام" autocomplete="off" />
               </label>
+              <div class="root-nav" id="rootNav" aria-label="شاخه‌های اصلی"></div>
               <div class="legend">
                 <span><i class="legend-dot marriage"></i> پیوند همسری</span>
                 <span><i class="legend-dot descent"></i> فرزند</span>
@@ -416,6 +417,7 @@
           <span data-branch-symbol>+</span>
           <small data-branch-count></small>
         </button>
+        <button class="branch-link" type="button" data-focus-branch hidden>شاخه</button>
         <span class="avatar"></span>
         <span class="person-name"></span>
         <span class="node-actions" aria-label="افزودن نسبت خانوادگی">
@@ -427,7 +429,7 @@
       </div>
     </template>
 
-    <script src="assets/book/book-data.js?v=book-ocr-20260705"></script>
-    <script src="app.js?v=book-ocr-20260705"></script>
+    <script src="assets/book/book-data.js?v=tree-nav-20260705"></script>
+    <script src="app.js?v=tree-nav-20260705"></script>
   </body>
 </html>

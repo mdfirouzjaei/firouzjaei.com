@@ -440,6 +440,56 @@ h2 {
   box-shadow: 0 12px 28px rgba(21, 34, 31, 0.06);
 }
 
+.root-nav {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 4px;
+  scrollbar-width: thin;
+}
+
+.root-nav-title {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.root-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(36, 85, 76, 0.14);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--green);
+  font-size: 0.82rem;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.root-chip small {
+  display: inline-grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: #eef5f2;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.root-chip.active {
+  border-color: rgba(36, 85, 76, 0.36);
+  background: var(--green-2);
+  box-shadow: 0 8px 20px rgba(36, 85, 76, 0.1);
+}
+
 .tree-view .section-head {
   max-width: none;
 }
@@ -614,6 +664,14 @@ label select:focus,
   border-color: var(--gold);
 }
 
+.person-node.active-root {
+  box-shadow: 0 14px 32px rgba(36, 85, 76, 0.16);
+}
+
+.person-node.branch-bridge {
+  border-style: dashed;
+}
+
 .branch-toggle {
   position: absolute;
   top: -11px;
@@ -636,6 +694,26 @@ label select:focus,
 }
 
 .branch-toggle[hidden] {
+  display: none;
+}
+
+.branch-link {
+  position: absolute;
+  top: -11px;
+  right: -11px;
+  z-index: 3;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid rgba(49, 93, 126, 0.3);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--blue);
+  font-size: 0.72rem;
+  font-weight: 820;
+  box-shadow: 0 8px 18px rgba(21, 34, 31, 0.1);
+}
+
+.branch-link[hidden] {
   display: none;
 }
 

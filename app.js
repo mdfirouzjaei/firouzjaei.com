@@ -367,6 +367,7 @@ let treeScale = 1;
 let treeZoom = 1;
 let pendingRelationship = null;
 let expandedPersonIds = new Set();
+let activeRootId = null;
 let selectedArticleId = null;
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -1034,16 +1035,109 @@ function startingPeople() {
   return sortTreePeople(roots.length ? roots : state.people.filter((person) => !(person.parentIds || []).length));
 }
 
+function startingPersonIds() {
+  return new Set(startingPeople().map((person) => person.id));
+}
+
+function rootAncestorIds(personId, visited = new Set()) {
+  if (!personId || visited.has(personId)) return [];
+  visited.add(personId);
+  const person = personById(personId);
+  if (!person) return [];
+  const parentIds = person.parentIds || [];
+  if (!parentIds.length) return [person.id];
+  const roots = parentIds.flatMap((parentId) => rootAncestorIds(parentId, new Set(visited)));
+  return Array.from(new Set(roots));
+}
+
+function primaryRootForPerson(personId) {
+  const roots = rootAncestorIds(personId);
+  const startingIds = startingPersonIds();
+  return roots.find((rootId) => startingIds.has(rootId)) || roots[0] || personId;
+}
+
+function personHasAncestor(personId, ancestorId, visited = new Set()) {
+  if (!personId || !ancestorId || visited.has(personId)) return false;
+  if (personId === ancestorId) return true;
+  visited.add(personId);
+  const person = personById(personId);
+  return Boolean(person?.parentIds?.some((parentId) => personHasAncestor(parentId, ancestorId, visited)));
+}
+
+function pathFromRootToPerson(rootId, personId, visited = new Set()) {
+  if (!rootId || !personId || visited.has(personId)) return [];
+  if (rootId === personId) return [rootId];
+  visited.add(personId);
+  const person = personById(personId);
+  if (!person) return [];
+  for (const parentId of person.parentIds || []) {
+    const parentPath = pathFromRootToPerson(rootId, parentId, new Set(visited));
+    if (parentPath.length) return [...parentPath, personId];
+  }
+  return [];
+}
+
+function descendantIdsOf(personId, visited = new Set()) {
+  if (!personId || visited.has(personId)) return [];
+  visited.add(personId);
+  return childPeopleOf(personId).flatMap((child) => [child.id, ...descendantIdsOf(child.id, visited)]);
+}
+
+function collapsePersonBranch(personId) {
+  expandedPersonIds.delete(personId);
+  descendantIdsOf(personId).forEach((id) => expandedPersonIds.delete(id));
+}
+
+function setActiveRoot(rootId = null) {
+  activeRootId = rootId && personById(rootId) ? rootId : null;
+  expandedPersonIds = activeRootId ? new Set([activeRootId]) : new Set();
+  selectedPersonId = activeRootId;
+  renderTree();
+}
+
+function focusPersonBranch(personId) {
+  const rootId = primaryRootForPerson(personId);
+  activeRootId = rootId && personById(rootId) ? rootId : null;
+  const path = activeRootId ? pathFromRootToPerson(activeRootId, personId) : [];
+  expandedPersonIds = new Set(path.slice(0, -1));
+  if (activeRootId) expandedPersonIds.add(activeRootId);
+  selectedPersonId = personId;
+  renderTree();
+}
+
 function descendantCount(personId, visited = new Set()) {
   if (visited.has(personId)) return 0;
   visited.add(personId);
   return childPeopleOf(personId).reduce((total, child) => total + 1 + descendantCount(child.id, visited), 0);
 }
 
+function navigableChildPeopleOf(personId) {
+  const children = childPeopleOf(personId);
+  if (!activeRootId) return children;
+  return children.filter((child) => personHasAncestor(child.id, activeRootId));
+}
+
+function navigableDescendantCount(personId, visited = new Set()) {
+  if (visited.has(personId)) return 0;
+  visited.add(personId);
+  return navigableChildPeopleOf(personId).reduce((total, child) => total + 1 + navigableDescendantCount(child.id, visited), 0);
+}
+
+function shouldShowSpouseConnection(person, spouse) {
+  if (!activeRootId || !person || !spouse) return false;
+  return personHasAncestor(person.id, activeRootId) || personHasAncestor(spouse.id, activeRootId);
+}
+
 function visibleTreePeople(searchTerm = "") {
   if (searchTerm) return sortTreePeople(state.people);
 
+  if (activeRootId && !personById(activeRootId)) activeRootId = null;
   const visibleIds = new Set(startingPeople().map((person) => person.id));
+  if (!activeRootId) {
+    return sortTreePeople(state.people.filter((person) => visibleIds.has(person.id)));
+  }
+
+  visibleIds.add(activeRootId);
   let changed = true;
   while (changed) {
     changed = false;
@@ -1051,13 +1145,14 @@ function visibleTreePeople(searchTerm = "") {
       const person = personById(id);
       if (!person) return;
       (person.spouseIds || []).forEach((spouseId) => {
-        if (personById(spouseId) && !visibleIds.has(spouseId)) {
+        const spouse = personById(spouseId);
+        if (spouse && shouldShowSpouseConnection(person, spouse) && !visibleIds.has(spouseId)) {
           visibleIds.add(spouseId);
           changed = true;
         }
       });
       if (!expandedPersonIds.has(id)) return;
-      childPeopleOf(id).forEach((child) => {
+      navigableChildPeopleOf(id).forEach((child) => {
         if (!visibleIds.has(child.id)) {
           visibleIds.add(child.id);
           changed = true;
@@ -1106,6 +1201,39 @@ function treeDepthMap() {
   return depths;
 }
 
+function orderTreeRowPeople(generationPeople) {
+  const rowIds = new Set(generationPeople.map((person) => person.id));
+  const placed = new Set();
+  const ordered = [];
+  const sorted = generationPeople
+    .slice()
+    .sort(
+      (a, b) =>
+        Number(a.slot || 0) - Number(b.slot || 0) ||
+        genderSortValue(a) - genderSortValue(b) ||
+        a.name.localeCompare(b.name, "fa")
+    );
+
+  sorted.forEach((person) => {
+    if (placed.has(person.id)) return;
+    const group = [person, ...(person.spouseIds || []).map(personById).filter((spouse) => spouse && rowIds.has(spouse.id) && !placed.has(spouse.id))];
+    group
+      .sort(
+        (a, b) =>
+          genderSortValue(a) - genderSortValue(b) ||
+          Number(a.slot || 0) - Number(b.slot || 0) ||
+          a.name.localeCompare(b.name, "fa")
+      )
+      .forEach((item) => {
+        if (placed.has(item.id)) return;
+        placed.add(item.id);
+        ordered.push(item);
+      });
+  });
+
+  return ordered;
+}
+
 function treePositions(people = state.people) {
   const positions = new Map();
   const generationMap = new Map();
@@ -1117,20 +1245,11 @@ function treePositions(people = state.people) {
 
   generationMap.forEach((generationPeople) => {
     let nextSlot = -1;
-    generationPeople
-      .slice()
-      .sort(
-        (a, b) =>
-          Number(a.slot || 0) - Number(b.slot || 0) ||
-          genderSortValue(a) - genderSortValue(b) ||
-          a.name.localeCompare(b.name, "fa")
-      )
-      .forEach((person) => {
-        const requestedSlot = Math.max(0, Number(person.slot || 0));
-        const displaySlot = Math.max(requestedSlot, nextSlot + 1);
-        nextSlot = displaySlot;
-        positions.set(person.id, nodePosition({ ...person, slot: displaySlot }));
-      });
+    orderTreeRowPeople(generationPeople).forEach((person) => {
+      const displaySlot = nextSlot + 1;
+      nextSlot = displaySlot;
+      positions.set(person.id, nodePosition({ ...person, slot: displaySlot }));
+    });
   });
 
   return positions;
@@ -1145,6 +1264,43 @@ function treeCanvasSize(positions = treePositions()) {
   };
 }
 
+function branchBridgeRootForPerson(person) {
+  if (!activeRootId || !person) return "";
+  if (isStartingPerson(person)) return "";
+  if (!(person.parentIds || []).length) return "";
+  const rootId = primaryRootForPerson(person.id);
+  return rootId && rootId !== activeRootId ? rootId : "";
+}
+
+function renderRootNavigator() {
+  const rootNav = $("#rootNav");
+  if (!rootNav) return;
+  const roots = startingPeople();
+  rootNav.innerHTML = "";
+
+  const title = document.createElement("span");
+  title.className = "root-nav-title";
+  title.textContent = "شاخه‌ها";
+  rootNav.appendChild(title);
+
+  const allButton = document.createElement("button");
+  allButton.type = "button";
+  allButton.className = `root-chip ${!activeRootId ? "active" : ""}`;
+  allButton.textContent = "فقط ریشه‌ها";
+  allButton.addEventListener("click", () => setActiveRoot(null));
+  rootNav.appendChild(allButton);
+
+  roots.forEach((root) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `root-chip ${activeRootId === root.id ? "active" : ""}`;
+    button.innerHTML = `<strong>${escapeHtml(root.name)}</strong><small>${toPersianDigits(descendantCount(root.id))}</small>`;
+    button.title = `نمای شاخه ${root.name}`;
+    button.addEventListener("click", () => setActiveRoot(root.id));
+    rootNav.appendChild(button);
+  });
+}
+
 function renderTree() {
   const nodes = $("#treeNodes");
   const lines = $("#treeLines");
@@ -1152,6 +1308,7 @@ function renderTree() {
   const searchTerm = $("#familySearch").value.trim();
   nodes.innerHTML = "";
   lines.innerHTML = "";
+  renderRootNavigator();
 
   const people = visibleTreePeople(searchTerm);
   const positions = treePositions(people);
@@ -1167,6 +1324,7 @@ function renderTree() {
     node.dataset.gender = normalizeGender(person.gender);
     node.classList.add(`gender-${normalizeGender(person.gender)}`);
     node.classList.toggle("selected", selectedPersonId === person.id);
+    node.classList.toggle("active-root", activeRootId === person.id);
     if (searchTerm && !person.name.includes(searchTerm)) node.classList.add("dimmed");
 
     const avatar = $(".avatar", node);
@@ -1175,10 +1333,23 @@ function renderTree() {
     image.src = person.photo || avatarSvg(person.name, index);
     avatar.appendChild(image);
     $(".person-name", node).textContent = person.name;
+    const bridgeRootId = !searchTerm ? branchBridgeRootForPerson(person) : "";
+    const branchButton = $("[data-focus-branch]", node);
+    if (branchButton && bridgeRootId) {
+      const bridgeRoot = personById(bridgeRootId);
+      node.classList.add("branch-bridge");
+      branchButton.hidden = false;
+      branchButton.title = bridgeRoot ? `رفتن به شاخه ${bridgeRoot.name}` : "رفتن به شاخه این فرد";
+      branchButton.setAttribute("aria-label", branchButton.title);
+      branchButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        focusPersonBranch(person.id);
+      });
+    }
     const toggleButton = $("[data-toggle-branch]", node);
-    const childCount = childPeopleOf(person.id).length;
+    const childCount = searchTerm ? childPeopleOf(person.id).length : navigableChildPeopleOf(person.id).length;
     if (toggleButton && childCount) {
-      const hiddenCount = descendantCount(person.id);
+      const hiddenCount = searchTerm ? descendantCount(person.id) : navigableDescendantCount(person.id);
       const isExpanded = expandedPersonIds.has(person.id) || Boolean(searchTerm);
       node.classList.toggle("branch-open", isExpanded);
       $("[data-branch-symbol]", toggleButton).textContent = isExpanded ? "-" : "+";
@@ -1188,8 +1359,16 @@ function renderTree() {
       toggleButton.addEventListener("click", (event) => {
         event.stopPropagation();
         if (expandedPersonIds.has(person.id)) {
-          expandedPersonIds.delete(person.id);
+          collapsePersonBranch(person.id);
         } else {
+          if (!searchTerm) {
+            if (startingPersonIds().has(person.id)) {
+              activeRootId = person.id;
+              expandedPersonIds = new Set();
+            } else if (!activeRootId) {
+              activeRootId = primaryRootForPerson(person.id);
+            }
+          }
           expandedPersonIds.add(person.id);
         }
         renderTree();
@@ -2250,6 +2429,12 @@ function bindEvents() {
     pendingRelationship = null;
     saveState();
     selectedPersonId = id;
+    const rootId = primaryRootForPerson(id);
+    if (rootId) {
+      activeRootId = rootId;
+      const path = pathFromRootToPerson(rootId, id);
+      path.slice(0, -1).forEach((pathId) => expandedPersonIds.add(pathId));
+    }
     refreshAll();
     fillPersonForm(id);
     $("#personEditorDialog").close();
@@ -2266,6 +2451,8 @@ function bindEvents() {
     });
     saveState();
     selectedPersonId = null;
+    if (activeRootId === id) activeRootId = null;
+    collapsePersonBranch(id);
     clearPersonForm();
     $("#personEditorDialog").close();
     refreshAll();
