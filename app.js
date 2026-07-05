@@ -10,19 +10,72 @@ const BOOK_PHOTO_ASSET_PATH = "assets/book/photos/";
 const MAX_LOCAL_UPLOAD_BYTES = 2 * 1024 * 1024;
 const VALID_ROUTES = ["home", "tree", "gallery", "calendar", "history", "article"];
 const TABARI_CALENDAR_PERIODS = [
-  { id: "fardineh", name: "فردینه ما", note: "آغاز سال تبری" },
-  { id: "karcheh", name: "کرچه ما", note: "" },
-  { id: "hareh", name: "هره ما", note: "" },
-  { id: "tir", name: "تیر ما", note: "" },
-  { id: "melareh", name: "ملاره ما", note: "" },
-  { id: "sharvineh", name: "شروینه ما", note: "" },
-  { id: "mir", name: "میر ما", note: "" },
-  { id: "oneh", name: "اونه ما", note: "" },
-  { id: "pitek", name: "پیتک", note: "روزهای افزوده پایان سال" },
-  { id: "arkeh", name: "ارکه ما", note: "" },
-  { id: "deh", name: "دِه ما", note: "" },
-  { id: "vahneh", name: "وهنه ما", note: "" },
-  { id: "nowruz", name: "نوروز ما", note: "پایان سال تبری" },
+  { id: "fardineh", monthNumber: 1, name: "فردینه ما", note: "آغاز سال تبری" },
+  { id: "karcheh", monthNumber: 2, name: "کرچه ما", note: "" },
+  { id: "hareh", monthNumber: 3, name: "هره ما", note: "" },
+  { id: "tir", monthNumber: 4, name: "تیر ما", note: "" },
+  { id: "melareh", monthNumber: 5, name: "ملاره ما", note: "" },
+  { id: "sharvineh", monthNumber: 6, name: "شروینه ما", note: "" },
+  { id: "mir", monthNumber: 7, name: "میر ما", note: "" },
+  { id: "oneh", monthNumber: 8, name: "اونه ما", note: "" },
+  { id: "pitek", monthNumber: null, name: "پیتک", note: "روزهای افزوده پایان سال" },
+  { id: "arkeh", monthNumber: 9, name: "ارکه ما", note: "" },
+  { id: "deh", monthNumber: 10, name: "دِه ما", note: "" },
+  { id: "vahneh", monthNumber: 11, name: "وهنه ما", note: "" },
+  { id: "nowruz", monthNumber: 12, name: "نوروز ما", note: "پایان سال تبری" },
+];
+const MAZANDARAN_CALENDAR_EVENTS = [
+  {
+    id: "tabari-new-year",
+    periodId: "fardineh",
+    day: 1,
+    title: "نوروز طبری",
+    tag: "فرهنگی",
+    dateNote: "۱ فردینه ما؛ برابر با ۲ مرداد خورشیدی",
+    description:
+      "آغاز سال نو تبری یا مازندرانی است. در گاه‌شمار بومی مازندران، فردینه ما نخستین ماه سال دانسته می‌شود و این روز با آیین‌های سال نو طبری شناخته می‌شود.",
+    sourceLabel: "میراث آریا",
+    sourceUrl:
+      "https://www.chtn.ir/news/14010502482716/%D8%A2%D8%BA%D8%A7%D8%B2-%D8%B3%D8%A7%D9%84-%D9%86%D9%88%DB%8C-%D8%B7%D8%A8%D8%B1%DB%8C-%D9%85%DB%8C%D8%B1%D8%A7%D8%AB-%D9%81%D8%B1%D9%87%D9%86%DA%AF%DB%8C-%D8%A7%D8%B1%D8%AC%D9%85%D9%86%D8%AF-%D9%85%D8%A7%D8%B2%D9%86%D8%AF%D8%B1%D8%A7%D9%86%DB%8C-%D9%87%D8%A7",
+  },
+  {
+    id: "tir-mah-sezdah-sho",
+    periodId: "tir",
+    day: 13,
+    title: "تیرماه سیزده شو",
+    tag: "آیین کهن",
+    dateNote: "۱۳ تیر ما؛ در میانه آبان خورشیدی",
+    description:
+      "یکی از آیین‌های شناخته‌شده مازندران و جشن تیرگان طبری است. خانواده‌ها در شب سیزدهم تیر ما گرد هم می‌آیند و این مناسبت با خوراکی‌ها، رسم‌های محلی و یادکرد سنت‌های کهن همراه است.",
+    sourceLabel: "ایرنا",
+    sourceUrl:
+      "https://www.irna.ir/news/85282132/%D8%AA%DB%8C%D8%B1%D9%85%D8%A7%D9%87-%D8%B3%DB%8C%D8%B2%D8%AF%D9%87-%D8%B4%D9%88-%D8%AC%D8%B4%D9%86-%D8%A2%DB%8C%DB%8C%D9%86%DB%8C-%D8%AA%DB%8C%D8%B1%DA%AF%D8%A7%D9%86-%D8%B7%D8%A8%D8%B1%DB%8C",
+  },
+  {
+    id: "mazandaran-day",
+    periodId: "tir",
+    day: 15,
+    title: "روز مازندران",
+    tag: "تاریخی",
+    dateNote: "۱۵ تیر ما؛ برابر با ۱۴ آبان خورشیدی",
+    description:
+      "این روز به مناسبت سالروز بیعت مردم تبرستان با حسن بن زید علوی و آغاز حکومت علویان در طبرستان به نام روز مازندران شناخته می‌شود.",
+    sourceLabel: "شورای عالی استان‌ها",
+    sourceUrl: "https://www.shoraha.org.ir/news/1403081419504",
+  },
+  {
+    id: "amol-six-bahman",
+    periodId: "mir",
+    day: 7,
+    title: "حماسه مردم آمل",
+    tag: "تاریخ معاصر",
+    dateNote: "۷ میر ما؛ برابر با ۶ بهمن خورشیدی",
+    description:
+      "یادروز واقعه ششم بهمن ۱۳۶۰ آمل است که در روایت رسمی با عنوان حماسه مردم آمل و شهر هزار سنگر شناخته می‌شود و در تاریخ معاصر مازندران جایگاه ویژه‌ای دارد.",
+    sourceLabel: "دانشگاه شمال",
+    sourceUrl:
+      "https://shomal.ac.ir/%DA%AF%D8%B1%D8%A7%D9%85%DB%8C%D8%AF%D8%A7%D8%B4%D8%AA-%D8%AD%D9%85%D8%A7%D8%B3%D9%87-%D8%A7%D8%B3%D9%84%D8%A7%D9%85%DB%8C-6-%D8%A8%D9%87%D9%85%D9%86-%D8%B3%D8%A7%D9%84-1360-%D9%85%D8%B1%D8%AF%D9%85/",
+  },
 ];
 const TREE_CANVAS_WIDTH = 1420;
 const TREE_CANVAS_HEIGHT = 760;
@@ -1147,6 +1200,21 @@ function currentTabariYear() {
   return tabariDatePartsFromIso(localIsoDate())?.year || 1537;
 }
 
+function tabariPeriodById(periodId) {
+  return TABARI_CALENDAR_PERIODS.find((period) => period.id === periodId) || null;
+}
+
+function calendarEventsForParts(parts) {
+  if (!parts) return [];
+  return MAZANDARAN_CALENDAR_EVENTS.filter((event) => event.periodId === parts.periodId && (event.day === parts.day || (event.dayLabel && event.dayLabel === parts.dayLabel)));
+}
+
+function calendarEventDateLabel(event) {
+  const period = tabariPeriodById(event.periodId);
+  const day = event.dayLabel || toPersianDigits(event.day);
+  return [day, period?.name].filter(Boolean).join(" ");
+}
+
 function collectTabariYearDays(tabariYear) {
   const daysByPeriod = new Map(TABARI_CALENDAR_PERIODS.map((period) => [period.id, []]));
   const year = Number(tabariYear);
@@ -1162,6 +1230,36 @@ function collectTabariYearDays(tabariYear) {
   }
 
   return daysByPeriod;
+}
+
+function openCalendarEvent(eventIdList = "") {
+  const dialog = $("#calendarEventDialog");
+  const detail = $("#calendarEventDetail");
+  if (!dialog || !detail) return;
+
+  const ids = String(eventIdList).split(",").filter(Boolean);
+  const events = MAZANDARAN_CALENDAR_EVENTS.filter((event) => ids.includes(event.id));
+  if (!events.length) return;
+
+  detail.innerHTML = events
+    .map((event) => {
+      const source = event.sourceUrl
+        ? `<a href="${escapeHtml(event.sourceUrl)}" target="_blank" rel="noopener">${escapeHtml(event.sourceLabel || "منبع")}</a>`
+        : escapeHtml(event.sourceLabel || "");
+      return `
+        <article class="calendar-event-item">
+          <div class="calendar-event-head">
+            <span>${escapeHtml(event.tag || "مناسبت")}</span>
+            <time>${escapeHtml(event.dateNote || calendarEventDateLabel(event))}</time>
+          </div>
+          <h2>${escapeHtml(event.title)}</h2>
+          <p>${escapeHtml(event.description)}</p>
+          ${source ? `<small class="calendar-event-source">منبع: ${source}</small>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+  dialog.showModal();
 }
 
 function renderCalendar() {
@@ -1181,15 +1279,25 @@ function renderCalendar() {
       .map((parts) => {
         const isToday = today?.iso === parts.iso;
         const label = parts.isLeapDay ? parts.dayLabel : toPersianDigits(parts.day);
-        const classes = ["calendar-day", isToday ? "today" : "", parts.isLeapDay ? "leap-day" : ""].filter(Boolean).join(" ");
-        return `<span class="${classes}" title="${escapeHtml(tabariDateText(parts))}">${escapeHtml(label)}</span>`;
+        const events = calendarEventsForParts(parts);
+        const classes = ["calendar-day", isToday ? "today" : "", events.length ? "has-event" : "", parts.isLeapDay ? "leap-day" : ""].filter(Boolean).join(" ");
+        const eventMarker = events.length ? `<small class="calendar-event-dot" aria-hidden="true"></small>` : "";
+        const eventTitle = events.map((event) => event.title).join("، ");
+        if (events.length) {
+          return `<button class="${classes}" type="button" data-calendar-event="${escapeHtml(events.map((event) => event.id).join(","))}" title="${escapeHtml(`${tabariDateText(parts)} - ${eventTitle}`)}"><span>${escapeHtml(label)}</span>${eventMarker}</button>`;
+        }
+        return `<span class="${classes}" title="${escapeHtml(tabariDateText(parts))}"><span>${escapeHtml(label)}</span></span>`;
       })
       .join("");
+    const monthNumber = period.monthNumber ? `<span class="month-number">${toPersianDigits(period.monthNumber)}</span>` : `<span class="month-number extra">افزوده</span>`;
 
     return `
       <section class="calendar-month${period.id === "pitek" ? " special-period" : ""}">
         <div class="calendar-month-head">
-          <h2>${escapeHtml(period.name)}</h2>
+          <div class="calendar-month-title">
+            ${monthNumber}
+            <h2>${escapeHtml(period.name)}</h2>
+          </div>
           ${period.note ? `<small>${escapeHtml(period.note)}</small>` : ""}
         </div>
         <div class="calendar-days">${dayMarkup}</div>
@@ -2996,6 +3104,15 @@ function bindEvents() {
     selectedCalendarYear = currentTabariYear();
     renderCalendar();
   });
+  const calendarGrid = $("#calendarGrid");
+  if (calendarGrid) {
+    calendarGrid.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-calendar-event]");
+      if (button) openCalendarEvent(button.dataset.calendarEvent);
+    });
+  }
+  const closeCalendarEventButton = $("[data-close-calendar-event]");
+  if (closeCalendarEventButton) closeCalendarEventButton.addEventListener("click", () => $("#calendarEventDialog").close());
   $("[data-admin-go-tree]").addEventListener("click", () => {
     $("#adminDialog").close();
     routeTo("tree");
