@@ -172,8 +172,7 @@ def build_people() -> list[dict]:
     ):
         b.add(pid, name, gender=gender, generation=3, slot=idx, parents=["book-mohammad-agha", "book-golin"], story=source_note(34))
 
-    b.add("book-iran-khanom", "ایران‌خانم فیروزی", gender="female", generation=3, slot=3, story=source_note(51, "همسر محمدباقر فیروزیان."), photo="assets/book/photos/page-051-visual-01.png")
-    b.by_id("book-mohammad-bagher")["photo"] = "assets/book/photos/page-051-visual-01.png"
+    b.add("book-iran-khanom", "ایران‌خانم فیروزی", gender="female", generation=3, slot=3, story=source_note(51, "همسر محمدباقر فیروزیان."))
     b.by_id("book-mohammad-bagher")["story"] = source_note(51, "اهل فرهنگ و هنر، نوازنده نی محلی، و از خیرین روستای بالاگنجکلا معرفی شده است.")
     b.marry("book-mohammad-bagher", "book-iran-khanom")
     for idx, (pid, name, gender, death) in enumerate(
@@ -192,8 +191,7 @@ def build_people() -> list[dict]:
         ]
     ):
         b.add(pid, name, gender=gender, death=death, generation=4, slot=idx, parents=["book-mohammad-bagher", "book-iran-khanom"], story=source_note(51))
-    b.add("book-marzieh-hajizadeh", "مرضیه حاجی‌زاده", gender="female", generation=4, slot=1, story=source_note(52), photo="assets/book/photos/page-052-visual-01.png")
-    b.by_id("book-abdollah-firouzian")["photo"] = "assets/book/photos/page-052-visual-02.png"
+    b.add("book-marzieh-hajizadeh", "مرضیه حاجی‌زاده", gender="female", generation=4, slot=1, story=source_note(52))
     b.by_id("book-abdollah-firouzian")["story"] = source_note(52, "فرزند ارشد محمدباقر؛ از چهره‌های شاخص آموزش بندپی معرفی شده است.")
     b.by_id("book-mehdi-firouzian")["story"] = source_note(52, "دبیر و خوشنویس دارای مدرک ممتاز خوشنویسی معرفی شده است.")
     b.marry("book-abdollah-firouzian", "book-marzieh-hajizadeh")
@@ -302,8 +300,7 @@ def build_people() -> list[dict]:
         ]
     ):
         b.add(pid, name, gender=gender, death=death, generation=3, slot=21 + idx, parents=["book-gholi-yousefzadeh", "book-mashhadi-naneh-dadashi"], story=source_note(336))
-    b.by_id("book-nourali-yousefzadeh")["photo"] = "assets/book/photos/page-336-visual-02.png"
-    b.add("book-maryam-alizadeh", "مریم علیزاده", gender="female", generation=3, slot=22, story=source_note(336, "مشهور به باجی؛ همسر نورعلی."), photo="assets/book/photos/page-336-visual-01.png")
+    b.add("book-maryam-alizadeh", "مریم علیزاده", gender="female", generation=3, slot=22, story=source_note(336, "مشهور به باجی؛ همسر نورعلی."))
     b.marry("book-nourali-yousefzadeh", "book-maryam-alizadeh")
     for idx, (pid, name, gender) in enumerate(
         [
@@ -323,20 +320,7 @@ def build_people() -> list[dict]:
 
 
 def build_gallery() -> list[dict]:
-    items = []
-    for index, path in enumerate(sorted(PHOTO_DIR.glob("page-*-visual-*.png")), start=1):
-        match = re.search(r"page-(\d+)-visual-(\d+)", path.name)
-        page = int(match.group(1)) if match else 0
-        visual_no = int(match.group(2)) if match else index
-        items.append(
-            {
-                "id": f"book-gallery-{index:03d}",
-                "title": f"تصویر کتاب - صفحه {fa_digits(page)}",
-                "caption": f"تصویر شماره {fa_digits(visual_no)} استخراج‌شده از صفحه {fa_digits(page)} کتاب خانوادگی.",
-                "src": path.relative_to(ROOT).as_posix(),
-            }
-        )
-    return items
+    return []
 
 
 def build_articles() -> list[dict]:
@@ -351,7 +335,7 @@ def build_articles() -> list[dict]:
                 "این نوشته بر پایه پیشگفتار کتاب تنظیم شده است. کتاب، شجره نوادگان پسری و دختری تقی فیروزجایی، فرزند آقا کاظم و از نوادگان آقا داداش، را از حدود سال ۱۰۴۸ شمسی تا روزگار معاصر پیگیری می‌کند.",
                 "در پیشگفتار توضیح داده شده که گردآوری داده‌ها با مراجعه حضوری، مصاحبه با بزرگان فامیل و گردآوری اسناد و تصویرها انجام شده است. نویسندگان همچنین یادآور شده‌اند که برخی کاستی‌ها به دلیل کمبود سند یا تصویر در چاپ‌های بعدی با همکاری خانواده‌ها قابل تکمیل است.",
             ],
-            "figures": [visual("assets/book/photos/page-018-visual-01.png", "نقشه و نشانه‌های منطقه", "از تصویرهای استخراج‌شده کتاب.")],
+            "figures": [],
             "references": ["کتاب «از بالاگنجکلا تا پایین‌شالینگچال»، پیشگفتار، صفحه ۹.", "فهرست و شناسنامه کتاب، صفحه‌های ۳ تا ۷."],
         },
         {
@@ -364,10 +348,7 @@ def build_articles() -> list[dict]:
                 "ساختار کتاب بر چهار شاخه اصلی بنا شده است: خاندان مهدی‌سلطان، خاندان حاجی‌بیگلر، خاندان علیخان و خاندان طهماسب. هر یک از این شاخه‌ها به عنوان فرزند یا نسل مستقیم حاج تقی معرفی شده‌اند و فصل‌های مستقل کتاب را شکل می‌دهند.",
                 "در نسخه فعلی سایت، همین چهار شاخه به عنوان ریشه‌های قابل باز و بسته شدن در درخت خانوادگی قرار گرفته‌اند تا شاخه‌های پایین‌تر بدون شلوغی نمایش داده شوند. هر کارت با شماره صفحه منبع همراه شده تا مدیران بتوانند در مرحله‌های بعدی نام‌ها، نسبت‌ها و تصویرها را دقیق‌تر بازبینی کنند.",
             ],
-            "figures": [
-                visual("assets/book/photos/page-050-visual-01.png", "نمونه نمودار شجره در کتاب", "از بخش خاندان مهدی‌سلطان."),
-                visual("assets/book/photos/page-336-visual-01.png", "نمونه تصویر در شاخه طهماسب", "از فصل طهماسب فرزند حاج تقی."),
-            ],
+            "figures": [],
             "references": ["کتاب، صفحه ۳۱: آغاز خاندان مهدی‌سلطان.", "کتاب، صفحه ۱۹۵: آغاز خاندان حاجی‌بیگلر.", "کتاب، صفحه ۳۰۳: آغاز خاندان علیخان.", "کتاب، صفحه ۳۲۷: آغاز خاندان طهماسب."],
         },
         {
@@ -381,7 +362,7 @@ def build_articles() -> list[dict]:
                 "یکی از روایت‌های برجسته این بخش، گذشت او پس از درگذشت فرزندش رحمت‌الله در حادثه‌ای تلخ است. متن کتاب توضیح می‌دهد که محمدباقر با وجود اندوه، برای آزادی راننده حادثه‌دیده رضایت‌نامه نوشت و همراه فرزندش عبدالله به پاسگاه مراجعه کرد.",
                 "کتاب همچنین به کار خیر او در اهدای بخشی از زمین برای بنای حسینیه قدیم روستای بالاگنجکلا اشاره دارد.",
             ],
-            "figures": [visual("assets/book/photos/page-051-visual-01.png", "حاجی محمدباقر فیروزیان و ایران‌خانم فیروزی", "تصویر استخراج‌شده از صفحه ۵۱ کتاب.")],
+            "figures": [],
             "references": ["کتاب «از بالاگنجکلا تا پایین‌شالینگچال»، صفحه ۵۱."],
         },
         {
@@ -394,10 +375,7 @@ def build_articles() -> list[dict]:
                 "صفحه ۵۲ کتاب، عبدالله فیروزیان را به عنوان فرزند ارشد محمدباقر و از چهره‌های شاخص آموزش بندپی معرفی می‌کند. او پس از تحصیلات دانشگاهی وارد آموزش و پرورش شد و در مسئولیت‌های آموزشی منطقه فعالیت کرد.",
                 "در همان صفحه، مهدی فیروزیان به عنوان دبیر و خوشنویس معرفی شده و به مدرک ممتاز خوشنویسی و نمایش آثار او در نمایشگاه‌ها اشاره شده است. این بخش نشان می‌دهد که حافظه خاندان فقط نسب‌نامه نیست؛ بخشی از آن تاریخ آموزش، فرهنگ و هنر منطقه است.",
             ],
-            "figures": [
-                visual("assets/book/photos/page-052-visual-01.png", "تصویر استخراج‌شده از صفحه ۵۲", "از صفحه عبدالله فیروزیان و مرضیه حاجی‌زاده."),
-                visual("assets/book/photos/page-052-visual-03.png", "نمونه خوشنویسی", "تصویر مرتبط با روایت هنری صفحه ۵۲."),
-            ],
+            "figures": [],
             "references": ["کتاب، صفحه ۵۲."],
         },
         {
@@ -408,12 +386,9 @@ def build_articles() -> list[dict]:
             "sortDate": "2019-03-25",
             "body": [
                 "در بخش‌های پایانی کتاب، تصویرها و روایت‌هایی از بناها، حسینیه، غسلخانه، درخت کهنسال و نشانه‌های محلی بالاگنجکلا و پایین‌شالینگچال آمده است. این تصویرها به تاریخ خانوادگی بافت مکانی می‌دهند و نشان می‌دهند زندگی خاندان با روستا، وقف، آموزش و آیین‌های محلی پیوند داشته است.",
-                "آرشیو عکس سایت همه تصویرهای استخراج‌شده از کتاب را نگه می‌دارد تا بعدها بتوان برای هر تصویر شرح دقیق، نام افراد و پیوند به کارت‌های خانوادگی را اضافه کرد.",
+                "تصویرهای استخراج‌شده از کتاب فقط در پوشه assets پروژه نگهداری می‌شوند تا بعدها، پس از بازبینی خانوادگی، بتوان برای هر تصویر شرح دقیق، نام افراد و پیوند به کارت‌های خانوادگی را آماده کرد.",
             ],
-            "figures": [
-                visual("assets/book/photos/page-328-visual-01.png", "حسینیه و غسلخانه روستایی", "تصویر استخراج‌شده از صفحه ۳۲۸."),
-                visual("assets/book/photos/page-328-visual-02.png", "درخت کهنسال روستا", "تصویر استخراج‌شده از صفحه ۳۲۸."),
-            ],
+            "figures": [],
             "references": ["کتاب، صفحه ۳۲۸ و تصویرهای استخراج‌شده از بخش پایانی کتاب."],
         },
     ]
@@ -422,7 +397,7 @@ def build_articles() -> list[dict]:
 def build_data() -> dict:
     gallery = build_gallery()
     return {
-        "version": "book-ocr-2026-07-05",
+        "version": "book-ocr-assets-only-2026-07-05",
         "source": {
             "title": "از بالاگنجکلا تا پایین‌شالینگچال (خاندان تقی فیروزجایی)",
             "authors": ["علی فیروزیان حاجی", "حسین بیگلرنیا"],
@@ -454,3 +429,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

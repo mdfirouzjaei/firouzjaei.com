@@ -5,6 +5,7 @@ const STORAGE_KEY = "firouzjaei-family-site-state-v1";
 const SESSION_KEY = "firouzjaei-family-site-session-v1";
 const BOOK_DATA = window.FIROUZJAEI_BOOK_DATA || null;
 const BOOK_SEED_VERSION = BOOK_DATA?.version || "synthetic-seed-v1";
+const BOOK_PHOTO_ASSET_PATH = "assets/book/photos/";
 const MAX_LOCAL_UPLOAD_BYTES = 2 * 1024 * 1024;
 const VALID_ROUTES = ["home", "tree", "gallery", "history", "article"];
 const TREE_CANVAS_WIDTH = 1420;
@@ -380,6 +381,37 @@ function escapeHtml(value = "") {
     .replaceAll("'", "&#039;");
 }
 
+function isBookPhotoAsset(value = "") {
+  return String(value).includes(BOOK_PHOTO_ASSET_PATH);
+}
+
+function isBookMediaItem(item) {
+  const src = typeof item === "string" ? item : item?.src;
+  return isBookPhotoAsset(src);
+}
+
+function removeBookPhotosFromState(target) {
+  if (!target || typeof target !== "object") return;
+  if (Array.isArray(target.gallery)) {
+    target.gallery = target.gallery.filter((item) => !isBookMediaItem(item));
+  }
+  if (Array.isArray(target.people)) {
+    target.people = target.people.map((person) => {
+      const next = { ...person };
+      if (isBookPhotoAsset(next.photo)) delete next.photo;
+      next.photos = (next.photos || []).filter((item) => !isBookMediaItem(item));
+      next.media = (next.media || []).filter((item) => !isBookMediaItem(item));
+      return next;
+    });
+  }
+  if (Array.isArray(target.historyArticles)) {
+    target.historyArticles = target.historyArticles.map((article) => ({
+      ...article,
+      figures: (article.figures || article.media || []).filter((item) => !isBookMediaItem(item)),
+    }));
+  }
+}
+
 function normalizeGender(value) {
   return value === "male" || value === "female" ? value : "unknown";
 }
@@ -417,6 +449,8 @@ function normalizeState(value) {
   const looksLikeDemoData = normalized.people.some((person) => person.id === "p1" && person.name === "بزرگ خاندان");
   const shouldReplaceDemoData =
     looksLikeDemoData && sampleState.bookSeedVersion && loadedBookSeedVersion !== sampleState.bookSeedVersion;
+  const shouldRemovePublishedBookPhotos =
+    sampleState.bookSeedVersion && loadedBookSeedVersion !== sampleState.bookSeedVersion;
   if (shouldReplaceDemoData) {
     normalized.people = clone(sampleState.people);
     normalized.gallery = clone(sampleState.gallery);
@@ -428,6 +462,9 @@ function normalizeState(value) {
     clone(sampleState.people).forEach((person) => {
       if (!existingIds.has(person.id)) normalized.people.push(person);
     });
+  } else if (shouldRemovePublishedBookPhotos) {
+    removeBookPhotosFromState(normalized);
+    normalized.bookSeedVersion = sampleState.bookSeedVersion;
   }
   normalized.people = (normalized.people || []).map((person) => ({
     ...person,
