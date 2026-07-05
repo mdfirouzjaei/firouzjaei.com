@@ -662,20 +662,27 @@ label select:focus,
   overflow: visible;
 }
 
+.tree-lines line {
+  shape-rendering: geometricPrecision;
+}
+
 .tree-lines .descent-line {
-  stroke: rgba(49, 93, 126, 0.48);
-  stroke-width: 2.1;
+  stroke: rgba(35, 83, 116, 0.76);
+  stroke-width: 3;
+  stroke-linecap: round;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.8)) drop-shadow(0 0 2px rgba(35, 83, 116, 0.18));
 }
 
 .tree-lines .inferred-descent-line {
-  stroke-dasharray: 8 7;
-  stroke-linecap: round;
-  stroke: rgba(49, 93, 126, 0.42);
+  stroke: rgba(35, 83, 116, 0.68);
+  stroke-width: 3.1;
+  stroke-dasharray: 10 7;
 }
 
 .tree-lines .marriage-line {
-  stroke: rgba(138, 47, 69, 0.48);
-  stroke-width: 2.1;
+  stroke: rgba(138, 47, 69, 0.62);
+  stroke-width: 2.7;
+  stroke-linecap: round;
 }
 
 .tree-lines .marriage-dot {
