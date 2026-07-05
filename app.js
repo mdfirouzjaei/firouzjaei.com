@@ -701,6 +701,19 @@ function tabariDateFromIso(value) {
   return tabariFromJalali(jalali.jy, jalali.jm, jalali.jd);
 }
 
+function localIsoDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function renderTabariToday() {
+  const target = $("#tabariToday");
+  if (!target) return;
+  target.textContent = `امروز: ${tabariDateFromIso(localIsoDate())}`;
+}
+
 function normalizeArticleDate(date, sortDate) {
   const rawDate = String(date || "").trim();
   const tabariDate = tabariDateFromIso(sortDate);
@@ -2329,6 +2342,7 @@ function refreshAll() {
 function init() {
   bindEvents();
   clearPersonForm();
+  renderTabariToday();
   refreshAll();
   const next = parseRouteHash();
   routeTo(VALID_ROUTES.includes(next.route) ? next.route : "home", { articleId: next.articleId });

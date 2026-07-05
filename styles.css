@@ -185,8 +185,24 @@ svg {
 
 .quick-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tabari-date-ribbon {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid rgba(185, 133, 40, 0.22);
+  border-radius: var(--radius);
+  background: #fffaf0;
+  color: #72521a;
+  font-size: 0.86rem;
+  font-weight: 760;
+  white-space: nowrap;
 }
 
 .quick-button,
