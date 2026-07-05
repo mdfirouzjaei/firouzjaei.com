@@ -490,6 +490,10 @@ h2 {
   box-shadow: 0 8px 20px rgba(36, 85, 76, 0.1);
 }
 
+.search-result-chip {
+  cursor: default;
+}
+
 .tree-view .section-head {
   max-width: none;
 }
@@ -695,6 +699,15 @@ label select:focus,
   box-shadow: 0 16px 34px rgba(185, 133, 40, 0.18);
 }
 
+.person-node.search-match {
+  border-color: var(--gold);
+  box-shadow: 0 16px 34px rgba(185, 133, 40, 0.2);
+}
+
+.person-node.search-context {
+  opacity: 0.74;
+}
+
 .person-node:hover,
 .person-node:focus-within {
   z-index: 5;
@@ -732,6 +745,28 @@ label select:focus,
 
 .person-node.dimmed {
   opacity: 0.27;
+}
+
+.tree-empty {
+  position: absolute;
+  top: 120px;
+  left: 50%;
+  display: grid;
+  gap: 8px;
+  min-width: min(520px, calc(100vw - 64px));
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--muted);
+  text-align: center;
+  box-shadow: 0 14px 32px rgba(21, 34, 31, 0.08);
+  transform: translateX(-50%);
+}
+
+.tree-empty strong {
+  color: var(--ink);
+  font-size: 1.05rem;
 }
 
 .node-actions {

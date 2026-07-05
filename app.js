@@ -688,6 +688,33 @@ function toEnglishDigits(value) {
     .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
 }
 
+function normalizeSearchText(value = "") {
+  return toEnglishDigits(value)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+    .replace(/[إأآٱ]/g, "ا")
+    .replace(/ي/g, "ی")
+    .replace(/ك/g, "ک")
+    .replace(/[ؤ]/g, "و")
+    .replace(/[ۀة]/g, "ه")
+    .replace(/[\u200c\u200e\u200f\s._-]+/g, "")
+    .trim();
+}
+
+function personMatchesSearch(person, searchTerm) {
+  const query = normalizeSearchText(searchTerm);
+  if (!query) return false;
+  const fields = [person.name].filter(Boolean).join(" ");
+  const searchable = normalizeSearchText(fields);
+  if (searchable.includes(query)) return true;
+  return String(searchTerm)
+    .split(/\s+/)
+    .map(normalizeSearchText)
+    .filter(Boolean)
+    .every((token) => searchable.includes(token));
+}
+
 function gregorianToJalali(gy, gm, gd) {
   const gMonthDays = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
   let jy = gy <= 1600 ? 0 : 979;
@@ -1128,8 +1155,31 @@ function shouldShowSpouseConnection(person, spouse) {
   return personHasAncestor(person.id, activeRootId) || personHasAncestor(spouse.id, activeRootId);
 }
 
+function matchingPeopleForSearch(searchTerm = "") {
+  const query = normalizeSearchText(searchTerm);
+  if (!query) return [];
+  return sortTreePeople(state.people.filter((person) => personMatchesSearch(person, searchTerm)));
+}
+
+function searchContextPeople(searchTerm = "") {
+  const matches = matchingPeopleForSearch(searchTerm);
+  if (!matches.length) return [];
+
+  const visibleIds = new Set(matches.map((person) => person.id));
+  matches.forEach((person) => {
+    (person.parentIds || []).forEach((parentId) => visibleIds.add(parentId));
+    (person.spouseIds || []).forEach((spouseId) => visibleIds.add(spouseId));
+    childPeopleOf(person.id).forEach((child) => {
+      visibleIds.add(child.id);
+      (child.parentIds || []).forEach((parentId) => visibleIds.add(parentId));
+    });
+  });
+
+  return sortTreePeople(state.people.filter((person) => visibleIds.has(person.id)));
+}
+
 function visibleTreePeople(searchTerm = "") {
-  if (searchTerm) return sortTreePeople(state.people);
+  if (normalizeSearchText(searchTerm)) return searchContextPeople(searchTerm);
 
   if (activeRootId && !personById(activeRootId)) activeRootId = null;
   const visibleIds = new Set(startingPeople().map((person) => person.id));
@@ -1272,11 +1322,26 @@ function branchBridgeRootForPerson(person) {
   return rootId && rootId !== activeRootId ? rootId : "";
 }
 
-function renderRootNavigator() {
+function renderRootNavigator(searchTerm = "", matchCount = 0) {
   const rootNav = $("#rootNav");
   if (!rootNav) return;
   const roots = startingPeople();
   rootNav.innerHTML = "";
+
+  if (normalizeSearchText(searchTerm)) {
+    const title = document.createElement("span");
+    title.className = "root-nav-title";
+    title.textContent = "جست‌وجو";
+    rootNav.appendChild(title);
+
+    const result = document.createElement("span");
+    result.className = `root-chip search-result-chip ${matchCount ? "active" : ""}`;
+    result.textContent = matchCount
+      ? `${toPersianDigits(matchCount)} نتیجه برای «${searchTerm}»`
+      : `نتیجه‌ای برای «${searchTerm}» پیدا نشد`;
+    rootNav.appendChild(result);
+    return;
+  }
 
   const title = document.createElement("span");
   title.className = "root-nav-title";
@@ -1301,19 +1366,39 @@ function renderRootNavigator() {
   });
 }
 
+function renderTreeEmpty(nodes, searchTerm = "") {
+  const empty = document.createElement("div");
+  empty.className = "tree-empty";
+  empty.innerHTML = `
+    <strong>نتیجه‌ای پیدا نشد</strong>
+    <span>برای «${escapeHtml(searchTerm)}» فردی در درخت ثبت نشده است.</span>
+  `;
+  nodes.appendChild(empty);
+}
+
 function renderTree() {
   const nodes = $("#treeNodes");
   const lines = $("#treeLines");
   const template = $("#nodeTemplate");
   const searchTerm = $("#familySearch").value.trim();
+  const hasSearch = Boolean(normalizeSearchText(searchTerm));
+  const searchMatches = hasSearch ? matchingPeopleForSearch(searchTerm) : [];
+  const searchMatchIds = new Set(searchMatches.map((person) => person.id));
   nodes.innerHTML = "";
   lines.innerHTML = "";
-  renderRootNavigator();
+  renderRootNavigator(searchTerm, searchMatches.length);
 
   const people = visibleTreePeople(searchTerm);
   const positions = treePositions(people);
 
   drawRelationships(lines, people, positions);
+
+  if (hasSearch && !searchMatches.length) {
+    renderTreeEmpty(nodes, searchTerm);
+    fitTreeToStage();
+    updateAdminStatus();
+    return;
+  }
 
   people.forEach((person, index) => {
     const position = positions.get(person.id);
@@ -1325,7 +1410,8 @@ function renderTree() {
     node.classList.add(`gender-${normalizeGender(person.gender)}`);
     node.classList.toggle("selected", selectedPersonId === person.id);
     node.classList.toggle("active-root", activeRootId === person.id);
-    if (searchTerm && !person.name.includes(searchTerm)) node.classList.add("dimmed");
+    node.classList.toggle("search-match", hasSearch && searchMatchIds.has(person.id));
+    node.classList.toggle("search-context", hasSearch && !searchMatchIds.has(person.id));
 
     const avatar = $(".avatar", node);
     const image = document.createElement("img");
@@ -1347,10 +1433,10 @@ function renderTree() {
       });
     }
     const toggleButton = $("[data-toggle-branch]", node);
-    const childCount = searchTerm ? childPeopleOf(person.id).length : navigableChildPeopleOf(person.id).length;
+    const childCount = hasSearch ? 0 : navigableChildPeopleOf(person.id).length;
     if (toggleButton && childCount) {
-      const hiddenCount = searchTerm ? descendantCount(person.id) : navigableDescendantCount(person.id);
-      const isExpanded = expandedPersonIds.has(person.id) || Boolean(searchTerm);
+      const hiddenCount = navigableDescendantCount(person.id);
+      const isExpanded = expandedPersonIds.has(person.id);
       node.classList.toggle("branch-open", isExpanded);
       $("[data-branch-symbol]", toggleButton).textContent = isExpanded ? "-" : "+";
       $("[data-branch-count]", toggleButton).textContent = hiddenCount;
@@ -1361,13 +1447,11 @@ function renderTree() {
         if (expandedPersonIds.has(person.id)) {
           collapsePersonBranch(person.id);
         } else {
-          if (!searchTerm) {
-            if (startingPersonIds().has(person.id)) {
-              activeRootId = person.id;
-              expandedPersonIds = new Set();
-            } else if (!activeRootId) {
-              activeRootId = primaryRootForPerson(person.id);
-            }
+          if (startingPersonIds().has(person.id)) {
+            activeRootId = person.id;
+            expandedPersonIds = new Set();
+          } else if (!activeRootId) {
+            activeRootId = primaryRootForPerson(person.id);
           }
           expandedPersonIds.add(person.id);
         }
