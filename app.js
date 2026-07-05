@@ -369,6 +369,11 @@ let pendingRelationship = null;
 let expandedPersonIds = new Set();
 let activeRootId = null;
 let selectedArticleId = null;
+let mentionMenu = null;
+let mentionTarget = null;
+let mentionRange = null;
+let mentionOptions = [];
+let mentionActiveIndex = 0;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -471,6 +476,7 @@ function normalizeState(value) {
     ...person,
     gender: normalizeGender(person.gender || defaultGenderForPerson(person)),
     media: (person.media || []).map(normalizeMediaItem).filter(Boolean),
+    mentionHandle: String(person.mentionHandle || "").trim(),
     spouseIds: Array.from(new Set(person.spouseIds || [])).filter(Boolean),
     parentIds: Array.from(new Set(person.parentIds || [])).filter(Boolean).slice(0, 2),
   }));
@@ -481,6 +487,7 @@ function normalizeState(value) {
       if (spouse && !spouse.spouseIds.includes(person.id)) spouse.spouseIds.push(person.id);
     });
   });
+  assignMentionHandles(normalized.people);
   normalized.gallery = normalized.gallery || [];
   normalized.admins = normalized.admins || clone(sampleState).admins;
   normalized.subscribers = normalized.subscribers || [];
@@ -700,6 +707,73 @@ function normalizeSearchText(value = "") {
     .replace(/[ۀة]/g, "ه")
     .replace(/[\u200c\u200e\u200f\s._-]+/g, "")
     .trim();
+}
+
+function normalizeMentionHandle(value = "") {
+  return toEnglishDigits(value)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+    .replace(/[إأآٱ]/g, "ا")
+    .replace(/ي/g, "ی")
+    .replace(/ك/g, "ک")
+    .replace(/[ؤ]/g, "و")
+    .replace(/[ۀة]/g, "ه")
+    .replace(/[\u200c\u200e\u200f\s]+/g, "_")
+    .replace(/[^\p{L}\p{N}_-]+/gu, "")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function mentionHandleBase(person) {
+  return normalizeMentionHandle(person.name || person.id || "person") || `person_${person.id || Date.now()}`;
+}
+
+function shortPersonId(id = "") {
+  return normalizeMentionHandle(String(id).replace(/^book-/, "")).slice(0, 18) || "id";
+}
+
+function assignMentionHandles(people = []) {
+  const used = new Set();
+  people.forEach((person) => {
+    const base = normalizeMentionHandle(person.mentionHandle) || mentionHandleBase(person);
+    let handle = base;
+    if (used.has(handle)) handle = `${base}_${shortPersonId(person.id)}`;
+    let suffix = 2;
+    while (used.has(handle)) {
+      handle = `${base}_${shortPersonId(person.id)}_${suffix}`;
+      suffix += 1;
+    }
+    person.mentionHandle = handle;
+    used.add(handle);
+  });
+}
+
+function personMentionLabel(person) {
+  return person?.mentionHandle ? `@${person.mentionHandle}` : "";
+}
+
+function personByMentionHandle(handle = "") {
+  const normalized = normalizeMentionHandle(handle);
+  if (!normalized) return null;
+  return state.people.find((person) => normalizeMentionHandle(person.mentionHandle) === normalized) || null;
+}
+
+function mentionContext(person) {
+  const parents = (person.parentIds || []).map((parentId) => personById(parentId)?.name).filter(Boolean);
+  const dates = [person.birth, person.death].filter(Boolean);
+  if (parents.length) return `والدین: ${parents.join(" و ")}`;
+  if (dates.length) return dates.join(" - ");
+  return personMentionLabel(person);
+}
+
+function renderMentionedText(value = "") {
+  const escaped = escapeHtml(value);
+  return escaped.replace(/@([\p{L}\p{N}_-]+)/gu, (match, handle) => {
+    const person = personByMentionHandle(handle);
+    if (!person) return match;
+    return `<button class="person-mention" type="button" data-person-mention="${escapeHtml(person.id)}" title="${escapeHtml(personMentionLabel(person))}">@${escapeHtml(person.name)}</button>`;
+  });
 }
 
 function personMatchesSearch(person, searchTerm) {
@@ -1601,12 +1675,13 @@ function openPerson(id) {
         <div class="detail-meta">
           ${dates.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
           ${gender !== "unknown" ? `<span>جنسیت: ${genderLabel(gender)}</span>` : ""}
+          ${person.mentionHandle ? `<span>${escapeHtml(personMentionLabel(person))}</span>` : ""}
           ${parents?.length ? `<span>والدین: ${escapeHtml(parents.join(" و "))}</span>` : ""}
           ${spouses?.length ? `<span>${spouses.length > 1 ? "همسران" : "همسر"}: ${escapeHtml(spouses.join("، "))}</span>` : ""}
         </div>
       </div>
     </div>
-    ${person.story ? `<p>${escapeHtml(person.story)}</p>` : ""}
+    ${person.story ? `<p>${renderMentionedText(person.story)}</p>` : ""}
     ${media.length ? `<div class="detail-gallery">${media.map((item) => mediaPreviewMarkup(item, person.name)).join("")}</div>` : ""}
     <section class="detail-admin-tools admin-only">
       <div class="detail-admin-head">
@@ -1661,7 +1736,8 @@ function openPerson(id) {
   const requestForm = $("[data-request-form]", detail);
   requestForm.addEventListener("submit", handleSubmissionRequest);
   bindPersonDetailAdminTools(detail, person);
-  $("#personDialog").showModal();
+  const dialog = $("#personDialog");
+  if (!dialog.open) dialog.showModal();
 }
 
 function bindPersonDetailAdminTools(detail, person) {
@@ -1820,7 +1896,7 @@ function renderGallery() {
       <img src="${escapeHtml(imageSrc)}" alt="${escapeHtml(item.title)}" loading="lazy" decoding="async">
       <div>
         <h3>${escapeHtml(item.title)}</h3>
-        <p>${escapeHtml(item.caption || "")}</p>
+        <p>${renderMentionedText(item.caption || "")}</p>
       </div>
     `;
     grid.appendChild(card);
@@ -1839,7 +1915,7 @@ function historyFigureMarkup(figure, article, index) {
   return `
     <figure class="history-figure">
       ${media}
-      ${caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : ""}
+      ${caption ? `<figcaption>${renderMentionedText(caption)}</figcaption>` : ""}
     </figure>
   `;
 }
@@ -1862,7 +1938,7 @@ function historyArticleDetailMarkup(article) {
     ? `
       <section class="article-references">
         <h4>منابع</h4>
-        <ol>${article.references.map((reference) => `<li>${escapeHtml(reference)}</li>`).join("")}</ol>
+        <ol>${article.references.map((reference) => `<li>${renderMentionedText(reference)}</li>`).join("")}</ol>
       </section>
     `
     : "";
@@ -1874,7 +1950,7 @@ function historyArticleDetailMarkup(article) {
           <h2>${escapeHtml(article.title)}</h2>
           <p>نویسنده: ${escapeHtml(article.author || "دبیرخانه خاندان")}</p>
         </header>
-        ${article.body.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("")}
+        ${article.body.map((paragraph) => `<p>${renderMentionedText(paragraph)}</p>`).join("")}
         ${figures}
         ${references}
       </div>
@@ -1924,7 +2000,7 @@ function articleCommentsMarkup(article) {
           <div class="submission-meta">
             ${comment.contact ? `<span>تماس: ${escapeHtml(comment.contact)}</span>` : ""}
           </div>
-          <p>${escapeHtml(comment.message)}</p>
+          <p>${renderMentionedText(comment.message)}</p>
           <div class="form-actions">
             <button class="primary-action" type="button" data-resolve-article-comment="${escapeHtml(comment.id)}">انجام شد</button>
             <button class="danger-action" type="button" data-delete-article-comment="${escapeHtml(comment.id)}">حذف</button>
@@ -2040,6 +2116,168 @@ function selectedSelectValues(select) {
   return Array.from(select.selectedOptions)
     .map((option) => option.value)
     .filter(Boolean);
+}
+
+function isMentionableField(target) {
+  return target instanceof HTMLTextAreaElement && target.id !== "dataImport" && target.name !== "photos";
+}
+
+function mentionTriggerFor(textarea) {
+  if (!isMentionableField(textarea) || textarea.selectionStart !== textarea.selectionEnd) return null;
+  const cursor = textarea.selectionStart;
+  const beforeCursor = textarea.value.slice(0, cursor);
+  const match = beforeCursor.match(/(^|[\s([{،؛:؛.!؟?\n])@([^\n@]{0,64})$/u);
+  if (!match) return null;
+  const query = match[2] || "";
+  if (/[\])}]/.test(query)) return null;
+  return {
+    start: cursor - query.length - 1,
+    end: cursor,
+    query,
+  };
+}
+
+function mentionSuggestions(query = "") {
+  const normalizedQuery = normalizeSearchText(query);
+  return state.people
+    .map((person) => {
+      const name = normalizeSearchText(person.name);
+      const handle = normalizeSearchText(person.mentionHandle);
+      const context = normalizeSearchText(mentionContext(person));
+      let score = 20;
+      if (!normalizedQuery) score = 10;
+      else if (handle.startsWith(normalizedQuery)) score = 0;
+      else if (name.startsWith(normalizedQuery)) score = 1;
+      else if (handle.includes(normalizedQuery)) score = 2;
+      else if (name.includes(normalizedQuery)) score = 3;
+      else if (context.includes(normalizedQuery)) score = 4;
+      return { person, score };
+    })
+    .filter((item) => item.score < 20)
+    .sort((a, b) => a.score - b.score || a.person.name.localeCompare(b.person.name, "fa"))
+    .slice(0, 8)
+    .map((item) => item.person);
+}
+
+function ensureMentionMenu() {
+  if (mentionMenu) return mentionMenu;
+  mentionMenu = document.createElement("div");
+  mentionMenu.className = "mention-menu";
+  mentionMenu.hidden = true;
+  document.body.appendChild(mentionMenu);
+  return mentionMenu;
+}
+
+function closeMentionMenu() {
+  if (mentionMenu) mentionMenu.hidden = true;
+  mentionTarget = null;
+  mentionRange = null;
+  mentionOptions = [];
+  mentionActiveIndex = 0;
+}
+
+function positionMentionMenu(textarea) {
+  const menu = ensureMentionMenu();
+  const rect = textarea.getBoundingClientRect();
+  const maxWidth = Math.min(420, Math.max(260, rect.width));
+  menu.style.width = `${maxWidth}px`;
+  menu.style.left = `${Math.min(window.innerWidth - maxWidth - 12, Math.max(12, rect.left))}px`;
+  menu.style.top = `${Math.min(window.innerHeight - 220, rect.bottom + 8)}px`;
+}
+
+function renderMentionMenu() {
+  const menu = ensureMentionMenu();
+  if (!mentionOptions.length) {
+    closeMentionMenu();
+    return;
+  }
+  menu.innerHTML = mentionOptions
+    .map(
+      (person, index) => `
+        <button class="mention-option ${index === mentionActiveIndex ? "active" : ""}" type="button" data-mention-index="${index}">
+          <strong>${escapeHtml(person.name)}</strong>
+          <span>${escapeHtml(personMentionLabel(person))}</span>
+          <small>${escapeHtml(mentionContext(person))}</small>
+        </button>
+      `
+    )
+    .join("");
+  $$("[data-mention-index]", menu).forEach((button) => {
+    button.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      chooseMention(Number(button.dataset.mentionIndex || 0));
+    });
+  });
+  menu.hidden = false;
+}
+
+function updateMentionMenu(textarea) {
+  const trigger = mentionTriggerFor(textarea);
+  if (!trigger) {
+    closeMentionMenu();
+    return;
+  }
+  mentionTarget = textarea;
+  mentionRange = trigger;
+  mentionActiveIndex = 0;
+  mentionOptions = mentionSuggestions(trigger.query);
+  positionMentionMenu(textarea);
+  renderMentionMenu();
+}
+
+function chooseMention(index = mentionActiveIndex) {
+  const person = mentionOptions[index];
+  if (!person || !mentionTarget || !mentionRange) return;
+  const replacement = `${personMentionLabel(person)} `;
+  const value = mentionTarget.value;
+  mentionTarget.value = `${value.slice(0, mentionRange.start)}${replacement}${value.slice(mentionRange.end)}`;
+  const cursor = mentionRange.start + replacement.length;
+  mentionTarget.focus();
+  mentionTarget.setSelectionRange(cursor, cursor);
+  mentionTarget.dispatchEvent(new Event("input", { bubbles: true }));
+  closeMentionMenu();
+}
+
+function handleMentionKeydown(event) {
+  if (!mentionMenu || mentionMenu.hidden || event.target !== mentionTarget) return;
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    mentionActiveIndex = (mentionActiveIndex + 1) % mentionOptions.length;
+    renderMentionMenu();
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault();
+    mentionActiveIndex = (mentionActiveIndex - 1 + mentionOptions.length) % mentionOptions.length;
+    renderMentionMenu();
+  } else if (event.key === "Enter" || event.key === "Tab") {
+    event.preventDefault();
+    chooseMention();
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    closeMentionMenu();
+  }
+}
+
+function bindMentionEvents() {
+  document.addEventListener("input", (event) => {
+    if (isMentionableField(event.target)) updateMentionMenu(event.target);
+  });
+  document.addEventListener("keyup", (event) => {
+    if (["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(event.key)) return;
+    if (isMentionableField(event.target)) updateMentionMenu(event.target);
+  });
+  document.addEventListener("keydown", handleMentionKeydown, true);
+  window.addEventListener("resize", closeMentionMenu);
+  document.addEventListener("mousedown", (event) => {
+    if (mentionMenu && !mentionMenu.hidden && !event.target.closest(".mention-menu") && event.target !== mentionTarget) closeMentionMenu();
+  });
+  document.addEventListener("click", (event) => {
+    const mention = event.target.closest("[data-person-mention]");
+    if (!mention) return;
+    const person = personById(mention.dataset.personMention);
+    if (!person) return;
+    event.preventDefault();
+    openPerson(person.id);
+  });
 }
 
 function nextAvailableSlot(generation, preferredSlot, excludeId = "") {
@@ -2165,7 +2403,7 @@ function renderSubmissions() {
         ${submission.name ? `<span>فرستنده: ${escapeHtml(submission.name)}</span>` : ""}
         ${submission.contact ? `<span>تماس: ${escapeHtml(submission.contact)}</span>` : ""}
       </div>
-      <p>${escapeHtml(submission.message)}</p>
+      <p>${renderMentionedText(submission.message)}</p>
       ${media.length ? `<div class="submission-media">${media.map((item) => mediaPreviewMarkup(item, submission.personName)).join("")}</div>` : ""}
       <div class="form-actions">
         <button class="soft-action" type="button" data-add-submission-media ${!person || !media.length ? "disabled" : ""}>افزودن رسانه به گالری فرد</button>
@@ -2368,6 +2606,7 @@ function setAdminTab(tab) {
 }
 
 function bindEvents() {
+  bindMentionEvents();
   $$("[data-route]").forEach((button) => button.addEventListener("click", () => routeTo(button.dataset.route)));
   $("[data-open-subscribe]").addEventListener("click", () => $("#subscribeDialog").showModal());
   $("[data-close-subscribe]").addEventListener("click", () => $("#subscribeDialog").close());
@@ -2504,6 +2743,7 @@ function bindEvents() {
       }
     });
     applyPendingRelationship(person);
+    assignMentionHandles(state.people);
     pendingRelationship = null;
     saveState();
     selectedPersonId = id;
