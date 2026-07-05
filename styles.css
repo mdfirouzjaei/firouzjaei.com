@@ -555,47 +555,6 @@ label select:focus,
   box-shadow: 0 0 0 3px rgba(36, 85, 76, 0.11);
 }
 
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 0.86rem;
-}
-
-.legend span {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.legend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.legend-dot.marriage {
-  background: var(--wine);
-}
-
-.legend-dot.descent {
-  background: var(--blue);
-}
-
-.legend-dot.selected {
-  background: var(--gold);
-}
-
-.admin-status {
-  padding: 12px;
-  border-radius: var(--radius);
-  background: #f3f6f5;
-  color: var(--muted);
-  font-size: 0.86rem;
-}
-
 .tree-stage {
   direction: ltr;
   width: 100%;

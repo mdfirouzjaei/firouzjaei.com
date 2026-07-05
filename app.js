@@ -1937,14 +1937,8 @@ function openHistoryEditor(articleId = "") {
 
 function updateAdminStatus() {
   document.body.classList.toggle("admin-mode", isAdmin());
-  const status = $("#adminStatus");
   const loginButton = $("[data-open-login]");
   if (loginButton) loginButton.textContent = isAdmin() ? "پنل مدیر" : "ورود مدیر";
-  if (!isAdmin()) {
-    status.textContent = "برای ویرایش، وارد حساب مدیر شوید.";
-    return;
-  }
-  status.innerHTML = `حالت ویرایش فعال است.<br>${session.email}`;
 }
 
 function personOptions(selectedId = "", includeEmpty = true) {
