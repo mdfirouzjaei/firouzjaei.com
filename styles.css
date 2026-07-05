@@ -667,6 +667,12 @@ label select:focus,
   stroke-width: 2.1;
 }
 
+.tree-lines .inferred-descent-line {
+  stroke-dasharray: 8 7;
+  stroke-linecap: round;
+  stroke: rgba(49, 93, 126, 0.42);
+}
+
 .tree-lines .marriage-line {
   stroke: rgba(138, 47, 69, 0.48);
   stroke-width: 2.1;

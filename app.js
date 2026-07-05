@@ -1630,16 +1630,17 @@ function drawRelationships(svg, people, positions) {
         const parents = child.parentIds || [];
         return parents.includes(person.id) && parents.includes(spouse.id);
       });
-      if (children.length) {
+      const positionedChildren = children.filter((child) => positions.has(child.id));
+      if (positionedChildren.length) {
         const midX = (a.x + b.x) / 2;
-        const childY = Math.min(...children.map((child) => positions.get(child.id).y)) - 84;
-        addLine(svg, midX, a.y + 18, midX, childY, "descent-line");
-        const minX = Math.min(...children.map((child) => positions.get(child.id).x));
-        const maxX = Math.max(...children.map((child) => positions.get(child.id).x));
-        addLine(svg, minX, childY, maxX, childY, "descent-line");
-        children.forEach((child) => {
+        const childY = Math.min(...positionedChildren.map((child) => positions.get(child.id).y)) - 84;
+        const allChildrenInferred = positionedChildren.every((child) => isInferredDescent(person, child) || isInferredDescent(spouse, child));
+        addLine(svg, midX, a.y + 18, midX, childY, descentLineClass(allChildrenInferred), inferredDescentTitle(allChildrenInferred));
+        positionedChildren.forEach((child) => {
           const c = positions.get(child.id);
-          addLine(svg, c.x, childY, c.x, c.y - 78, "descent-line");
+          const inferred = isInferredDescent(person, child) || isInferredDescent(spouse, child);
+          addLine(svg, midX, childY, c.x, childY, descentLineClass(inferred), inferredDescentTitle(inferred));
+          addLine(svg, c.x, childY, c.x, c.y - 78, descentLineClass(inferred), inferredDescentTitle(inferred));
         });
       }
     });
@@ -1648,19 +1649,41 @@ function drawRelationships(svg, people, positions) {
   people.forEach((child) => {
     const parents = child.parentIds || [];
     if (parents.length !== 1) return;
+    const parentPerson = people.find((item) => item.id === parents[0]) || personById(parents[0]);
     const parent = positions.get(parents[0]);
     const childPos = positions.get(child.id);
-    if (parent && childPos) addLine(svg, parent.x, parent.y + 72, childPos.x, childPos.y - 78, "descent-line");
+    const inferred = isInferredDescent(parentPerson, child);
+    if (parent && childPos) {
+      addLine(svg, parent.x, parent.y + 72, childPos.x, childPos.y - 78, descentLineClass(inferred), inferredDescentTitle(inferred));
+    }
   });
 }
 
-function addLine(svg, x1, y1, x2, y2, className) {
+function isInferredDescent(parent, child) {
+  if (!parent || !child) return false;
+  return Number(child.generation || 0) - Number(parent.generation || 0) > 1;
+}
+
+function descentLineClass(inferred = false) {
+  return inferred ? "descent-line inferred-descent-line" : "descent-line";
+}
+
+function inferredDescentTitle(inferred = false) {
+  return inferred ? "نسل‌های میانی این پیوند هنوز مشخص نیستند." : "";
+}
+
+function addLine(svg, x1, y1, x2, y2, className, title = "") {
   const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
   line.setAttribute("x1", x1);
   line.setAttribute("y1", y1);
   line.setAttribute("x2", x2);
   line.setAttribute("y2", y2);
   line.setAttribute("class", className);
+  if (title) {
+    const titleElement = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    titleElement.textContent = title;
+    line.appendChild(titleElement);
+  }
   svg.appendChild(line);
 }
 
