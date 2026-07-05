@@ -1310,7 +1310,8 @@ button.calendar-day:hover {
 }
 
 .article-comment-box,
-.article-admin-comments {
+.article-admin-comments,
+.article-share-box {
   padding: clamp(18px, 3vw, 26px);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1320,8 +1321,94 @@ button.calendar-day:hover {
 
 .article-comment-box h2,
 .article-comment-box p,
-.article-admin-comments h2 {
+.article-admin-comments h2,
+.article-share-box h2,
+.article-share-box p {
   margin: 0;
+}
+
+.article-share-box {
+  display: grid;
+  gap: 14px;
+}
+
+.article-share-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.article-share-preview {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid rgba(36, 85, 76, 0.14);
+  border-radius: 8px;
+  background: #f8faf8;
+}
+
+.article-share-preview strong {
+  color: var(--ink);
+  font-size: 1.04rem;
+}
+
+.article-share-preview span,
+.article-share-preview p {
+  color: var(--muted);
+}
+
+.share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.share-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(36, 85, 76, 0.15);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 760;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.share-button span {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 0.74rem;
+  line-height: 1;
+}
+
+.share-button.telegram span {
+  background: #2aabee;
+}
+
+.share-button.whatsapp span {
+  background: #25d366;
+}
+
+.share-button.instagram span {
+  background: #c13584;
+}
+
+.share-button.facebook span {
+  background: #1877f2;
+}
+
+.share-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(36, 85, 76, 0.32);
+  box-shadow: 0 10px 22px rgba(21, 34, 31, 0.08);
 }
 
 .article-comment-form {
@@ -1746,6 +1833,15 @@ body.admin-mode .admin-only {
   .history-index-item {
     grid-template-columns: 1fr;
     align-items: start;
+  }
+
+  .article-share-head,
+  .share-actions {
+    display: grid;
+  }
+
+  .share-button {
+    justify-content: center;
   }
 
   .modal-card {

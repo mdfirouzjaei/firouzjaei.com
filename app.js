@@ -2481,6 +2481,151 @@ function articleCommentsMarkup(article) {
     .join("");
 }
 
+function plainShareText(value = "") {
+  return String(value).replace(/\s+/g, " ").trim();
+}
+
+function truncateShareText(value = "", maxLength = 260) {
+  const text = plainShareText(value);
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1).trim()}…` : text;
+}
+
+function articleShareUrl(article) {
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = routeHash("article", article.id);
+  return url.toString();
+}
+
+function articleSharePackage(article) {
+  const url = articleShareUrl(article);
+  const excerpt = truncateShareText(article.body?.[0] || article.body?.join(" ") || "", 280);
+  const meta = [article.date ? `تاریخ: ${article.date}` : "", article.author ? `نویسنده: ${article.author}` : ""].filter(Boolean).join("\n");
+  const text = [`«${article.title}»`, meta, excerpt, url].filter(Boolean).join("\n\n");
+  return {
+    url,
+    title: article.title,
+    excerpt,
+    text,
+    appText: [`«${article.title}»`, meta, excerpt].filter(Boolean).join("\n\n"),
+  };
+}
+
+function articleShareTarget(platform, article) {
+  const share = articleSharePackage(article);
+  const encodedUrl = encodeURIComponent(share.url);
+  const encodedText = encodeURIComponent(share.appText);
+  const encodedFullText = encodeURIComponent(share.text);
+  return (
+    {
+      telegram: `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`,
+      whatsapp: `https://wa.me/?text=${encodedFullText}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`,
+      instagram: "https://www.instagram.com/",
+    }[platform] || ""
+  );
+}
+
+function articleShareMarkup(article) {
+  const share = articleSharePackage(article);
+  const platforms = [
+    ["telegram", "تلگرام"],
+    ["whatsapp", "واتساپ"],
+    ["instagram", "اینستاگرام"],
+    ["facebook", "فیسبوک"],
+  ];
+  return `
+    <section class="article-share-box">
+      <div class="article-share-head">
+        <div>
+          <h2>هم‌رسانی مقاله</h2>
+          <p class="muted">عنوان، تاریخ، نویسنده و خلاصه مقاله همراه لینک آماده می‌شود.</p>
+        </div>
+        <button class="soft-action" type="button" data-share-copy="${escapeHtml(article.id)}">کپی متن</button>
+      </div>
+      <div class="article-share-preview" aria-label="پیش‌نمایش متن اشتراک">
+        <strong>${escapeHtml(article.title)}</strong>
+        <span>${escapeHtml(article.date || "بدون تاریخ")}${article.author ? ` · ${escapeHtml(article.author)}` : ""}</span>
+        ${share.excerpt ? `<p>${escapeHtml(share.excerpt)}</p>` : ""}
+      </div>
+      <div class="share-actions" aria-label="گزینه‌های هم‌رسانی">
+        ${platforms
+          .map(([platform, label]) => `<button class="share-button ${platform}" type="button" data-share-platform="${platform}" data-share-article="${escapeHtml(article.id)}"><span aria-hidden="true">${escapeHtml(label.slice(0, 1))}</span>${escapeHtml(label)}</button>`)
+          .join("")}
+      </div>
+      <p class="form-message" data-share-message role="status"></p>
+    </section>
+  `;
+}
+
+function setArticleShareMessage(message) {
+  const target = $("[data-share-message]");
+  if (target) target.textContent = message;
+}
+
+function copyPreparedShareText(article) {
+  const text = articleSharePackage(article).text;
+  if (navigator.clipboard?.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+  return Promise.resolve();
+}
+
+function handleArticleShare(platform, articleId) {
+  const article = findHistoryArticle(articleId);
+  if (!article) return;
+  const target = articleShareTarget(platform, article);
+  if (target) window.open(target, "_blank", "noopener,noreferrer");
+
+  copyPreparedShareText(article)
+    .then(() => {
+      const platformLabel =
+        {
+          telegram: "تلگرام",
+          whatsapp: "واتساپ",
+          facebook: "فیسبوک",
+          instagram: "اینستاگرام",
+        }[platform] || "اشتراک";
+      setArticleShareMessage(platform === "instagram" ? "کپشن آماده کپی شد؛ آن را در اینستاگرام جای‌گذاری کنید." : `متن آماده برای ${platformLabel} کپی شد.`);
+    })
+    .catch(() => {
+      setArticleShareMessage("برنامه اشتراک باز شد؛ اگر متن وارد نشد، از دکمه کپی متن استفاده کنید.");
+    });
+}
+
+function updateArticleMeta(article) {
+  const share = articleSharePackage(article);
+  document.title = `${article.title} | خاندان فیروزجایی`;
+  [
+    ["name", "description", share.excerpt],
+    ["property", "og:title", article.title],
+    ["property", "og:description", share.excerpt],
+    ["property", "og:type", "article"],
+    ["property", "og:url", share.url],
+    ["name", "twitter:card", "summary"],
+    ["name", "twitter:title", article.title],
+    ["name", "twitter:description", share.excerpt],
+  ].forEach(([attr, key, content]) => {
+    if (!content) return;
+    let meta = document.head.querySelector(`meta[${attr}="${key}"]`);
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.setAttribute(attr, key);
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute("content", content);
+  });
+}
+
 function renderArticlePage() {
   const article = findHistoryArticle();
   const title = $("#articlePageTitle");
@@ -2495,10 +2640,12 @@ function renderArticlePage() {
   }
 
   title.textContent = article.title;
+  updateArticleMeta(article);
   page.innerHTML = `
     <div class="article-detail-panel">
       ${historyArticleDetailMarkup(article)}
     </div>
+    ${articleShareMarkup(article)}
     <section class="article-comment-box">
       <h2>ارسال نظر برای مدیران</h2>
       <p class="muted">اگر درباره این مقاله اصلاح، توضیح، منبع یا نکته ای دارید، اینجا برای مدیران ثبت کنید.</p>
@@ -2528,6 +2675,19 @@ function renderArticlePage() {
   `;
   const commentForm = $("[data-article-comment-form]", page);
   if (commentForm) commentForm.addEventListener("submit", handleArticleComment);
+  $$("[data-share-platform]", page).forEach((button) => {
+    button.addEventListener("click", () => handleArticleShare(button.dataset.sharePlatform, button.dataset.shareArticle));
+  });
+  const copyShareButton = $("[data-share-copy]", page);
+  if (copyShareButton) {
+    copyShareButton.addEventListener("click", () => {
+      const articleToCopy = findHistoryArticle(copyShareButton.dataset.shareCopy);
+      if (!articleToCopy) return;
+      copyPreparedShareText(articleToCopy)
+        .then(() => setArticleShareMessage("متن آماده مقاله کپی شد."))
+        .catch(() => setArticleShareMessage("کپی خودکار انجام نشد؛ لطفا دوباره تلاش کنید."));
+    });
+  }
   $$("[data-resolve-article-comment]", page).forEach((button) => {
     button.addEventListener("click", () => updateArticleCommentStatus(button.dataset.resolveArticleComment, "done"));
   });
