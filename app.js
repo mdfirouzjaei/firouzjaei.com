@@ -8,7 +8,22 @@ const BOOK_SEED_VERSION = BOOK_DATA?.version || "synthetic-seed-v1";
 const TREE_RESET_VERSION = "demo-scenarios-2026-07-05";
 const BOOK_PHOTO_ASSET_PATH = "assets/book/photos/";
 const MAX_LOCAL_UPLOAD_BYTES = 2 * 1024 * 1024;
-const VALID_ROUTES = ["home", "tree", "gallery", "history", "article"];
+const VALID_ROUTES = ["home", "tree", "gallery", "calendar", "history", "article"];
+const TABARI_CALENDAR_PERIODS = [
+  { id: "fardineh", name: "فردینه ما", note: "آغاز سال تبری" },
+  { id: "karcheh", name: "کرچه ما", note: "" },
+  { id: "hareh", name: "هره ما", note: "" },
+  { id: "tir", name: "تیر ما", note: "" },
+  { id: "melareh", name: "ملاره ما", note: "" },
+  { id: "sharvineh", name: "شروینه ما", note: "" },
+  { id: "mir", name: "میر ما", note: "" },
+  { id: "oneh", name: "اونه ما", note: "" },
+  { id: "pitek", name: "پیتک", note: "روزهای افزوده پایان سال" },
+  { id: "arkeh", name: "ارکه ما", note: "" },
+  { id: "deh", name: "دِه ما", note: "" },
+  { id: "vahneh", name: "وهنه ما", note: "" },
+  { id: "nowruz", name: "نوروز ما", note: "پایان سال تبری" },
+];
 const TREE_CANVAS_WIDTH = 1420;
 const TREE_CANVAS_HEIGHT = 760;
 const MAX_TREE_SLOT = 48;
@@ -583,6 +598,7 @@ let pendingRelationship = null;
 let expandedPersonIds = new Set();
 let activeRootId = null;
 let selectedArticleId = null;
+let selectedCalendarYear = null;
 let mentionMenu = null;
 let mentionTarget = null;
 let mentionRange = null;
@@ -1027,62 +1043,91 @@ function gregorianToJalali(gy, gm, gd) {
   return { jy, jm, jd };
 }
 
-function tabariFromJalali(jy, jm, jd) {
+function tabariDatePartsFromJalali(jy, jm, jd) {
   const year = jy + (jm > 5 || (jm === 5 && jd >= 2) ? 133 : 132);
   let day = 0;
   let month = "";
+  let periodId = "";
 
   if (jm === 5 && jd >= 2) {
     day = jd - 1;
     month = "فردینه ما";
+    periodId = "fardineh";
   } else if (jm === 6 && jd <= 30) {
     day = jd;
     month = "کرچه ما";
+    periodId = "karcheh";
   } else if ((jm === 6 && jd === 31) || (jm === 7 && jd <= 29)) {
     day = jm === 6 ? 1 : jd + 1;
     month = "هره ما";
+    periodId = "hareh";
   } else if ((jm === 7 && jd >= 30) || (jm === 8 && jd <= 29)) {
     day = jm === 7 ? 1 : jd + 1;
     month = "تیر ما";
+    periodId = "tir";
   } else if ((jm === 8 && jd >= 30) || (jm === 9 && jd <= 29)) {
     day = jm === 8 ? 1 : jd + 1;
     month = "ملاره ما";
+    periodId = "melareh";
   } else if ((jm === 9 && jd >= 30) || (jm === 10 && jd <= 29)) {
     day = jm === 9 ? 1 : jd + 1;
     month = "شروینه ما";
+    periodId = "sharvineh";
   } else if ((jm === 10 && jd >= 30) || (jm === 11 && jd <= 29)) {
     day = jm === 10 ? 1 : jd + 1;
     month = "میر ما";
+    periodId = "mir";
   } else if ((jm === 11 && jd >= 30) || (jm === 12 && jd <= 29)) {
     day = jm === 11 ? 1 : jd + 1;
     month = "اونه ما";
+    periodId = "oneh";
   } else if (jm === 12 && jd === 30) {
-    return `شیشک ${toPersianDigits(year)} تبری`;
+    return { year, day: null, month: "پیتک", periodId: "pitek", dayLabel: "شیشک", isLeapDay: true };
   } else if (jm === 1 && jd <= 5) {
-    return `${toPersianDigits(jd)} پیتک ${toPersianDigits(year)} تبری`;
+    day = jd;
+    month = "پیتک";
+    periodId = "pitek";
   } else if ((jm === 1 && jd >= 6) || (jm === 2 && jd <= 4)) {
     day = jm === 1 ? jd - 5 : jd + 26;
     month = "ارکه ما";
+    periodId = "arkeh";
   } else if ((jm === 2 && jd >= 5) || (jm === 3 && jd <= 3)) {
     day = jm === 2 ? jd - 4 : jd + 27;
     month = "دِه ما";
+    periodId = "deh";
   } else if ((jm === 3 && jd >= 4) || (jm === 4 && jd <= 2)) {
     day = jm === 3 ? jd - 3 : jd + 28;
     month = "وهنه ما";
+    periodId = "vahneh";
   } else if ((jm === 4 && jd >= 3) || (jm === 5 && jd <= 1)) {
     day = jm === 4 ? jd - 2 : jd + 29;
     month = "نوروز ما";
+    periodId = "nowruz";
   }
 
-  return day && month ? `${toPersianDigits(day)} ${month} ${toPersianDigits(year)} تبری` : `سال ${toPersianDigits(year)} تبری`;
+  return { year, day, month, periodId };
+}
+
+function tabariDateText(parts) {
+  if (!parts) return "";
+  if (parts.isLeapDay) return `شیشک ${toPersianDigits(parts.year)} تبری`;
+  return parts.day && parts.month ? `${toPersianDigits(parts.day)} ${parts.month} ${toPersianDigits(parts.year)} تبری` : `سال ${toPersianDigits(parts.year)} تبری`;
+}
+
+function tabariFromJalali(jy, jm, jd) {
+  return tabariDateText(tabariDatePartsFromJalali(jy, jm, jd));
+}
+
+function tabariDatePartsFromIso(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const [, gy, gm, gd] = match.map(Number);
+  const jalali = gregorianToJalali(gy, gm, gd);
+  return { ...tabariDatePartsFromJalali(jalali.jy, jalali.jm, jalali.jd), iso: value };
 }
 
 function tabariDateFromIso(value) {
-  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return "";
-  const [, gy, gm, gd] = match.map(Number);
-  const jalali = gregorianToJalali(gy, gm, gd);
-  return tabariFromJalali(jalali.jy, jalali.jm, jalali.jd);
+  return tabariDateText(tabariDatePartsFromIso(value));
 }
 
 function localIsoDate(date = new Date()) {
@@ -1096,6 +1141,61 @@ function renderTabariToday() {
   const target = $("#tabariToday");
   if (!target) return;
   target.textContent = `امروز: ${tabariDateFromIso(localIsoDate())}`;
+}
+
+function currentTabariYear() {
+  return tabariDatePartsFromIso(localIsoDate())?.year || 1537;
+}
+
+function collectTabariYearDays(tabariYear) {
+  const daysByPeriod = new Map(TABARI_CALENDAR_PERIODS.map((period) => [period.id, []]));
+  const year = Number(tabariYear);
+  const start = new Date(year + 488, 0, 1);
+  const end = new Date(year + 489, 11, 31);
+
+  for (const cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+    const iso = localIsoDate(cursor);
+    const parts = tabariDatePartsFromIso(iso);
+    if (parts?.year === year && daysByPeriod.has(parts.periodId)) {
+      daysByPeriod.get(parts.periodId).push(parts);
+    }
+  }
+
+  return daysByPeriod;
+}
+
+function renderCalendar() {
+  const grid = $("#calendarGrid");
+  const title = $("#calendarYearTitle");
+  if (!grid || !title) return;
+
+  if (!selectedCalendarYear) selectedCalendarYear = currentTabariYear();
+  const year = Number(selectedCalendarYear);
+  const today = tabariDatePartsFromIso(localIsoDate());
+  const daysByPeriod = collectTabariYearDays(year);
+  title.textContent = `سال ${toPersianDigits(year)} تبری`;
+
+  grid.innerHTML = TABARI_CALENDAR_PERIODS.map((period) => {
+    const days = daysByPeriod.get(period.id) || [];
+    const dayMarkup = days
+      .map((parts) => {
+        const isToday = today?.iso === parts.iso;
+        const label = parts.isLeapDay ? parts.dayLabel : toPersianDigits(parts.day);
+        const classes = ["calendar-day", isToday ? "today" : "", parts.isLeapDay ? "leap-day" : ""].filter(Boolean).join(" ");
+        return `<span class="${classes}" title="${escapeHtml(tabariDateText(parts))}">${escapeHtml(label)}</span>`;
+      })
+      .join("");
+
+    return `
+      <section class="calendar-month${period.id === "pitek" ? " special-period" : ""}">
+        <div class="calendar-month-head">
+          <h2>${escapeHtml(period.name)}</h2>
+          ${period.note ? `<small>${escapeHtml(period.note)}</small>` : ""}
+        </div>
+        <div class="calendar-days">${dayMarkup}</div>
+      </section>
+    `;
+  }).join("");
 }
 
 function normalizeArticleDate(date, sortDate) {
@@ -2881,6 +2981,21 @@ function bindEvents() {
   if (openPersonButton) openPersonButton.addEventListener("click", () => openPersonEditor());
   const openRootButton = $("[data-open-root-editor]");
   if (openRootButton) openRootButton.addEventListener("click", openRootEditor);
+  const calendarPrevButton = $("[data-calendar-prev]");
+  if (calendarPrevButton) calendarPrevButton.addEventListener("click", () => {
+    selectedCalendarYear = (selectedCalendarYear || currentTabariYear()) - 1;
+    renderCalendar();
+  });
+  const calendarNextButton = $("[data-calendar-next]");
+  if (calendarNextButton) calendarNextButton.addEventListener("click", () => {
+    selectedCalendarYear = (selectedCalendarYear || currentTabariYear()) + 1;
+    renderCalendar();
+  });
+  const calendarTodayButton = $("[data-calendar-today]");
+  if (calendarTodayButton) calendarTodayButton.addEventListener("click", () => {
+    selectedCalendarYear = currentTabariYear();
+    renderCalendar();
+  });
   $("[data-admin-go-tree]").addEventListener("click", () => {
     $("#adminDialog").close();
     routeTo("tree");
@@ -3164,6 +3279,7 @@ function setZoom(value) {
 function refreshAll() {
   renderTree();
   renderGallery();
+  renderCalendar();
   renderHistory();
   if (selectedArticleId) renderArticlePage();
   refreshAdminLists();
