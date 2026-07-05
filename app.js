@@ -18,6 +18,8 @@ const GENDER_LABELS = {
   unknown: "نامشخص",
 };
 
+const PERSIAN_DIGITS = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
+
 const colors = [
   ["#24554c", "#dcebe6"],
   ["#8a2f45", "#f8e4ea"],
@@ -611,8 +613,6 @@ function normalizeReferenceList(value) {
     .map((item) => item.trim())
     .filter(Boolean);
 }
-
-const PERSIAN_DIGITS = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
 
 function toPersianDigits(value) {
   return String(value).replace(/\d/g, (digit) => PERSIAN_DIGITS[Number(digit)]);
