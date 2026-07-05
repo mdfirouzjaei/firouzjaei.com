@@ -1,6 +1,7 @@
 tmp/
 output/
 assets/book/ocr/
+assets/book/photos/
 __pycache__/
 *.pyc
 .DS_Store
