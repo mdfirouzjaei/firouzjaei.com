@@ -1378,31 +1378,37 @@ button.calendar-day:hover {
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
-.share-button span {
+.share-icon {
   display: inline-grid;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   place-items: center;
   border-radius: 50%;
-  color: #fff;
-  font-size: 0.74rem;
-  line-height: 1;
+  background: transparent;
 }
 
-.share-button.telegram span {
-  background: #2aabee;
+.share-icon svg {
+  display: block;
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+  stroke: none;
 }
 
-.share-button.whatsapp span {
-  background: #25d366;
+.share-button.telegram .share-icon {
+  color: #2aabee;
 }
 
-.share-button.instagram span {
-  background: #c13584;
+.share-button.whatsapp .share-icon {
+  color: #25d366;
 }
 
-.share-button.facebook span {
-  background: #1877f2;
+.share-button.instagram .share-icon {
+  color: #c13584;
+}
+
+.share-button.facebook .share-icon {
+  color: #1877f2;
 }
 
 .share-button:hover {
