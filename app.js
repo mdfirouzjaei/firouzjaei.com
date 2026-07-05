@@ -3,11 +3,13 @@ const DEFAULT_OWNER_PASSWORD = "April18!";
 const LEGACY_OWNER_PASSWORDS = ["owner-demo-1403"];
 const STORAGE_KEY = "firouzjaei-family-site-state-v1";
 const SESSION_KEY = "firouzjaei-family-site-session-v1";
+const BOOK_DATA = window.FIROUZJAEI_BOOK_DATA || null;
+const BOOK_SEED_VERSION = BOOK_DATA?.version || "synthetic-seed-v1";
 const MAX_LOCAL_UPLOAD_BYTES = 2 * 1024 * 1024;
 const VALID_ROUTES = ["home", "tree", "gallery", "history", "article"];
 const TREE_CANVAS_WIDTH = 1420;
 const TREE_CANVAS_HEIGHT = 760;
-const MAX_TREE_SLOT = 24;
+const MAX_TREE_SLOT = 48;
 const NODE_BASE_X = 150;
 const NODE_BASE_Y = 120;
 const NODE_X_GAP = 190;
@@ -346,6 +348,17 @@ const sampleState = {
   ],
 };
 
+function applyBookSeed(target, bookData) {
+  if (!bookData || typeof bookData !== "object") return;
+  target.bookSeedVersion = bookData.version || BOOK_SEED_VERSION;
+  if (Array.isArray(bookData.people) && bookData.people.length) target.people = clone(bookData.people);
+  if (Array.isArray(bookData.gallery)) target.gallery = clone(bookData.gallery);
+  if (Array.isArray(bookData.historyArticles)) target.historyArticles = clone(bookData.historyArticles);
+  if (bookData.history) target.history = bookData.history;
+}
+
+applyBookSeed(sampleState, BOOK_DATA);
+
 let state = loadState();
 let session = loadSession();
 let selectedPersonId = null;
@@ -396,12 +409,21 @@ function defaultGenderForPerson(person) {
 }
 
 function normalizeState(value) {
+  const loadedBookSeedVersion = value?.bookSeedVersion;
   const normalized = { ...clone(sampleState), ...value };
   if (!Array.isArray(normalized.people) || !normalized.people.length) {
     normalized.people = clone(sampleState.people);
   }
   const looksLikeDemoData = normalized.people.some((person) => person.id === "p1" && person.name === "بزرگ خاندان");
-  if (looksLikeDemoData) {
+  const shouldReplaceDemoData =
+    looksLikeDemoData && sampleState.bookSeedVersion && loadedBookSeedVersion !== sampleState.bookSeedVersion;
+  if (shouldReplaceDemoData) {
+    normalized.people = clone(sampleState.people);
+    normalized.gallery = clone(sampleState.gallery);
+    normalized.historyArticles = clone(sampleState.historyArticles);
+    normalized.history = sampleState.history;
+    normalized.bookSeedVersion = sampleState.bookSeedVersion;
+  } else if (looksLikeDemoData) {
     const existingIds = new Set(normalized.people.map((person) => person.id));
     clone(sampleState.people).forEach((person) => {
       if (!existingIds.has(person.id)) normalized.people.push(person);
@@ -424,6 +446,7 @@ function normalizeState(value) {
   normalized.gallery = normalized.gallery || [];
   normalized.admins = normalized.admins || clone(sampleState).admins;
   normalized.subscribers = normalized.subscribers || [];
+  normalized.bookSeedVersion = normalized.bookSeedVersion || sampleState.bookSeedVersion || BOOK_SEED_VERSION;
   normalized.submissions = (normalized.submissions || []).map(normalizeSubmission).filter(Boolean);
   normalized.articleComments = (normalized.articleComments || []).map(normalizeArticleComment).filter(Boolean);
   const historyArticleSource = Array.isArray(normalized.historyArticles) ? normalized.historyArticles : [];
@@ -452,12 +475,15 @@ function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return normalizeState(clone(sampleState));
   try {
-    const loadedState = normalizeState(JSON.parse(raw));
+    const parsedState = JSON.parse(raw);
+    const loadedState = normalizeState(parsedState);
     const owner = loadedState.admins.find((admin) => admin.email.toLowerCase() === OWNER_EMAIL);
+    let shouldPersist = parsedState.bookSeedVersion !== loadedState.bookSeedVersion;
     if (owner && LEGACY_OWNER_PASSWORDS.includes(owner.password)) {
       owner.password = DEFAULT_OWNER_PASSWORD;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(loadedState));
+      shouldPersist = true;
     }
+    if (shouldPersist) localStorage.setItem(STORAGE_KEY, JSON.stringify(loadedState));
     return loadedState;
   } catch {
     return normalizeState(clone(sampleState));
@@ -1489,11 +1515,12 @@ function renderGallery() {
   state.gallery.forEach((item, index) => {
     const card = document.createElement("article");
     card.className = "gallery-card";
+    const imageSrc = item.src || gallerySvg(item.title, item.palette || colors[index % colors.length]);
     card.innerHTML = `
-      <img src="${item.src || gallerySvg(item.title, item.palette || colors[index % colors.length])}" alt="${item.title}">
+      <img src="${escapeHtml(imageSrc)}" alt="${escapeHtml(item.title)}" loading="lazy" decoding="async">
       <div>
-        <h3>${item.title}</h3>
-        <p>${item.caption || ""}</p>
+        <h3>${escapeHtml(item.title)}</h3>
+        <p>${escapeHtml(item.caption || "")}</p>
       </div>
     `;
     grid.appendChild(card);
@@ -1507,7 +1534,7 @@ function historyFigureMarkup(figure, article, index) {
   const media =
     safeFigure.type === "video" && safeFigure.src
       ? `<video src="${escapeHtml(src)}" controls preload="metadata"></video>`
-      : `<img src="${escapeHtml(src)}" alt="${escapeHtml(safeFigure.title || article.title)}">`;
+      : `<img src="${escapeHtml(src)}" alt="${escapeHtml(safeFigure.title || article.title)}" loading="lazy" decoding="async">`;
   const caption = [safeFigure.title, safeFigure.caption].filter(Boolean).join(" - ");
   return `
     <figure class="history-figure">
