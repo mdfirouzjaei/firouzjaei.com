@@ -1382,7 +1382,7 @@ function weatherCardMarkup(item) {
         <h3>${escapeHtml(point.name)}</h3>
         <small>${escapeHtml(point.detail)}</small>
       </div>
-      <strong class="weather-temp">${degree(current.temperature_2m, "current")}</strong>
+      <strong>${toPersianDigits(Math.round(current.temperature_2m ?? 0))}°</strong>
       <p>${escapeHtml(weatherLabel(current.weather_code))}</p>
       <small>امروز: ${degree(min, "low")} تا ${degree(max, "high")} · بارش ${toPersianDigits(Math.round(rain ?? 0))}٪</small>
       <small>فردا: ${degree(tomorrowMin, "low")} تا ${degree(tomorrowMax, "high")} · احتمال بارش ${toPersianDigits(Math.round(tomorrowRain ?? 0))}٪</small>

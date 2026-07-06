@@ -1059,19 +1059,6 @@ body.admin-mode .person-node:focus-within .node-actions {
   font-size: 0.95rem;
 }
 
-.weather-temp {
-  display: inline-flex;
-  width: max-content;
-  align-items: baseline;
-  margin-block: 2px;
-  padding: 5px 9px;
-  border: 1px solid rgba(185, 133, 40, 0.24);
-  border-radius: 8px;
-  background: #fff8ec;
-  box-shadow: 0 8px 18px rgba(138, 47, 69, 0.08);
-  line-height: 1;
-}
-
 .weather-degree {
   display: inline-flex;
   align-items: baseline;
@@ -1083,9 +1070,10 @@ body.admin-mode .person-node:focus-within .node-actions {
   line-height: 1;
 }
 
-.weather-degree-current {
-  color: var(--wine);
-  font-size: 1.95rem;
+.weather-card strong {
+  color: var(--green);
+  font-size: 1.45rem;
+  line-height: 1.2;
 }
 
 .weather-degree-low {
