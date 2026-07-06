@@ -999,6 +999,8 @@ body.admin-mode .person-node:focus-within .node-actions {
 }
 
 .calendar-month.special-period {
+  grid-template-rows: auto 1fr auto;
+  align-content: stretch;
   border-color: rgba(185, 133, 40, 0.28);
   background: #fffdf7;
 }
@@ -1045,9 +1047,21 @@ body.admin-mode .person-node:focus-within .node-actions {
   font-size: 1rem;
 }
 
-.calendar-month small {
+.calendar-month-note {
   color: var(--muted);
   font-size: 0.74rem;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.calendar-month.special-period .calendar-month-note {
+  align-self: end;
+  justify-self: start;
+  padding-top: 8px;
+}
+
+.calendar-month.special-period .calendar-days {
+  align-self: start;
 }
 
 .calendar-days {

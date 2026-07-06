@@ -22,7 +22,7 @@ const TABARI_CALENDAR_PERIODS = [
   { id: "deh", monthNumber: 10, name: "دِه ما", note: "" },
   { id: "vahneh", monthNumber: 11, name: "وهنه ما", note: "" },
   { id: "nowruz", monthNumber: 12, name: "نوروز ما", note: "پایان سال تبری" },
-  { id: "pitek", monthNumber: null, name: "پیتک ما", note: "روزهای افزوده پایان سال" },
+  { id: "pitek", monthNumber: null, name: "پیتک ما", note: "روزهای افزوده سال" },
 ];
 const MAZANDARAN_CALENDAR_EVENTS = [
   {
@@ -1290,6 +1290,7 @@ function renderCalendar() {
       })
       .join("");
     const monthNumber = period.monthNumber ? `<span class="month-number">${toPersianDigits(period.monthNumber)}</span>` : `<span class="month-number extra">افزوده</span>`;
+    const noteMarkup = period.note ? `<small class="calendar-month-note">${escapeHtml(period.note)}</small>` : "";
 
     return `
       <section class="calendar-month${period.id === "pitek" ? " special-period" : ""}">
@@ -1298,9 +1299,10 @@ function renderCalendar() {
             ${monthNumber}
             <h2>${escapeHtml(period.name)}</h2>
           </div>
-          ${period.note ? `<small>${escapeHtml(period.note)}</small>` : ""}
+          ${period.id === "pitek" ? "" : noteMarkup}
         </div>
         <div class="calendar-days">${dayMarkup}</div>
+        ${period.id === "pitek" ? noteMarkup : ""}
       </section>
     `;
   }).join("");
