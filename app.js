@@ -1368,6 +1368,8 @@ function weatherCardMarkup(item) {
   const { point, data } = item;
   const current = data.current || {};
   const daily = data.daily || {};
+  const degree = (value, tone) =>
+    `<span class="weather-degree weather-degree-${tone}">${toPersianDigits(Math.round(value ?? 0))}°</span>`;
   const max = daily.temperature_2m_max?.[0];
   const min = daily.temperature_2m_min?.[0];
   const rain = daily.precipitation_probability_max?.[0];
@@ -1380,10 +1382,10 @@ function weatherCardMarkup(item) {
         <h3>${escapeHtml(point.name)}</h3>
         <small>${escapeHtml(point.detail)}</small>
       </div>
-      <strong>${toPersianDigits(Math.round(current.temperature_2m ?? 0))}°</strong>
+      <strong class="weather-temp">${degree(current.temperature_2m, "current")}</strong>
       <p>${escapeHtml(weatherLabel(current.weather_code))}</p>
-      <small>امروز: ${toPersianDigits(Math.round(min ?? 0))}° تا ${toPersianDigits(Math.round(max ?? 0))}° · بارش ${toPersianDigits(Math.round(rain ?? 0))}٪</small>
-      <small>فردا: ${toPersianDigits(Math.round(tomorrowMin ?? 0))}° تا ${toPersianDigits(Math.round(tomorrowMax ?? 0))}° · احتمال بارش ${toPersianDigits(Math.round(tomorrowRain ?? 0))}٪</small>
+      <small>امروز: ${degree(min, "low")} تا ${degree(max, "high")} · بارش ${toPersianDigits(Math.round(rain ?? 0))}٪</small>
+      <small>فردا: ${degree(tomorrowMin, "low")} تا ${degree(tomorrowMax, "high")} · احتمال بارش ${toPersianDigits(Math.round(tomorrowRain ?? 0))}٪</small>
     </article>
   `;
 }
