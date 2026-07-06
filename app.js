@@ -79,7 +79,7 @@ const MAZANDARAN_CALENDAR_EVENTS = [
 ];
 const BANDPEY_TIME_ZONE = "Asia/Tehran";
 const WEATHER_POINTS = [
-  { id: "galia", name: "گلیا", detail: "دهستان سجادرود", latitude: 36.311891, longitude: 52.6258348 },
+  { id: "galia", name: "گلیا", detail: "دهستان سجرو", latitude: 36.311891, longitude: 52.6258348 },
   { id: "filband", name: "فیلبند", detail: "ییلاق بندپی", latitude: 36.15322, longitude: 52.52872 },
   { id: "sheikh-musa", name: "شیخ موسی", detail: "دهستان فیروزجاه", latitude: 36.1071197, longitude: 52.5743351 },
   { id: "geryudeh", name: "گریوده", detail: "دهستان فیروزجاه", latitude: 36.0028718, longitude: 52.5401386 },
@@ -1373,6 +1373,7 @@ function weatherCardMarkup(item) {
   const rain = daily.precipitation_probability_max?.[0];
   const tomorrowMax = daily.temperature_2m_max?.[1];
   const tomorrowMin = daily.temperature_2m_min?.[1];
+  const tomorrowRain = daily.precipitation_probability_max?.[1];
   return `
     <article class="weather-card">
       <div>
@@ -1382,7 +1383,7 @@ function weatherCardMarkup(item) {
       <strong>${toPersianDigits(Math.round(current.temperature_2m ?? 0))}°</strong>
       <p>${escapeHtml(weatherLabel(current.weather_code))}</p>
       <small>امروز: ${toPersianDigits(Math.round(min ?? 0))}° تا ${toPersianDigits(Math.round(max ?? 0))}° · بارش ${toPersianDigits(Math.round(rain ?? 0))}٪</small>
-      <small>فردا: ${toPersianDigits(Math.round(tomorrowMin ?? 0))}° تا ${toPersianDigits(Math.round(tomorrowMax ?? 0))}°</small>
+      <small>فردا: ${toPersianDigits(Math.round(tomorrowMin ?? 0))}° تا ${toPersianDigits(Math.round(tomorrowMax ?? 0))}° · احتمال بارش ${toPersianDigits(Math.round(tomorrowRain ?? 0))}٪</small>
     </article>
   `;
 }
