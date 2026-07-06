@@ -77,6 +77,36 @@ const MAZANDARAN_CALENDAR_EVENTS = [
       "https://shomal.ac.ir/%DA%AF%D8%B1%D8%A7%D9%85%DB%8C%D8%AF%D8%A7%D8%B4%D8%AA-%D8%AD%D9%85%D8%A7%D8%B3%D9%87-%D8%A7%D8%B3%D9%84%D8%A7%D9%85%DB%8C-6-%D8%A8%D9%87%D9%85%D9%86-%D8%B3%D8%A7%D9%84-1360-%D9%85%D8%B1%D8%AF%D9%85/",
   },
 ];
+const BANDPEY_TIME_ZONE = "Asia/Tehran";
+const WEATHER_POINTS = [
+  { id: "galia", name: "گلیا", detail: "گلوگاه بندپی", latitude: 36.31048, longitude: 52.62621 },
+  { id: "bandpey", name: "بندپی شرقی", detail: "بابل", latitude: 36.35, longitude: 52.48333 },
+  { id: "filband", name: "فیلبند", detail: "ییلاق بندپی", latitude: 36.15322, longitude: 52.52872 },
+  { id: "babol", name: "بابل", detail: "مرکز شهرستان", latitude: 36.55102, longitude: 52.6786 },
+];
+const WEATHER_CODE_LABELS = {
+  0: "آفتابی",
+  1: "اغلب صاف",
+  2: "نیمه‌ابری",
+  3: "ابری",
+  45: "مه",
+  48: "مه یخ‌زده",
+  51: "نم‌نم باران",
+  53: "نم‌نم باران",
+  55: "نم‌نم باران شدید",
+  61: "باران سبک",
+  63: "باران",
+  65: "باران شدید",
+  71: "برف سبک",
+  73: "برف",
+  75: "برف شدید",
+  80: "رگبار سبک",
+  81: "رگبار",
+  82: "رگبار شدید",
+  95: "رعدوبرق",
+  96: "رعدوبرق و تگرگ",
+  99: "رعدوبرق و تگرگ شدید",
+};
 const TREE_CANVAS_WIDTH = 1420;
 const TREE_CANVAS_HEIGHT = 760;
 const MAX_TREE_SLOT = 48;
@@ -652,6 +682,9 @@ let expandedPersonIds = new Set();
 let activeRootId = null;
 let selectedArticleId = null;
 let selectedCalendarYear = null;
+let bandpeyClockTimer = null;
+let weatherForecastCache = null;
+let weatherForecastPromise = null;
 let mentionMenu = null;
 let mentionTarget = null;
 let mentionRange = null;
@@ -1183,6 +1216,17 @@ function tabariDateFromIso(value) {
   return tabariDateText(tabariDatePartsFromIso(value));
 }
 
+function isoDateInTimeZone(timeZone, date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
 function localIsoDate(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -1190,14 +1234,33 @@ function localIsoDate(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function formatBandpeyDay(date = new Date()) {
+  return new Intl.DateTimeFormat("fa-IR", {
+    timeZone: BANDPEY_TIME_ZONE,
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(date);
+}
+
+function formatBandpeyTime(date = new Date()) {
+  return new Intl.DateTimeFormat("fa-IR", {
+    timeZone: BANDPEY_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
 function renderTabariToday() {
   const target = $("#tabariToday");
   if (!target) return;
-  target.textContent = `امروز: ${tabariDateFromIso(localIsoDate())}`;
+  target.textContent = `امروز: ${tabariDateFromIso(isoDateInTimeZone(BANDPEY_TIME_ZONE))}`;
 }
 
 function currentTabariYear() {
-  return tabariDatePartsFromIso(localIsoDate())?.year || 1537;
+  return tabariDatePartsFromIso(isoDateInTimeZone(BANDPEY_TIME_ZONE))?.year || 1537;
 }
 
 function tabariPeriodById(periodId) {
@@ -1262,6 +1325,114 @@ function openCalendarEvent(eventIdList = "") {
   dialog.showModal();
 }
 
+function weatherLabel(code) {
+  return WEATHER_CODE_LABELS[Number(code)] || "وضعیت نامشخص";
+}
+
+function weatherUrl(point) {
+  const url = new URL("https://api.open-meteo.com/v1/forecast");
+  url.searchParams.set("latitude", point.latitude);
+  url.searchParams.set("longitude", point.longitude);
+  url.searchParams.set("current", "temperature_2m,relative_humidity_2m,weather_code");
+  url.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max");
+  url.searchParams.set("forecast_days", "3");
+  url.searchParams.set("timezone", BANDPEY_TIME_ZONE);
+  return url.toString();
+}
+
+async function fetchWeatherForecast() {
+  if (weatherForecastCache && Date.now() - weatherForecastCache.createdAt < 30 * 60 * 1000) return weatherForecastCache.items;
+  if (weatherForecastPromise) return weatherForecastPromise;
+
+  weatherForecastPromise = Promise.all(
+    WEATHER_POINTS.map(async (point) => {
+      const response = await fetch(weatherUrl(point));
+      if (!response.ok) throw new Error("weather");
+      const data = await response.json();
+      return { point, data };
+    })
+  )
+    .then((items) => {
+      weatherForecastCache = { createdAt: Date.now(), items };
+      return items;
+    })
+    .finally(() => {
+      weatherForecastPromise = null;
+    });
+
+  return weatherForecastPromise;
+}
+
+function weatherCardMarkup(item) {
+  const { point, data } = item;
+  const current = data.current || {};
+  const daily = data.daily || {};
+  const max = daily.temperature_2m_max?.[0];
+  const min = daily.temperature_2m_min?.[0];
+  const rain = daily.precipitation_probability_max?.[0];
+  const tomorrowMax = daily.temperature_2m_max?.[1];
+  const tomorrowMin = daily.temperature_2m_min?.[1];
+  return `
+    <article class="weather-card">
+      <div>
+        <h3>${escapeHtml(point.name)}</h3>
+        <small>${escapeHtml(point.detail)}</small>
+      </div>
+      <strong>${toPersianDigits(Math.round(current.temperature_2m ?? 0))}°</strong>
+      <p>${escapeHtml(weatherLabel(current.weather_code))}</p>
+      <small>امروز: ${toPersianDigits(Math.round(min ?? 0))}° تا ${toPersianDigits(Math.round(max ?? 0))}° · بارش ${toPersianDigits(Math.round(rain ?? 0))}٪</small>
+      <small>فردا: ${toPersianDigits(Math.round(tomorrowMin ?? 0))}° تا ${toPersianDigits(Math.round(tomorrowMax ?? 0))}°</small>
+    </article>
+  `;
+}
+
+function renderCalendarCurrentInfo() {
+  const todayTarget = $("#calendarTodayInfo");
+  const clockTarget = $("#bandpeyClock");
+  const now = new Date();
+  const bandpeyIso = isoDateInTimeZone(BANDPEY_TIME_ZONE, now);
+  if (todayTarget) todayTarget.textContent = `${formatBandpeyDay(now)} · ${tabariDateFromIso(bandpeyIso)}`;
+  if (clockTarget) clockTarget.textContent = formatBandpeyTime(now);
+}
+
+function renderCalendarWeather() {
+  const grid = $("#calendarWeatherGrid");
+  const status = $("#calendarWeatherStatus");
+  if (!grid) return;
+  if (weatherForecastCache) {
+    grid.innerHTML = weatherForecastCache.items.map(weatherCardMarkup).join("");
+    if (status) status.textContent = "به‌روزرسانی آنلاین";
+    return;
+  }
+
+  grid.innerHTML = WEATHER_POINTS.map((point) => `
+    <article class="weather-card loading">
+      <div>
+        <h3>${escapeHtml(point.name)}</h3>
+        <small>${escapeHtml(point.detail)}</small>
+      </div>
+      <p>در حال دریافت هوا...</p>
+    </article>
+  `).join("");
+  if (status) status.textContent = "در حال دریافت از Open‑Meteo";
+
+  fetchWeatherForecast()
+    .then((items) => {
+      grid.innerHTML = items.map(weatherCardMarkup).join("");
+      if (status) status.textContent = "پیش‌بینی آنلاین منطقه";
+    })
+    .catch(() => {
+      grid.innerHTML = `<div class="weather-error">دریافت پیش‌بینی هوا انجام نشد. چند دقیقه دیگر دوباره تلاش کنید.</div>`;
+      if (status) status.textContent = "هوا در دسترس نیست";
+    });
+}
+
+function startBandpeyClock() {
+  renderCalendarCurrentInfo();
+  if (bandpeyClockTimer) clearInterval(bandpeyClockTimer);
+  bandpeyClockTimer = setInterval(renderCalendarCurrentInfo, 30000);
+}
+
 function renderCalendar() {
   const grid = $("#calendarGrid");
   const title = $("#calendarYearTitle");
@@ -1269,9 +1440,11 @@ function renderCalendar() {
 
   if (!selectedCalendarYear) selectedCalendarYear = currentTabariYear();
   const year = Number(selectedCalendarYear);
-  const today = tabariDatePartsFromIso(localIsoDate());
+  const today = tabariDatePartsFromIso(isoDateInTimeZone(BANDPEY_TIME_ZONE));
   const daysByPeriod = collectTabariYearDays(year);
   title.textContent = `سال ${toPersianDigits(year)} تبری`;
+  renderCalendarCurrentInfo();
+  renderCalendarWeather();
 
   grid.innerHTML = TABARI_CALENDAR_PERIODS.map((period) => {
     const days = daysByPeriod.get(period.id) || [];
@@ -3583,6 +3756,7 @@ function init() {
   bindEvents();
   clearPersonForm();
   renderTabariToday();
+  startBandpeyClock();
   refreshAll();
   const next = parseRouteHash();
   routeTo(VALID_ROUTES.includes(next.route) ? next.route : "home", { articleId: next.articleId });

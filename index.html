@@ -9,7 +9,7 @@
     />
     <title>خاندان فیروزجایی</title>
     <link rel="icon" type="image/png" href="assets/brand/firouzjaei-logo.png" />
-    <link rel="stylesheet" href="styles.css?v=pitek-note-20260705" />
+    <link rel="stylesheet" href="styles.css?v=calendar-live-20260706" />
   </head>
   <body>
     <div class="app-shell">
@@ -167,8 +167,23 @@
           </div>
           <article class="calendar-panel">
             <div class="calendar-summary">
-              <span id="calendarYearTitle"></span>
+              <div class="calendar-summary-main">
+                <span id="calendarYearTitle"></span>
+                <small id="calendarTodayInfo"></small>
+              </div>
+              <div class="calendar-live">
+                <small>ساعت بندپی شرقی، بابل</small>
+                <strong id="bandpeyClock"></strong>
+              </div>
+              <p class="calendar-event-guide">روزهای طلایی مناسبت‌دار هستند؛ برای خواندن توضیح روی همان روز کلیک کنید.</p>
             </div>
+            <section class="calendar-weather" aria-label="پیش‌بینی هوای منطقه">
+              <div class="weather-head">
+                <h2>هوای منطقه</h2>
+                <small id="calendarWeatherStatus">در حال دریافت از Open‑Meteo</small>
+              </div>
+              <div class="weather-grid" id="calendarWeatherGrid"></div>
+            </section>
             <div class="calendar-grid" id="calendarGrid"></div>
           </article>
         </section>
@@ -470,6 +485,6 @@
     </template>
 
     <script src="assets/book/book-data.js?v=demo-tree-20260705"></script>
-    <script src="app.js?v=pitek-note-20260705"></script>
+    <script src="app.js?v=calendar-live-20260706"></script>
   </body>
 </html>
