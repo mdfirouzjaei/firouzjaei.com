@@ -78,6 +78,8 @@ const MAZANDARAN_CALENDAR_EVENTS = [
   },
 ];
 const BANDPEY_TIME_ZONE = "Asia/Tehran";
+const JALALI_MONTH_NAMES = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
+const GREGORIAN_MONTH_NAMES_FA = ["ژانویه", "فوریه", "مارس", "آوریل", "مه", "ژوئن", "ژوئیه", "اوت", "سپتامبر", "اکتبر", "نوامبر", "دسامبر"];
 const WEATHER_POINTS = [
   { id: "firouzjah-sabet", name: "فیروزجا", detail: "دهستان فیروزجاه", latitude: 36.1975, longitude: 52.65889 },
   { id: "galia", name: "گلیا", detail: "دهستان سجرو", latitude: 36.311891, longitude: 52.6258348 },
@@ -1235,14 +1237,26 @@ function localIsoDate(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-function formatBandpeyDay(date = new Date()) {
+function formatBandpeyWeekday(date = new Date()) {
   return new Intl.DateTimeFormat("fa-IR", {
     timeZone: BANDPEY_TIME_ZONE,
     weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
   }).format(date);
+}
+
+function gregorianDateTextFromIso(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  const [, gy, gm, gd] = match.map(Number);
+  return `${toPersianDigits(gd)} ${GREGORIAN_MONTH_NAMES_FA[gm - 1]} ${toPersianDigits(gy)} میلادی`;
+}
+
+function jalaliDateTextFromIso(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  const [, gy, gm, gd] = match.map(Number);
+  const jalali = gregorianToJalali(gy, gm, gd);
+  return `${toPersianDigits(jalali.jd)} ${JALALI_MONTH_NAMES[jalali.jm - 1]} ${toPersianDigits(jalali.jy)} خورشیدی`;
 }
 
 function formatBandpeyTime(date = new Date()) {
@@ -1395,7 +1409,10 @@ function renderCalendarCurrentInfo() {
   const clockTarget = $("#bandpeyClock");
   const now = new Date();
   const bandpeyIso = isoDateInTimeZone(BANDPEY_TIME_ZONE, now);
-  if (todayTarget) todayTarget.textContent = `${formatBandpeyDay(now)} · ${tabariDateFromIso(bandpeyIso)}`;
+  if (todayTarget) {
+    const dates = [tabariDateFromIso(bandpeyIso), gregorianDateTextFromIso(bandpeyIso), jalaliDateTextFromIso(bandpeyIso), formatBandpeyWeekday(now)].filter(Boolean);
+    todayTarget.textContent = dates.join(" · ");
+  }
   if (clockTarget) clockTarget.textContent = formatBandpeyTime(now);
 }
 
