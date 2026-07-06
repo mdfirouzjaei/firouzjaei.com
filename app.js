@@ -82,7 +82,7 @@ const WEATHER_POINTS = [
   { id: "galia", name: "گلیا", detail: "دهستان سجرو", latitude: 36.311891, longitude: 52.6258348 },
   { id: "filband", name: "فیلبند", detail: "ییلاق بندپی", latitude: 36.15322, longitude: 52.52872 },
   { id: "sheikh-musa", name: "شیخ موسی", detail: "دهستان فیروزجاه", latitude: 36.1071197, longitude: 52.5743351 },
-  { id: "geryudeh", name: "گریوده", detail: "دهستان فیروزجاه", latitude: 36.0028718, longitude: 52.5401386 },
+  { id: "firouzjah-sabet", name: "فیروزجاه ثابت", detail: "دهستان فیروزجاه", latitude: 36.1975, longitude: 52.65889 },
   { id: "galiran", name: "گلیران", detail: "دهستان فیروزجاه", latitude: 36.0963776, longitude: 52.6764607 },
 ];
 const WEATHER_CODE_LABELS = {
