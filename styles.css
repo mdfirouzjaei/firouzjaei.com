@@ -1078,12 +1078,22 @@ body.admin-mode .person-node:focus-within .node-actions {
 
 .weather-degree-low {
   color: var(--blue);
-  font-size: 0.92rem;
+  font-size: 0.78rem;
 }
 
 .weather-degree-high {
   color: var(--gold);
-  font-size: 0.92rem;
+  font-size: 0.78rem;
+}
+
+.weather-card p {
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.weather-card small {
+  font-size: 0.76rem;
+  line-height: 1.55;
 }
 
 .weather-card small,
