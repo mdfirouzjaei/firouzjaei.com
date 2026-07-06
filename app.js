@@ -79,10 +79,11 @@ const MAZANDARAN_CALENDAR_EVENTS = [
 ];
 const BANDPEY_TIME_ZONE = "Asia/Tehran";
 const WEATHER_POINTS = [
-  { id: "galia", name: "گلیا", detail: "گلوگاه بندپی", latitude: 36.31048, longitude: 52.62621 },
-  { id: "bandpey", name: "بندپی شرقی", detail: "بابل", latitude: 36.35, longitude: 52.48333 },
+  { id: "galia", name: "گلیا", detail: "دهستان سجادرود", latitude: 36.311891, longitude: 52.6258348 },
   { id: "filband", name: "فیلبند", detail: "ییلاق بندپی", latitude: 36.15322, longitude: 52.52872 },
-  { id: "babol", name: "بابل", detail: "مرکز شهرستان", latitude: 36.55102, longitude: 52.6786 },
+  { id: "sheikh-musa", name: "شیخ موسی", detail: "دهستان فیروزجاه", latitude: 36.1071197, longitude: 52.5743351 },
+  { id: "geryudeh", name: "گریوده", detail: "دهستان فیروزجاه", latitude: 36.0028718, longitude: 52.5401386 },
+  { id: "galiran", name: "گلیران", detail: "دهستان فیروزجاه", latitude: 36.0963776, longitude: 52.6764607 },
 ];
 const WEATHER_CODE_LABELS = {
   0: "آفتابی",
