@@ -1410,8 +1410,18 @@ function renderCalendarCurrentInfo() {
   const now = new Date();
   const bandpeyIso = isoDateInTimeZone(BANDPEY_TIME_ZONE, now);
   if (todayTarget) {
-    const dates = [tabariDateFromIso(bandpeyIso), gregorianDateTextFromIso(bandpeyIso), jalaliDateTextFromIso(bandpeyIso), formatBandpeyWeekday(now)].filter(Boolean);
-    todayTarget.textContent = dates.join(" · ");
+    const dates = [
+      { tone: "tabari", text: tabariDateFromIso(bandpeyIso) },
+      { tone: "gregorian", text: gregorianDateTextFromIso(bandpeyIso) },
+      { tone: "jalali", text: jalaliDateTextFromIso(bandpeyIso) },
+      { tone: "weekday", text: formatBandpeyWeekday(now) },
+    ].filter((item) => item.text);
+    todayTarget.innerHTML = `<span class="calendar-date-row">${dates
+      .map((item, index) => {
+        const divider = index < dates.length - 1 ? '<span class="calendar-date-divider" aria-hidden="true"></span>' : "";
+        return `<span class="calendar-date-chip calendar-date-${item.tone}">${escapeHtml(item.text)}</span>${divider}`;
+      })
+      .join("")}</span>`;
   }
   if (clockTarget) clockTarget.textContent = formatBandpeyTime(now);
 }

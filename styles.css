@@ -961,7 +961,7 @@ body.admin-mode .person-node:focus-within .node-actions {
 
 .calendar-summary {
   display: grid;
-  grid-template-columns: minmax(210px, 1fr) auto minmax(280px, auto);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
   padding: 14px 16px;
@@ -977,9 +977,57 @@ body.admin-mode .person-node:focus-within .node-actions {
   gap: 2px;
 }
 
-.calendar-summary-main span {
+.calendar-summary-main {
+  min-width: 0;
+}
+
+.calendar-summary-main > span {
   font-size: 1.08rem;
   font-weight: 820;
+}
+
+.calendar-date-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.calendar-date-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.58);
+  color: #755317;
+  font-size: 0.83rem;
+  font-weight: 720;
+  line-height: 1.5;
+}
+
+.calendar-date-tabari {
+  color: #6f4c0f;
+}
+
+.calendar-date-gregorian {
+  color: var(--blue);
+}
+
+.calendar-date-jalali {
+  color: var(--green);
+}
+
+.calendar-date-weekday {
+  color: var(--wine);
+}
+
+.calendar-date-divider {
+  width: 1px;
+  height: 20px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, transparent, rgba(185, 133, 40, 0.48), transparent);
 }
 
 .calendar-summary small,
@@ -999,10 +1047,11 @@ body.admin-mode .person-node:focus-within .node-actions {
 }
 
 .calendar-event-guide {
-  margin: 0;
-  color: #72521a;
-  font-size: 0.9rem;
-  font-weight: 700;
+  justify-self: end;
+  margin: -4px 0 0;
+  color: #80612b;
+  font-size: 0.76rem;
+  font-weight: 520;
   text-align: left;
 }
 
@@ -1922,7 +1971,7 @@ body.admin-mode .admin-only {
 
   .calendar-event-guide {
     grid-column: 1 / -1;
-    text-align: right;
+    text-align: left;
   }
 
   .weather-grid {
@@ -1984,6 +2033,11 @@ body.admin-mode .admin-only {
 
   .calendar-live {
     text-align: right;
+  }
+
+  .calendar-date-row {
+    flex-wrap: wrap;
+    white-space: normal;
   }
 
   .weather-head {
