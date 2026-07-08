@@ -339,7 +339,7 @@ h2 {
 
 .site-directory {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px;
   margin-top: 16px;
 }
@@ -1000,6 +1000,130 @@ body.admin-mode .person-node:focus-within .node-actions {
 
 .gallery-viewer-share {
   margin-top: 12px;
+}
+
+.social-panel {
+  display: grid;
+  gap: 22px;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.social-creators-section,
+.social-feed-section {
+  display: grid;
+  gap: 12px;
+}
+
+.social-section-title h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.social-influencer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.social-influencer-card {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: 0 12px 26px rgba(21, 34, 31, 0.06);
+}
+
+.social-influencer-card img,
+.social-post-head img {
+  width: 58px;
+  height: 58px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--green-2);
+  box-shadow: 0 0 0 1px rgba(36, 85, 76, 0.16);
+}
+
+.social-influencer-card img {
+  width: 72px;
+  height: 72px;
+}
+
+.social-influencer-card h3,
+.social-influencer-card p,
+.social-post-copy h3,
+.social-post-copy p {
+  margin: 0;
+}
+
+.social-influencer-card span,
+.social-influencer-card small,
+.social-post-head span,
+.social-post-copy time {
+  display: block;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.social-influencer-card p {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.social-influencer-card .admin-only {
+  grid-column: 2;
+  justify-self: start;
+}
+
+.social-feed {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+.social-post-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: 0 16px 34px rgba(21, 34, 31, 0.08);
+}
+
+.social-post-head {
+  display: grid;
+  grid-template-columns: 58px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+}
+
+.social-post-head strong {
+  display: block;
+}
+
+.social-post-media img,
+.social-post-media video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  background: #eef2ef;
+}
+
+.social-post-copy {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.social-post-copy p {
+  color: var(--muted);
 }
 
 .calendar-tools {
@@ -2147,6 +2271,23 @@ body.admin-mode .admin-only {
 
   .weather-grid {
     grid-template-columns: 1fr;
+  }
+
+  .social-influencer-card,
+  .social-post-head {
+    grid-template-columns: 52px 1fr;
+  }
+
+  .social-influencer-card img,
+  .social-post-head img {
+    width: 52px;
+    height: 52px;
+  }
+
+  .social-influencer-card .admin-only,
+  .social-post-head .admin-only {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 
   .tree-stage {

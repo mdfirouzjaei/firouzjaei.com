@@ -8,7 +8,7 @@ const BOOK_SEED_VERSION = BOOK_DATA?.version || "synthetic-seed-v1";
 const TREE_RESET_VERSION = "demo-scenarios-2026-07-05";
 const BOOK_PHOTO_ASSET_PATH = "assets/book/photos/";
 const MAX_LOCAL_UPLOAD_BYTES = 2 * 1024 * 1024;
-const VALID_ROUTES = ["home", "tree", "gallery", "calendar", "history", "article"];
+const VALID_ROUTES = ["home", "tree", "gallery", "social", "calendar", "history", "article"];
 const TABARI_CALENDAR_PERIODS = [
   { id: "fardineh", monthNumber: 1, name: "فردینه ما", note: "آغاز سال تبری" },
   { id: "karcheh", monthNumber: 2, name: "کرچه ما", note: "" },
@@ -605,6 +605,58 @@ const sampleState = {
       palette: ["#315d7e", "#e2edf4"],
     },
   ],
+  socialInfluencers: [
+    {
+      id: "inf1",
+      name: "روایت بندپی",
+      handle: "@bandpey روایت",
+      focus: "فرهنگ و آیین‌های بندپی شرقی",
+      bio: "نمونه معرفی برای کسانی که درباره تاریخ محلی، روستاها، گویش و خاطره‌های منطقه محتوا تولید می‌کنند.",
+      avatar: "",
+    },
+    {
+      id: "inf2",
+      name: "خانه فیروزجا",
+      handle: "@firouzja archive",
+      focus: "عکس‌ها و روایت‌های خانوادگی",
+      bio: "نمونه کارت برای معرفی گردآورندگان عکس، ویدیو و روایت‌های مرتبط با خاندان و زادگاه.",
+      avatar: "",
+    },
+    {
+      id: "inf3",
+      name: "نامه‌های مازرونی",
+      handle: "@mazandarani notes",
+      focus: "نوشتار، گویش و خاطره‌های مازندران",
+      bio: "جایی برای معرفی تولیدکنندگان محتوای فرهنگی که پیوندی با منطقه و تاریخ ما دارند.",
+      avatar: "",
+    },
+  ],
+  socialPosts: [
+    {
+      id: "soc1",
+      authorId: "inf1",
+      title: "روایت تصویری از گردهمایی",
+      caption: "نمونه پست محلی برای نمایش عکس یا ویدیوی ذخیره‌شده در آرشیو خود وب‌سایت.",
+      media: { type: "image", src: "assets/images/Processed/JPG%20Files/Processed/IMG%201.jpg", name: "نمونه عکس" },
+      createdAt: "2026-07-08T00:00:00.000Z",
+    },
+    {
+      id: "soc2",
+      authorId: "inf2",
+      title: "چهره‌ها و خاطره‌ها",
+      caption: "این بخش ظاهر شبکه‌های اجتماعی را دارد، اما فایل‌ها از فضای ذخیره‌سازی خودمان خوانده می‌شوند.",
+      media: { type: "image", src: "assets/images/Processed/JPG%20Files/Processed/IMG%202.jpg", name: "نمونه عکس" },
+      createdAt: "2026-07-08T00:00:00.000Z",
+    },
+    {
+      id: "soc3",
+      authorId: "inf3",
+      title: "یادداشت کوتاه منطقه‌ای",
+      caption: "ادمین می‌تواند برای هر پست عنوان، شرح، تولیدکننده محتوا و فایل عکس یا ویدیو ثبت کند.",
+      media: { type: "image", src: "assets/images/Processed/JPG%20Files/Processed/IMG%203.jpg", name: "نمونه عکس" },
+      createdAt: "2026-07-08T00:00:00.000Z",
+    },
+  ],
   submissions: [],
   articleComments: [],
   history:
@@ -837,6 +889,10 @@ function normalizeState(value) {
   assignMentionHandles(normalized.people);
   normalized.gallery = normalized.gallery || [];
   mergeProcessedGalleryPhotos(normalized);
+  normalized.socialInfluencers = (normalized.socialInfluencers || []).map(normalizeSocialInfluencer).filter(Boolean);
+  if (!normalized.socialInfluencers.length) normalized.socialInfluencers = clone(sampleState.socialInfluencers).map(normalizeSocialInfluencer).filter(Boolean);
+  normalized.socialPosts = (normalized.socialPosts || []).map(normalizeSocialPost).filter(Boolean);
+  if (!normalized.socialPosts.length) normalized.socialPosts = clone(sampleState.socialPosts).map(normalizeSocialPost).filter(Boolean);
   normalized.admins = normalized.admins || clone(sampleState).admins;
   normalized.subscribers = normalized.subscribers || [];
   normalized.bookSeedVersion = normalized.bookSeedVersion || sampleState.bookSeedVersion || BOOK_SEED_VERSION;
@@ -1586,6 +1642,40 @@ function normalizeHistoryArticle(item) {
     body,
     figures: (item.figures || item.media || []).map(normalizeHistoryFigure).filter(Boolean),
     references: normalizeReferenceList(item.references),
+    createdAt: item.createdAt || new Date().toISOString(),
+  };
+}
+
+function normalizeSocialInfluencer(item) {
+  if (!item) return null;
+  const name = (item.name || "").trim();
+  const handle = (item.handle || "").trim();
+  const focus = (item.focus || "").trim();
+  const bio = (item.bio || item.description || "").trim();
+  const avatar = (item.avatar || item.photo || "").trim();
+  if (!name && !handle && !bio) return null;
+  return {
+    id: item.id || makeId("inf"),
+    name: name || "تولیدکننده محتوا",
+    handle,
+    focus,
+    bio,
+    avatar,
+  };
+}
+
+function normalizeSocialPost(item) {
+  if (!item) return null;
+  const media = normalizeMediaItem(item.media || item.file || item.src || "");
+  const title = (item.title || "").trim();
+  const caption = (item.caption || item.text || "").trim();
+  if (!media && !title && !caption) return null;
+  return {
+    id: item.id || makeId("soc"),
+    authorId: item.authorId || "",
+    title: title || "پست بدون عنوان",
+    caption,
+    media,
     createdAt: item.createdAt || new Date().toISOString(),
   };
 }
@@ -2795,6 +2885,111 @@ function openGalleryEditor(id = "") {
   $("#galleryEditorDialog").showModal();
 }
 
+function socialInfluencerById(id) {
+  return state.socialInfluencers.find((item) => item.id === id) || null;
+}
+
+function socialInfluencerOptions(selectedId = "") {
+  return state.socialInfluencers
+    .map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === selectedId ? "selected" : ""}>${escapeHtml(item.name)}</option>`)
+    .join("");
+}
+
+function socialMediaMarkup(post, index) {
+  const media = normalizeMediaItem(post.media);
+  if (!media) {
+    return `<img src="${escapeHtml(gallerySvg(post.title, colors[index % colors.length]))}" alt="${escapeHtml(post.title)}" loading="lazy" decoding="async">`;
+  }
+  const safeSrc = escapeHtml(media.src);
+  if (media.type === "video") return `<video src="${safeSrc}" controls preload="metadata"></video>`;
+  return `<img src="${safeSrc}" alt="${escapeHtml(post.title)}" loading="lazy" decoding="async">`;
+}
+
+function renderSocial() {
+  const influencerGrid = $("#socialInfluencerGrid");
+  const feed = $("#socialFeed");
+  if (!influencerGrid || !feed) return;
+  influencerGrid.innerHTML = "";
+  feed.innerHTML = "";
+
+  state.socialInfluencers.forEach((item, index) => {
+    const card = document.createElement("article");
+    card.className = "social-influencer-card";
+    const avatar = item.avatar || avatarSvg(item.name, index);
+    card.innerHTML = `
+      <img src="${escapeHtml(avatar)}" alt="${escapeHtml(item.name)}" loading="lazy" decoding="async">
+      <div>
+        <h3>${escapeHtml(item.name)}</h3>
+        ${item.handle ? `<span>${escapeHtml(item.handle)}</span>` : ""}
+        ${item.focus ? `<small>${escapeHtml(item.focus)}</small>` : ""}
+        ${item.bio ? `<p>${renderMentionedText(item.bio)}</p>` : ""}
+      </div>
+      <button class="soft-action admin-only" type="button" data-edit-influencer="${escapeHtml(item.id)}">ویرایش</button>
+    `;
+    const editButton = $("[data-edit-influencer]", card);
+    if (editButton) editButton.addEventListener("click", () => openInfluencerEditor(item.id));
+    influencerGrid.appendChild(card);
+  });
+
+  state.socialPosts
+    .slice()
+    .sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0))
+    .forEach((post, index) => {
+      const author = socialInfluencerById(post.authorId);
+      const card = document.createElement("article");
+      card.className = "social-post-card";
+      const avatar = author?.avatar || avatarSvg(author?.name || "شبکه مجازی", index);
+      card.innerHTML = `
+        <header class="social-post-head">
+          <img src="${escapeHtml(avatar)}" alt="${escapeHtml(author?.name || "تولیدکننده محتوا")}" loading="lazy" decoding="async">
+          <div>
+            <strong>${escapeHtml(author?.name || "تولیدکننده محتوا")}</strong>
+            <span>${escapeHtml(author?.handle || "آرشیو محلی")}</span>
+          </div>
+          <button class="soft-action admin-only" type="button" data-edit-social-post="${escapeHtml(post.id)}">ویرایش</button>
+        </header>
+        <div class="social-post-media">${socialMediaMarkup(post, index)}</div>
+        <div class="social-post-copy">
+          <h3>${escapeHtml(post.title)}</h3>
+          ${post.caption ? `<p>${renderMentionedText(post.caption)}</p>` : ""}
+          <time>${escapeHtml(formatDateTime(post.createdAt))}</time>
+        </div>
+      `;
+      const editButton = $("[data-edit-social-post]", card);
+      if (editButton) editButton.addEventListener("click", () => openSocialPostEditor(post.id));
+      feed.appendChild(card);
+    });
+}
+
+function openInfluencerEditor(id = "") {
+  const form = $("#influencerEditor");
+  const fields = form.elements;
+  const item = id ? socialInfluencerById(id) : null;
+  form.reset();
+  fields.influencerId.value = item?.id || "";
+  fields.name.value = item?.name || "";
+  fields.handle.value = item?.handle || "";
+  fields.focus.value = item?.focus || "";
+  fields.bio.value = item?.bio || "";
+  fields.avatar.value = item?.avatar || "";
+  $("#influencerEditorTitle").textContent = item ? "ویرایش تولیدکننده" : "افزودن تولیدکننده";
+  $("#influencerEditorDialog").showModal();
+}
+
+function openSocialPostEditor(id = "") {
+  const form = $("#socialPostEditor");
+  const fields = form.elements;
+  const post = id ? state.socialPosts.find((item) => item.id === id) : null;
+  form.reset();
+  fields.postId.value = post?.id || "";
+  fields.authorId.innerHTML = socialInfluencerOptions(post?.authorId || state.socialInfluencers[0]?.id || "");
+  fields.title.value = post?.title || "";
+  fields.caption.value = post?.caption || "";
+  fields.mediaSrc.value = post?.media?.src || "";
+  $("#socialPostEditorTitle").textContent = post ? "ویرایش پست" : "افزودن پست";
+  $("#socialPostEditorDialog").showModal();
+}
+
 function historyFigureMarkup(figure, article, index) {
   const safeFigure = normalizeHistoryFigure(figure);
   if (!safeFigure) return "";
@@ -3721,6 +3916,10 @@ function bindEvents() {
     if (icon) icon.innerHTML = shareIconMarkup(button.dataset.shareGalleryPlatform);
     button.addEventListener("click", () => handleGalleryShare(button.dataset.shareGalleryPlatform));
   });
+  $("[data-open-influencer-editor]").addEventListener("click", () => openInfluencerEditor());
+  $("[data-close-influencer-editor]").addEventListener("click", () => $("#influencerEditorDialog").close());
+  $("[data-open-social-post-editor]").addEventListener("click", () => openSocialPostEditor());
+  $("[data-close-social-post-editor]").addEventListener("click", () => $("#socialPostEditorDialog").close());
   $("[data-open-history-editor]").addEventListener("click", () => openHistoryEditor());
   $("[data-close-history-editor]").addEventListener("click", () => $("#historyEditorDialog").close());
   $("#historyEditor").elements.sortDate.addEventListener("change", (event) => {
@@ -3759,6 +3958,8 @@ function bindEvents() {
       routeTo("article", { articleId: returnRoute.articleId });
     } else if (returnRoute.route === "history") {
       routeTo("history");
+    } else if (returnRoute.route === "social") {
+      routeTo("social");
     } else {
       routeTo("tree");
     }
@@ -3917,6 +4118,73 @@ function bindEvents() {
     renderGallery();
   });
 
+  $("#influencerEditor").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const fields = form.elements;
+    const influencerId = fields.influencerId.value;
+    const existing = influencerId ? state.socialInfluencers.find((item) => item.id === influencerId) : null;
+    let uploadedAvatar = null;
+    try {
+      uploadedAvatar = fields.avatarFile.files?.[0] ? await fileToMedia(fields.avatarFile.files[0]) : null;
+    } catch (error) {
+      alert(error.message || "بارگذاری عکس انجام نشد.");
+      return;
+    }
+    const nextInfluencer = normalizeSocialInfluencer({
+      id: existing?.id || makeId("inf"),
+      name: fields.name.value.trim(),
+      handle: fields.handle.value.trim(),
+      focus: fields.focus.value.trim(),
+      bio: fields.bio.value.trim(),
+      avatar: uploadedAvatar?.src || fields.avatar.value.trim(),
+    });
+    if (!nextInfluencer) return;
+    if (existing) {
+      Object.assign(existing, nextInfluencer);
+    } else {
+      state.socialInfluencers.push(nextInfluencer);
+    }
+    saveState();
+    form.reset();
+    $("#influencerEditorDialog").close();
+    renderSocial();
+  });
+
+  $("#socialPostEditor").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const fields = form.elements;
+    const postId = fields.postId.value;
+    const existing = postId ? state.socialPosts.find((item) => item.id === postId) : null;
+    let uploadedMedia = null;
+    try {
+      uploadedMedia = fields.mediaFile.files?.[0] ? await fileToMedia(fields.mediaFile.files[0]) : null;
+    } catch (error) {
+      alert(error.message || "بارگذاری فایل انجام نشد.");
+      return;
+    }
+    const media = uploadedMedia || normalizeMediaItem(fields.mediaSrc.value.trim());
+    const nextPost = normalizeSocialPost({
+      id: existing?.id || makeId("soc"),
+      authorId: fields.authorId.value,
+      title: fields.title.value.trim(),
+      caption: fields.caption.value.trim(),
+      media,
+      createdAt: existing?.createdAt,
+    });
+    if (!nextPost) return;
+    if (existing) {
+      Object.assign(existing, nextPost);
+    } else {
+      state.socialPosts.unshift(nextPost);
+    }
+    saveState();
+    form.reset();
+    $("#socialPostEditorDialog").close();
+    renderSocial();
+  });
+
   $("#historyEditor").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -4006,6 +4274,7 @@ function setZoom(value) {
 function refreshAll() {
   renderTree();
   renderGallery();
+  renderSocial();
   renderCalendar();
   renderHistory();
   if (selectedArticleId) renderArticlePage();
