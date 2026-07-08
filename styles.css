@@ -998,6 +998,10 @@ body.admin-mode .person-node:focus-within .node-actions {
   color: var(--muted);
 }
 
+.gallery-viewer-share {
+  margin-top: 12px;
+}
+
 .calendar-tools {
   display: flex;
   align-items: center;

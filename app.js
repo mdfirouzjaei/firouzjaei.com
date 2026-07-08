@@ -695,6 +695,7 @@ let pendingRelationship = null;
 let expandedPersonIds = new Set();
 let activeRootId = null;
 let selectedArticleId = null;
+let selectedGalleryItemId = null;
 let selectedCalendarYear = null;
 let bandpeyClockTimer = null;
 let weatherForecastCache = null;
@@ -2734,6 +2735,7 @@ function renderGallery() {
 function openGalleryViewer(id) {
   const item = state.gallery.find((galleryItem) => galleryItem.id === id);
   if (!item) return;
+  selectedGalleryItemId = id;
   const index = state.gallery.findIndex((galleryItem) => galleryItem.id === id);
   const imageSrc = item.src || gallerySvg(item.title, item.palette || colors[index % colors.length]);
   const dialog = $("#galleryViewerDialog");
@@ -2742,6 +2744,42 @@ function openGalleryViewer(id) {
   $("#galleryViewerTitle").textContent = item.title || "عکس";
   $("#galleryViewerCaption").textContent = item.caption || "";
   if (!dialog.open) dialog.showModal();
+}
+
+function gallerySharePackage(item) {
+  const index = state.gallery.findIndex((galleryItem) => galleryItem.id === item.id);
+  const imageSrc = item.src || gallerySvg(item.title, item.palette || colors[index % colors.length]);
+  const url = new URL(imageSrc, window.location.href).toString();
+  const title = item.title || "عکس خاندان فیروزجایی";
+  const caption = plainShareText(item.caption || "");
+  const text = [title ? `«${title}»` : "", caption, url].filter(Boolean).join("\n\n");
+  return {
+    url,
+    title,
+    caption,
+    text,
+    appText: [title ? `«${title}»` : "", caption].filter(Boolean).join("\n\n"),
+  };
+}
+
+function galleryShareTarget(platform, item) {
+  const share = gallerySharePackage(item);
+  const encodedUrl = encodeURIComponent(share.url);
+  const encodedText = encodeURIComponent(share.appText);
+  const encodedFullText = encodeURIComponent(share.text);
+  return (
+    {
+      telegram: `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`,
+      whatsapp: `https://wa.me/?text=${encodedFullText}`,
+    }[platform] || ""
+  );
+}
+
+function handleGalleryShare(platform) {
+  const item = state.gallery.find((galleryItem) => galleryItem.id === selectedGalleryItemId);
+  if (!item) return;
+  const target = galleryShareTarget(platform, item);
+  if (target) window.open(target, "_blank", "noopener,noreferrer");
 }
 
 function openGalleryEditor(id = "") {
@@ -3678,6 +3716,11 @@ function bindEvents() {
   $("[data-open-gallery-editor]").addEventListener("click", () => openGalleryEditor());
   $("[data-close-gallery-editor]").addEventListener("click", () => $("#galleryEditorDialog").close());
   $("[data-close-gallery-viewer]").addEventListener("click", () => $("#galleryViewerDialog").close());
+  $$("[data-share-gallery-platform]").forEach((button) => {
+    const icon = $(".share-icon", button);
+    if (icon) icon.innerHTML = shareIconMarkup(button.dataset.shareGalleryPlatform);
+    button.addEventListener("click", () => handleGalleryShare(button.dataset.shareGalleryPlatform));
+  });
   $("[data-open-history-editor]").addEventListener("click", () => openHistoryEditor());
   $("[data-close-history-editor]").addEventListener("click", () => $("#historyEditorDialog").close());
   $("#historyEditor").elements.sortDate.addEventListener("change", (event) => {

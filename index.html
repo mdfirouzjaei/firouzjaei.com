@@ -9,7 +9,7 @@
     />
     <title>خاندان فیروزجایی</title>
     <link rel="icon" type="image/svg+xml" sizes="any" href="assets/brand/firouzjaei-logo.svg?v=logo-svg-20260706" />
-    <link rel="stylesheet" href="styles.css?v=gallery-viewer-editor-20260708" />
+    <link rel="stylesheet" href="styles.css?v=gallery-share-20260708" />
   </head>
   <body>
     <div class="app-shell">
@@ -430,6 +430,16 @@
         <div class="gallery-viewer-copy">
           <h2 id="galleryViewerTitle"></h2>
           <p id="galleryViewerCaption"></p>
+          <div class="share-actions gallery-viewer-share" aria-label="هم‌رسانی عکس">
+            <button class="share-button telegram" type="button" data-share-gallery-platform="telegram">
+              <span class="share-icon" aria-hidden="true"></span>
+              تلگرام
+            </button>
+            <button class="share-button whatsapp" type="button" data-share-gallery-platform="whatsapp">
+              <span class="share-icon" aria-hidden="true"></span>
+              واتساپ
+            </button>
+          </div>
         </div>
       </div>
     </dialog>
@@ -499,6 +509,6 @@
     </template>
 
     <script src="assets/book/book-data.js?v=demo-tree-20260705"></script>
-    <script src="app.js?v=gallery-viewer-editor-20260708"></script>
+    <script src="app.js?v=gallery-share-20260708"></script>
   </body>
 </html>
