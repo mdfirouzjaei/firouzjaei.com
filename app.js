@@ -2716,14 +2716,45 @@ function renderGallery() {
     card.className = "gallery-card";
     const imageSrc = item.src || gallerySvg(item.title, item.palette || colors[index % colors.length]);
     card.innerHTML = `
-      <img src="${escapeHtml(imageSrc)}" alt="${escapeHtml(item.title)}" loading="lazy" decoding="async">
-      <div>
+      <button class="gallery-image-button" type="button" data-view-gallery="${escapeHtml(item.id)}" title="نمایش عکس">
+        <img src="${escapeHtml(imageSrc)}" alt="${escapeHtml(item.title)}" loading="lazy" decoding="async">
+      </button>
+      <div class="gallery-card-copy">
         <h3>${escapeHtml(item.title)}</h3>
         <p>${renderMentionedText(item.caption || "")}</p>
+        <button class="soft-action admin-only gallery-edit-button" type="button" data-edit-gallery="${escapeHtml(item.id)}">ویرایش</button>
       </div>
     `;
+    $("[data-view-gallery]", card).addEventListener("click", () => openGalleryViewer(item.id));
+    $("[data-edit-gallery]", card).addEventListener("click", () => openGalleryEditor(item.id));
     grid.appendChild(card);
   });
+}
+
+function openGalleryViewer(id) {
+  const item = state.gallery.find((galleryItem) => galleryItem.id === id);
+  if (!item) return;
+  const index = state.gallery.findIndex((galleryItem) => galleryItem.id === id);
+  const imageSrc = item.src || gallerySvg(item.title, item.palette || colors[index % colors.length]);
+  const dialog = $("#galleryViewerDialog");
+  $("#galleryViewerImage").src = imageSrc;
+  $("#galleryViewerImage").alt = item.title || "عکس";
+  $("#galleryViewerTitle").textContent = item.title || "عکس";
+  $("#galleryViewerCaption").textContent = item.caption || "";
+  if (!dialog.open) dialog.showModal();
+}
+
+function openGalleryEditor(id = "") {
+  const form = $("#galleryEditor");
+  const fields = form.elements;
+  const item = id ? state.gallery.find((galleryItem) => galleryItem.id === id) : null;
+  form.reset();
+  fields.galleryId.value = item?.id || "";
+  fields.title.value = item?.title || "";
+  fields.caption.value = item?.caption || "";
+  fields.src.value = item?.src || "";
+  $("#galleryEditorTitle").textContent = item ? "ویرایش عکس" : "افزودن عکس";
+  $("#galleryEditorDialog").showModal();
 }
 
 function historyFigureMarkup(figure, article, index) {
@@ -3644,8 +3675,9 @@ function bindEvents() {
     $("#adminDialog").close();
     routeTo("tree");
   });
-  $("[data-open-gallery-editor]").addEventListener("click", () => $("#galleryEditorDialog").showModal());
+  $("[data-open-gallery-editor]").addEventListener("click", () => openGalleryEditor());
   $("[data-close-gallery-editor]").addEventListener("click", () => $("#galleryEditorDialog").close());
+  $("[data-close-gallery-viewer]").addEventListener("click", () => $("#galleryViewerDialog").close());
   $("[data-open-history-editor]").addEventListener("click", () => openHistoryEditor());
   $("[data-close-history-editor]").addEventListener("click", () => $("#historyEditorDialog").close());
   $("#historyEditor").elements.sortDate.addEventListener("change", (event) => {
@@ -3821,13 +3853,21 @@ function bindEvents() {
     event.preventDefault();
     const form = event.currentTarget;
     const fields = form.elements;
-    state.gallery.unshift({
-      id: `g${Date.now()}`,
-      title: fields.title.value.trim(),
-      caption: fields.caption.value.trim(),
-      src: fields.src.value.trim(),
-      palette: colors[state.gallery.length % colors.length],
-    });
+    const galleryId = fields.galleryId.value;
+    const existing = galleryId ? state.gallery.find((item) => item.id === galleryId) : null;
+    if (existing) {
+      existing.title = fields.title.value.trim();
+      existing.caption = fields.caption.value.trim();
+      existing.src = fields.src.value.trim();
+    } else {
+      state.gallery.unshift({
+        id: `g${Date.now()}`,
+        title: fields.title.value.trim(),
+        caption: fields.caption.value.trim(),
+        src: fields.src.value.trim(),
+        palette: colors[state.gallery.length % colors.length],
+      });
+    }
     saveState();
     form.reset();
     $("#galleryEditorDialog").close();

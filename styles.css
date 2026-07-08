@@ -924,6 +924,16 @@ body.admin-mode .person-node:focus-within .node-actions {
   box-shadow: 0 12px 26px rgba(21, 34, 31, 0.07);
 }
 
+.gallery-image-button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: zoom-in;
+}
+
 .gallery-card img {
   display: block;
   width: 100%;
@@ -931,7 +941,9 @@ body.admin-mode .person-node:focus-within .node-actions {
   object-fit: cover;
 }
 
-.gallery-card div {
+.gallery-card-copy {
+  display: grid;
+  gap: 8px;
   padding: 14px;
 }
 
@@ -942,6 +954,47 @@ body.admin-mode .person-node:focus-within .node-actions {
 
 .gallery-card p,
 .muted {
+  color: var(--muted);
+}
+
+.gallery-edit-button.admin-only {
+  justify-self: start;
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 0.82rem;
+}
+
+.gallery-viewer-dialog {
+  width: min(96vw, 1180px);
+}
+
+.gallery-viewer-card {
+  width: min(96vw, 1180px);
+  max-height: 92vh;
+  padding: 14px;
+  gap: 12px;
+}
+
+.gallery-viewer-card img {
+  display: block;
+  width: 100%;
+  max-height: 74vh;
+  object-fit: contain;
+  border-radius: var(--radius);
+  background: #eef2ef;
+}
+
+.gallery-viewer-copy {
+  padding: 0 4px 4px;
+}
+
+.gallery-viewer-copy h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.gallery-viewer-copy p {
+  margin: 4px 0 0;
   color: var(--muted);
 }
 

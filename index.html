@@ -9,7 +9,7 @@
     />
     <title>خاندان فیروزجایی</title>
     <link rel="icon" type="image/svg+xml" sizes="any" href="assets/brand/firouzjaei-logo.svg?v=logo-svg-20260706" />
-    <link rel="stylesheet" href="styles.css?v=lineage-stats-20260708" />
+    <link rel="stylesheet" href="styles.css?v=gallery-viewer-editor-20260708" />
   </head>
   <body>
     <div class="app-shell">
@@ -406,7 +406,8 @@
         <button class="icon-button modal-close" type="button" data-close-gallery-editor title="بستن">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
         </button>
-        <h2>افزودن عکس</h2>
+        <h2 id="galleryEditorTitle">افزودن عکس</h2>
+        <input name="galleryId" type="hidden" />
         <label>عنوان
           <input name="title" type="text" required />
         </label>
@@ -414,10 +415,23 @@
           <input name="caption" type="text" />
         </label>
         <label>نشانی عکس
-          <input name="src" type="url" />
+          <input name="src" type="text" />
         </label>
         <button class="primary-action" type="submit">ذخیره عکس</button>
       </form>
+    </dialog>
+
+    <dialog class="modal gallery-viewer-dialog" id="galleryViewerDialog">
+      <div class="modal-card large gallery-viewer-card">
+        <button class="icon-button modal-close" type="button" data-close-gallery-viewer title="بستن">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+        <img id="galleryViewerImage" alt="" />
+        <div class="gallery-viewer-copy">
+          <h2 id="galleryViewerTitle"></h2>
+          <p id="galleryViewerCaption"></p>
+        </div>
+      </div>
     </dialog>
 
     <dialog class="modal" id="historyEditorDialog">
@@ -485,6 +499,6 @@
     </template>
 
     <script src="assets/book/book-data.js?v=demo-tree-20260705"></script>
-    <script src="app.js?v=processed-gallery-20260708"></script>
+    <script src="app.js?v=gallery-viewer-editor-20260708"></script>
   </body>
 </html>
