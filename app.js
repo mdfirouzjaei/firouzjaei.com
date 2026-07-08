@@ -1695,6 +1695,35 @@ function genderLabel(gender) {
   return GENDER_LABELS[normalizeGender(gender)];
 }
 
+function birthSortValue(person) {
+  const numbers = toEnglishDigits(person?.birth || "").match(/\d{1,4}/g)?.map(Number) || [];
+  if (!numbers.length) return null;
+  const yearIndex = numbers.findIndex((number) => number >= 1000);
+  const index = yearIndex >= 0 ? yearIndex : 0;
+  const year = numbers[index];
+  const month = numbers[index + 1] >= 1 && numbers[index + 1] <= 12 ? numbers[index + 1] : 0;
+  const day = numbers[index + 2] >= 1 && numbers[index + 2] <= 31 ? numbers[index + 2] : 0;
+  return year * 10000 + month * 100 + day;
+}
+
+function compareBirthOldestFirst(a, b) {
+  const aBirth = birthSortValue(a);
+  const bBirth = birthSortValue(b);
+  if (aBirth !== null && bBirth !== null && aBirth !== bBirth) return aBirth - bBirth;
+  if (aBirth !== null && bBirth === null) return -1;
+  if (aBirth === null && bBirth !== null) return 1;
+  return Number(a.slot || 0) - Number(b.slot || 0) || genderSortValue(a) - genderSortValue(b) || a.name.localeCompare(b.name, "fa");
+}
+
+function compareBirthYoungestFirst(a, b) {
+  const aBirth = birthSortValue(a);
+  const bBirth = birthSortValue(b);
+  if (aBirth !== null && bBirth !== null && aBirth !== bBirth) return bBirth - aBirth;
+  if (aBirth !== null && bBirth === null) return 1;
+  if (aBirth === null && bBirth !== null) return -1;
+  return Number(b.slot || 0) - Number(a.slot || 0) || genderSortValue(a) - genderSortValue(b) || a.name.localeCompare(b.name, "fa");
+}
+
 function oppositeSpouseGender(gender) {
   if (gender === "male") return "female";
   if (gender === "female") return "male";
@@ -1754,8 +1783,12 @@ function sortTreePeople(people) {
     );
 }
 
+function sortChildrenByBirth(people) {
+  return people.slice().sort(compareBirthOldestFirst);
+}
+
 function childPeopleOf(personId, people = state.people) {
-  return sortTreePeople(people.filter((person) => (person.parentIds || []).includes(personId)));
+  return sortChildrenByBirth(people.filter((person) => (person.parentIds || []).includes(personId)));
 }
 
 function isStartingPerson(person) {
@@ -1850,6 +1883,81 @@ function descendantCount(personId, visited = new Set()) {
   if (visited.has(personId)) return 0;
   visited.add(personId);
   return childPeopleOf(personId).reduce((total, child) => total + 1 + descendantCount(child.id, visited), 0);
+}
+
+function lineageStatsForPerson(personId) {
+  const stats = {
+    children: { total: 0, female: 0, male: 0, unknown: 0 },
+    grandchildren: 0,
+    greatGrandchildren: 0,
+    greatGreatGrandchildren: 0,
+    fifthGeneration: 0,
+  };
+  const depthKeys = {
+    2: "grandchildren",
+    3: "greatGrandchildren",
+    4: "greatGreatGrandchildren",
+    5: "fifthGeneration",
+  };
+  const visited = new Set([personId]);
+  const queue = childPeopleOf(personId).map((child) => ({ person: child, depth: 1 }));
+
+  while (queue.length) {
+    const { person, depth } = queue.shift();
+    if (!person || visited.has(person.id) || depth > 5) continue;
+    visited.add(person.id);
+
+    if (depth === 1) {
+      const gender = normalizeGender(person.gender);
+      stats.children.total += 1;
+      stats.children[gender] += 1;
+    } else if (depthKeys[depth]) {
+      stats[depthKeys[depth]] += 1;
+    }
+
+    if (depth < 5) {
+      childPeopleOf(person.id).forEach((child) => queue.push({ person: child, depth: depth + 1 }));
+    }
+  }
+
+  return stats;
+}
+
+function lineageStatsMarkup(personId) {
+  const stats = lineageStatsForPerson(personId);
+  const childUnknown = stats.children.unknown
+    ? `<span>نامشخص: ${toPersianDigits(stats.children.unknown)}</span>`
+    : "";
+
+  return `
+    <section class="lineage-stats" aria-label="آمار نسل‌ها">
+      <div class="lineage-stat lineage-stat-children">
+        <strong>${toPersianDigits(stats.children.total)}</strong>
+        <span>فرزند</span>
+        <small>
+          <span>دختر: ${toPersianDigits(stats.children.female)}</span>
+          <span>پسر: ${toPersianDigits(stats.children.male)}</span>
+          ${childUnknown}
+        </small>
+      </div>
+      <div class="lineage-stat">
+        <strong>${toPersianDigits(stats.grandchildren)}</strong>
+        <span>نوه</span>
+      </div>
+      <div class="lineage-stat">
+        <strong>${toPersianDigits(stats.greatGrandchildren)}</strong>
+        <span>نتیجه</span>
+      </div>
+      <div class="lineage-stat">
+        <strong>${toPersianDigits(stats.greatGreatGrandchildren)}</strong>
+        <span>نبیره</span>
+      </div>
+      <div class="lineage-stat">
+        <strong>${toPersianDigits(stats.fifthGeneration)}</strong>
+        <span>ندیده</span>
+      </div>
+    </section>
+  `;
 }
 
 function navigableChildPeopleOf(personId) {
@@ -1965,10 +2073,24 @@ function treeDepthMap() {
   return depths;
 }
 
+function rowGroupAnchor(group) {
+  const activeDescendants = activeRootId ? group.filter((person) => personHasAncestor(person.id, activeRootId)) : [];
+  if (activeDescendants.length) return sortChildrenByBirth(activeDescendants)[0] || activeDescendants[0];
+  const descendants = group.filter((person) => (person.parentIds || []).length);
+  return sortChildrenByBirth(descendants.length ? descendants : group)[0] || group[0];
+}
+
+function compareTreeRowGroups(a, b) {
+  const aAnchor = rowGroupAnchor(a);
+  const bAnchor = rowGroupAnchor(b);
+  if (!aAnchor || !bAnchor) return 0;
+  return compareBirthYoungestFirst(aAnchor, bAnchor);
+}
+
 function orderTreeRowPeople(generationPeople) {
   const rowIds = new Set(generationPeople.map((person) => person.id));
   const placed = new Set();
-  const ordered = [];
+  const groups = [];
   const sorted = generationPeople
     .slice()
     .sort(
@@ -1981,21 +2103,22 @@ function orderTreeRowPeople(generationPeople) {
   sorted.forEach((person) => {
     if (placed.has(person.id)) return;
     const group = [person, ...(person.spouseIds || []).map(personById).filter((spouse) => spouse && rowIds.has(spouse.id) && !placed.has(spouse.id))];
-    group
-      .sort(
-        (a, b) =>
-          genderSortValue(a) - genderSortValue(b) ||
-          Number(a.slot || 0) - Number(b.slot || 0) ||
-          a.name.localeCompare(b.name, "fa")
-      )
-      .forEach((item) => {
-        if (placed.has(item.id)) return;
-        placed.add(item.id);
-        ordered.push(item);
-      });
+    group.forEach((item) => placed.add(item.id));
+    groups.push(group);
   });
 
-  return ordered;
+  return groups
+    .sort(compareTreeRowGroups)
+    .flatMap((group) =>
+      group
+        .slice()
+        .sort(
+          (a, b) =>
+            genderSortValue(a) - genderSortValue(b) ||
+            Number(a.slot || 0) - Number(b.slot || 0) ||
+            a.name.localeCompare(b.name, "fa")
+        )
+    );
 }
 
 function treePositions(people = state.people) {
@@ -2357,6 +2480,7 @@ function openPerson(id) {
         </div>
       </div>
     </div>
+    ${lineageStatsMarkup(person.id)}
     ${person.story ? `<p>${renderMentionedText(person.story)}</p>` : ""}
     ${media.length ? `<div class="detail-gallery">${media.map((item) => mediaPreviewMarkup(item, person.name)).join("")}</div>` : ""}
     <section class="detail-admin-tools admin-only">
