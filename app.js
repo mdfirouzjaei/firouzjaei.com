@@ -124,6 +124,17 @@ const GENDER_LABELS = {
 };
 
 const PERSIAN_DIGITS = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
+const PROCESSED_GALLERY_VERSION = "processed-jpg-gallery-2026-07-08";
+const PROCESSED_GALLERY_PHOTOS = Array.from({ length: 90 }, (_, index) => {
+  const number = index + 1;
+  const persianNumber = String(number).replace(/\d/g, (digit) => PERSIAN_DIGITS[Number(digit)]);
+  return {
+    id: `processed-gallery-${String(number).padStart(2, "0")}`,
+    title: `عکس خانوادگی ${persianNumber}`,
+    caption: "از مجموعه عکس‌های پردازش‌شده خاندان",
+    src: `assets/images/Processed/JPG%20Files/Processed/IMG%20${number}.jpg`,
+  };
+});
 
 const colors = [
   ["#24554c", "#dcebe6"],
@@ -737,6 +748,17 @@ function removeBookPhotosFromState(target) {
   }
 }
 
+function mergeProcessedGalleryPhotos(target) {
+  if (!target || typeof target !== "object") return;
+  const gallery = Array.isArray(target.gallery) ? target.gallery : [];
+  const cleanedGallery = gallery.filter((item) => item?.src || !["g1", "g2", "g3"].includes(item?.id));
+  const existingIds = new Set(cleanedGallery.map((item) => item.id).filter(Boolean));
+  const existingSrcs = new Set(cleanedGallery.map((item) => item.src).filter(Boolean));
+  const missingPhotos = PROCESSED_GALLERY_PHOTOS.filter((item) => !existingIds.has(item.id) && !existingSrcs.has(item.src));
+  target.gallery = [...missingPhotos, ...cleanedGallery];
+  target.gallerySeedVersion = PROCESSED_GALLERY_VERSION;
+}
+
 function normalizeGender(value) {
   return value === "male" || value === "female" ? value : "unknown";
 }
@@ -813,6 +835,7 @@ function normalizeState(value) {
   });
   assignMentionHandles(normalized.people);
   normalized.gallery = normalized.gallery || [];
+  mergeProcessedGalleryPhotos(normalized);
   normalized.admins = normalized.admins || clone(sampleState).admins;
   normalized.subscribers = normalized.subscribers || [];
   normalized.bookSeedVersion = normalized.bookSeedVersion || sampleState.bookSeedVersion || BOOK_SEED_VERSION;
