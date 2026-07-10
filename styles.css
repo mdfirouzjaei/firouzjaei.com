@@ -92,28 +92,31 @@ svg {
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: auto minmax(390px, 1fr) auto;
+  grid-template-columns: minmax(220px, auto) minmax(0, 1fr) auto;
+  grid-template-areas: "brand nav actions";
   align-items: center;
-  gap: clamp(12px, 2vw, 24px);
-  padding: 12px clamp(16px, 3vw, 34px);
+  gap: 8px clamp(10px, 1.6vw, 20px);
+  padding: 10px clamp(12px, 2.4vw, 28px);
   border-bottom: 1px solid rgba(36, 85, 76, 0.14);
   background: rgba(247, 248, 246, 0.94);
   backdrop-filter: blur(18px);
 }
 
 .brand {
+  grid-area: brand;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   color: inherit;
   text-decoration: none;
   white-space: nowrap;
+  min-width: 0;
 }
 
 .brand-mark {
   display: grid;
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   place-items: center;
   overflow: hidden;
   border: 1px solid rgba(36, 85, 76, 0.22);
@@ -134,21 +137,23 @@ svg {
 
 .brand strong {
   display: block;
-  font-size: 1rem;
+  font-size: 0.96rem;
   font-weight: 820;
 }
 
 .brand small {
   display: block;
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
 }
 
 .primary-nav {
+  grid-area: nav;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
+  flex-wrap: wrap;
   min-width: 0;
 }
 
@@ -167,16 +172,17 @@ svg {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 38px;
-  padding: 0 11px;
+  min-height: 34px;
+  padding: 0 8px;
   background: transparent;
   color: var(--muted);
+  font-size: 0.9rem;
   white-space: nowrap;
 }
 
 .nav-item svg {
-  width: 21px;
-  height: 21px;
+  width: 19px;
+  height: 19px;
 }
 
 .nav-item.active,
@@ -187,24 +193,25 @@ svg {
 }
 
 .quick-actions {
+  grid-area: actions;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 7px;
-  flex-wrap: nowrap;
+  gap: 6px;
+  flex-wrap: wrap;
   white-space: nowrap;
 }
 
 .tabari-date-ribbon {
-  min-height: 36px;
+  min-height: 34px;
   display: inline-flex;
   align-items: center;
-  padding: 0 10px;
+  padding: 0 8px;
   border: 1px solid rgba(185, 133, 40, 0.22);
   border-radius: var(--radius);
   background: #fffaf0;
   color: #72521a;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 760;
   white-space: nowrap;
 }
@@ -225,6 +232,16 @@ svg {
   background: var(--green);
   color: #fff;
   border-color: var(--green);
+}
+
+.quick-actions .quick-button {
+  min-height: 34px;
+  padding: 0 9px;
+}
+
+.quick-actions .quick-button.emphasis {
+  min-height: 36px;
+  padding: 0 11px;
 }
 
 .signout-button {
@@ -2157,9 +2174,34 @@ body.admin-mode .admin-only {
   color: var(--green);
 }
 
+@media (max-width: 1320px) {
+  .site-header {
+    grid-template-columns: minmax(220px, 1fr) auto;
+    grid-template-areas:
+      "brand actions"
+      "nav nav";
+  }
+
+  .primary-nav {
+    justify-content: center;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .primary-nav::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @media (max-width: 980px) {
   .site-header {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "brand"
+      "nav"
+      "actions";
     align-items: stretch;
   }
 
