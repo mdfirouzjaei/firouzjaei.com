@@ -2142,6 +2142,36 @@ body.admin-mode .admin-only {
   gap: 16px;
 }
 
+.sync-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(185, 133, 40, 0.24);
+  border-radius: var(--radius);
+  background: #fffaf0;
+}
+
+.check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  margin-top: 28px;
+  color: var(--muted);
+}
+
+.check-label input {
+  width: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--green);
+}
+
+.error-message {
+  color: #9a243d;
+}
+
 .admin-note {
   display: flex;
   align-items: center;

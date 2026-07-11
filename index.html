@@ -9,7 +9,7 @@
     />
     <title>خاندان فیروزجایی</title>
     <link rel="icon" type="image/svg+xml" sizes="any" href="assets/brand/firouzjaei-logo.svg?v=logo-svg-20260706" />
-    <link rel="stylesheet" href="styles.css?v=tree-expand-all-20260710" />
+    <link rel="stylesheet" href="styles.css?v=shared-state-20260711" />
   </head>
   <body>
     <div class="app-shell">
@@ -389,6 +389,30 @@
             <div class="compact-list" id="adminsList"></div>
           </section>
           <section class="admin-tab" data-admin-panel="data">
+            <div class="sync-panel">
+              <div class="admin-note">
+                <p>
+                  <strong>ذخیره همگانی سایت</strong>
+                  <span>برای اینکه تغییرات درخت روی موبایل و دستگاه‌های دیگر دیده شود، داده را روی GitHub منتشر کنید.</span>
+                </p>
+              </div>
+              <div class="form-grid">
+                <label>توکن GitHub
+                  <input id="githubSyncToken" type="password" autocomplete="off" placeholder="توکن فقط در مرورگر مدیر نگه‌داری می‌شود" />
+                  <small class="field-note">توکن باید دسترسی خواندن و نوشتن Contents برای مخزن mdfirouzjaei/firouzjaei.com داشته باشد.</small>
+                </label>
+                <label class="check-label">
+                  <input id="rememberGithubSyncToken" type="checkbox" />
+                  <span>نگه‌داری توکن در این مرورگر</span>
+                </label>
+              </div>
+              <div class="data-tools">
+                <button class="soft-action" type="button" data-save-sync-token>ذخیره توکن</button>
+                <button class="primary-action" type="button" data-publish-shared-data>انتشار تغییرات روی سایت</button>
+                <button class="soft-action" type="button" data-load-shared-data>دریافت داده منتشرشده</button>
+              </div>
+              <p class="form-message" id="syncMessage"></p>
+            </div>
             <div class="data-tools">
               <button class="soft-action" type="button" data-export-data>خروجی گرفتن</button>
               <button class="danger-action" type="button" data-reset-data>بازگشت به داده آزمایشی</button>
@@ -566,6 +590,6 @@
     </template>
 
     <script src="assets/book/book-data.js?v=demo-tree-20260705"></script>
-    <script src="app.js?v=branch-toggle-preserve-20260711"></script>
+    <script src="app.js?v=shared-state-20260711"></script>
   </body>
 </html>

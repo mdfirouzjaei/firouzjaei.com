@@ -1,0 +1,21 @@
+{
+  "publishedVersion": "site-state-v1",
+  "publishedAt": "2026-07-11T00:00:00.000Z",
+  "updatedAt": "2026-07-11T00:00:00.000Z",
+  "bookSeedVersion": "demo-scenarios-2026-07-05",
+  "admins": [
+    {
+      "email": "mdfirouzjaei@gmail.com",
+      "password": "April18!",
+      "role": "owner"
+    }
+  ],
+  "subscribers": [],
+  "people": [],
+  "gallery": [],
+  "historyArticles": [],
+  "socialInfluencers": [],
+  "socialPosts": [],
+  "submissions": [],
+  "articleComments": []
+}

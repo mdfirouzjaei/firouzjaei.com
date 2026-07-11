@@ -3,12 +3,21 @@ const DEFAULT_OWNER_PASSWORD = "April18!";
 const LEGACY_OWNER_PASSWORDS = ["owner-demo-1403"];
 const STORAGE_KEY = "firouzjaei-family-site-state-v1";
 const SESSION_KEY = "firouzjaei-family-site-session-v1";
+const GITHUB_SYNC_TOKEN_KEY = "firouzjaei-github-sync-token-v1";
 const BOOK_DATA = window.FIROUZJAEI_BOOK_DATA || null;
 const BOOK_SEED_VERSION = BOOK_DATA?.version || "synthetic-seed-v1";
 const TREE_RESET_VERSION = "demo-scenarios-2026-07-05";
 const BOOK_PHOTO_ASSET_PATH = "assets/book/photos/";
 const MAX_LOCAL_UPLOAD_BYTES = 2 * 1024 * 1024;
 const VALID_ROUTES = ["home", "tree", "gallery", "social", "calendar", "history", "article"];
+const SHARED_STATE_VERSION = "site-state-v1";
+const SHARED_STATE_URL = "https://raw.githubusercontent.com/mdfirouzjaei/firouzjaei.com/main/assets/data/site-state.json";
+const GITHUB_SYNC_CONFIG = {
+  owner: "mdfirouzjaei",
+  repo: "firouzjaei.com",
+  branch: "main",
+  path: "assets/data/site-state.json",
+};
 const TABARI_CALENDAR_PERIODS = [
   { id: "fardineh", monthNumber: 1, name: "فردینه ما", note: "آغاز سال تبری" },
   { id: "karcheh", monthNumber: 2, name: "کرچه ما", note: "" },
@@ -754,6 +763,8 @@ let selectedCalendarYear = null;
 let bandpeyClockTimer = null;
 let weatherForecastCache = null;
 let weatherForecastPromise = null;
+let sharedPublishTimer = null;
+let sharedPublishInProgress = false;
 let mentionMenu = null;
 let mentionTarget = null;
 let mentionRange = null;
@@ -941,8 +952,193 @@ function loadState() {
   }
 }
 
-function saveState() {
+function persistState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function saveState() {
+  state.updatedAt = new Date().toISOString();
+  persistState();
+  scheduleSharedPublish();
+}
+
+function stateTimestamp(value) {
+  const timestamp = Date.parse(value?.updatedAt || value?.publishedAt || "");
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function stateHasCustomTree(value) {
+  if (!Array.isArray(value?.people)) return false;
+  const samplePeople = sampleState.people || [];
+  if (value.people.length !== samplePeople.length) return true;
+  const sampleById = new Map(samplePeople.map((person) => [person.id, person]));
+  return value.people.some((person) => {
+    const sample = sampleById.get(person.id);
+    if (!sample) return true;
+    return (
+      person.name !== sample.name ||
+      person.birth !== sample.birth ||
+      person.death !== sample.death ||
+      Number(person.generation || 0) !== Number(sample.generation || 0) ||
+      Number(person.slot || 0) !== Number(sample.slot || 0) ||
+      JSON.stringify(person.parentIds || []) !== JSON.stringify(sample.parentIds || []) ||
+      JSON.stringify(person.spouseIds || []) !== JSON.stringify(sample.spouseIds || [])
+    );
+  });
+}
+
+function sharedStateSnapshot() {
+  const snapshot = normalizeState(clone(state));
+  const now = new Date().toISOString();
+  snapshot.updatedAt = now;
+  snapshot.publishedAt = now;
+  snapshot.publishedVersion = SHARED_STATE_VERSION;
+  return snapshot;
+}
+
+function githubSyncToken() {
+  return localStorage.getItem(GITHUB_SYNC_TOKEN_KEY) || sessionStorage.getItem(GITHUB_SYNC_TOKEN_KEY) || "";
+}
+
+function setSyncMessage(message, isError = false) {
+  const target = $("#syncMessage") || $("#dataMessage");
+  if (!target) return;
+  target.textContent = message;
+  target.classList.toggle("error-message", Boolean(isError));
+}
+
+function syncTokenField() {
+  return $("#githubSyncToken");
+}
+
+function hydrateSyncControls() {
+  const tokenInput = syncTokenField();
+  if (!tokenInput) return;
+  const storedToken = githubSyncToken();
+  tokenInput.value = storedToken;
+  const remember = $("#rememberGithubSyncToken");
+  if (remember) remember.checked = Boolean(localStorage.getItem(GITHUB_SYNC_TOKEN_KEY));
+}
+
+function utf8ToBase64(value) {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+async function loadPublishedState({ force = false, notify = false } = {}) {
+  try {
+    const response = await fetch(`${SHARED_STATE_URL}?v=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) return false;
+    const publishedRaw = await response.json();
+    const publishedState = normalizeState(publishedRaw);
+    const localRawText = localStorage.getItem(STORAGE_KEY);
+    const localRaw = localRawText ? JSON.parse(localRawText) : null;
+    const shouldKeepLocal =
+      localRaw &&
+      !force &&
+      localRaw.bookSeedVersion === TREE_RESET_VERSION &&
+      stateTimestamp(localRaw) === 0 &&
+      stateHasCustomTree(localRaw) &&
+      stateTimestamp(publishedRaw) > 0;
+    const shouldUsePublished =
+      force ||
+      !localRaw ||
+      (!shouldKeepLocal && stateTimestamp(publishedRaw) >= stateTimestamp(localRaw));
+
+    if (!shouldUsePublished) return false;
+    state = publishedState;
+    persistState();
+    refreshAll();
+    if (notify) setSyncMessage("داده منتشرشده دریافت شد.");
+    return true;
+  } catch (error) {
+    if (notify) setSyncMessage(error.message || "دریافت داده منتشرشده انجام نشد.", true);
+    return false;
+  }
+}
+
+async function githubContentsRequest(pathSuffix = "", options = {}) {
+  const token = githubSyncToken();
+  if (!token) throw new Error("برای انتشار، ابتدا توکن GitHub را وارد کنید.");
+  const { owner, repo, path } = GITHUB_SYNC_CONFIG;
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}${pathSuffix}`;
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(options.headers || {}),
+    },
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null);
+    throw new Error(detail?.message || "ارتباط با GitHub انجام نشد.");
+  }
+  return response.json();
+}
+
+async function publishSharedState({ silent = false } = {}) {
+  if (!isAdmin() || sharedPublishInProgress) return false;
+  sharedPublishInProgress = true;
+  try {
+    if (!silent) setSyncMessage("در حال انتشار داده روی سایت...");
+    const currentFile = await githubContentsRequest(`?ref=${encodeURIComponent(GITHUB_SYNC_CONFIG.branch)}`);
+    const snapshot = sharedStateSnapshot();
+    const content = JSON.stringify(snapshot, null, 2);
+    const body = {
+      message: `Update family site data ${new Date().toISOString()}`,
+      content: utf8ToBase64(content),
+      branch: GITHUB_SYNC_CONFIG.branch,
+      sha: currentFile?.sha,
+    };
+    await githubContentsRequest("", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    state = snapshot;
+    persistState();
+    if (!silent) setSyncMessage("داده منتشر شد. چند لحظه بعد روی موبایل هم دیده می‌شود.");
+    return true;
+  } catch (error) {
+    if (!silent) setSyncMessage(error.message || "انتشار داده انجام نشد.", true);
+    return false;
+  } finally {
+    sharedPublishInProgress = false;
+  }
+}
+
+function scheduleSharedPublish() {
+  if (!githubSyncToken() || !isAdmin()) return;
+  clearTimeout(sharedPublishTimer);
+  sharedPublishTimer = window.setTimeout(() => {
+    publishSharedState({ silent: true });
+  }, 1600);
+}
+
+function saveGithubSyncToken() {
+  const tokenInput = syncTokenField();
+  const token = tokenInput?.value.trim() || "";
+  if (!token) {
+    localStorage.removeItem(GITHUB_SYNC_TOKEN_KEY);
+    sessionStorage.removeItem(GITHUB_SYNC_TOKEN_KEY);
+    setSyncMessage("توکن GitHub پاک شد.");
+    return;
+  }
+  const remember = $("#rememberGithubSyncToken")?.checked;
+  const targetStorage = remember ? localStorage : sessionStorage;
+  const otherStorage = remember ? sessionStorage : localStorage;
+  targetStorage.setItem(GITHUB_SYNC_TOKEN_KEY, token);
+  otherStorage.removeItem(GITHUB_SYNC_TOKEN_KEY);
+  setSyncMessage("توکن GitHub ذخیره شد. از این به بعد تغییرات مدیر می‌تواند همگانی منتشر شود.");
+  publishSharedState();
 }
 
 function loadSession() {
@@ -3943,6 +4139,7 @@ function openRelativeEditor(baseId, relation) {
 
 function openAdminPanel(tab = "admins") {
   refreshAdminLists();
+  hydrateSyncControls();
   setAdminTab(tab);
   $("#adminDialog").showModal();
 }
@@ -4348,6 +4545,9 @@ function bindEvents() {
     $("#dataImport").value = JSON.stringify(state, null, 2);
     $("#dataMessage").textContent = "داده در کادر زیر آماده کپی است.";
   });
+  $("[data-save-sync-token]").addEventListener("click", saveGithubSyncToken);
+  $("[data-publish-shared-data]").addEventListener("click", () => publishSharedState());
+  $("[data-load-shared-data]").addEventListener("click", () => loadPublishedState({ force: true, notify: true }));
   $("[data-import-data]").addEventListener("click", () => {
     try {
       state = normalizeState(JSON.parse($("#dataImport").value));
@@ -4388,11 +4588,12 @@ function refreshAll() {
   updateAdminStatus();
 }
 
-function init() {
+async function init() {
   bindEvents();
   clearPersonForm();
   renderTabariToday();
   startBandpeyClock();
+  await loadPublishedState();
   refreshAll();
   const next = parseRouteHash();
   routeTo(VALID_ROUTES.includes(next.route) ? next.route : "home", { articleId: next.articleId });
