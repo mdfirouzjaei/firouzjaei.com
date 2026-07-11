@@ -1,8 +1,4 @@
 {
-  "publishedVersion": "site-state-v1",
-  "publishedAt": "2026-07-11T00:00:00.000Z",
-  "updatedAt": "2026-07-11T00:00:00.000Z",
-  "bookSeedVersion": "demo-scenarios-2026-07-05",
   "admins": [
     {
       "email": "mdfirouzjaei@gmail.com",
@@ -12,10 +8,639 @@
   ],
   "subscribers": [],
   "people": [],
-  "gallery": [],
-  "historyArticles": [],
-  "socialInfluencers": [],
-  "socialPosts": [],
+  "gallery": [
+    {
+      "id": "processed-gallery-01",
+      "title": "عکس خانوادگی ۱",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%201.jpg"
+    },
+    {
+      "id": "processed-gallery-02",
+      "title": "عکس خانوادگی ۲",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%202.jpg"
+    },
+    {
+      "id": "processed-gallery-03",
+      "title": "عکس خانوادگی ۳",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%203.jpg"
+    },
+    {
+      "id": "processed-gallery-04",
+      "title": "عکس خانوادگی ۴",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%204.jpg"
+    },
+    {
+      "id": "processed-gallery-05",
+      "title": "عکس خانوادگی ۵",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%205.jpg"
+    },
+    {
+      "id": "processed-gallery-06",
+      "title": "عکس خانوادگی ۶",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%206.jpg"
+    },
+    {
+      "id": "processed-gallery-07",
+      "title": "عکس خانوادگی ۷",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%207.jpg"
+    },
+    {
+      "id": "processed-gallery-08",
+      "title": "عکس خانوادگی ۸",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%208.jpg"
+    },
+    {
+      "id": "processed-gallery-09",
+      "title": "عکس خانوادگی ۹",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%209.jpg"
+    },
+    {
+      "id": "processed-gallery-10",
+      "title": "عکس خانوادگی ۱۰",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2010.jpg"
+    },
+    {
+      "id": "processed-gallery-11",
+      "title": "عکس خانوادگی ۱۱",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2011.jpg"
+    },
+    {
+      "id": "processed-gallery-12",
+      "title": "عکس خانوادگی ۱۲",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2012.jpg"
+    },
+    {
+      "id": "processed-gallery-13",
+      "title": "عکس خانوادگی ۱۳",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2013.jpg"
+    },
+    {
+      "id": "processed-gallery-14",
+      "title": "عکس خانوادگی ۱۴",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2014.jpg"
+    },
+    {
+      "id": "processed-gallery-15",
+      "title": "عکس خانوادگی ۱۵",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2015.jpg"
+    },
+    {
+      "id": "processed-gallery-16",
+      "title": "عکس خانوادگی ۱۶",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2016.jpg"
+    },
+    {
+      "id": "processed-gallery-17",
+      "title": "عکس خانوادگی ۱۷",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2017.jpg"
+    },
+    {
+      "id": "processed-gallery-18",
+      "title": "عکس خانوادگی ۱۸",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2018.jpg"
+    },
+    {
+      "id": "processed-gallery-19",
+      "title": "عکس خانوادگی ۱۹",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2019.jpg"
+    },
+    {
+      "id": "processed-gallery-20",
+      "title": "عکس خانوادگی ۲۰",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2020.jpg"
+    },
+    {
+      "id": "processed-gallery-21",
+      "title": "عکس خانوادگی ۲۱",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2021.jpg"
+    },
+    {
+      "id": "processed-gallery-22",
+      "title": "عکس خانوادگی ۲۲",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2022.jpg"
+    },
+    {
+      "id": "processed-gallery-23",
+      "title": "عکس خانوادگی ۲۳",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2023.jpg"
+    },
+    {
+      "id": "processed-gallery-24",
+      "title": "عکس خانوادگی ۲۴",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2024.jpg"
+    },
+    {
+      "id": "processed-gallery-25",
+      "title": "عکس خانوادگی ۲۵",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2025.jpg"
+    },
+    {
+      "id": "processed-gallery-26",
+      "title": "عکس خانوادگی ۲۶",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2026.jpg"
+    },
+    {
+      "id": "processed-gallery-27",
+      "title": "عکس خانوادگی ۲۷",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2027.jpg"
+    },
+    {
+      "id": "processed-gallery-28",
+      "title": "عکس خانوادگی ۲۸",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2028.jpg"
+    },
+    {
+      "id": "processed-gallery-29",
+      "title": "عکس خانوادگی ۲۹",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2029.jpg"
+    },
+    {
+      "id": "processed-gallery-30",
+      "title": "عکس خانوادگی ۳۰",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2030.jpg"
+    },
+    {
+      "id": "processed-gallery-31",
+      "title": "عکس خانوادگی ۳۱",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2031.jpg"
+    },
+    {
+      "id": "processed-gallery-32",
+      "title": "عکس خانوادگی ۳۲",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2032.jpg"
+    },
+    {
+      "id": "processed-gallery-33",
+      "title": "عکس خانوادگی ۳۳",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2033.jpg"
+    },
+    {
+      "id": "processed-gallery-34",
+      "title": "عکس خانوادگی ۳۴",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2034.jpg"
+    },
+    {
+      "id": "processed-gallery-35",
+      "title": "عکس خانوادگی ۳۵",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2035.jpg"
+    },
+    {
+      "id": "processed-gallery-36",
+      "title": "عکس خانوادگی ۳۶",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2036.jpg"
+    },
+    {
+      "id": "processed-gallery-37",
+      "title": "عکس خانوادگی ۳۷",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2037.jpg"
+    },
+    {
+      "id": "processed-gallery-38",
+      "title": "عکس خانوادگی ۳۸",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2038.jpg"
+    },
+    {
+      "id": "processed-gallery-39",
+      "title": "عکس خانوادگی ۳۹",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2039.jpg"
+    },
+    {
+      "id": "processed-gallery-40",
+      "title": "عکس خانوادگی ۴۰",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2040.jpg"
+    },
+    {
+      "id": "processed-gallery-41",
+      "title": "عکس خانوادگی ۴۱",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2041.jpg"
+    },
+    {
+      "id": "processed-gallery-42",
+      "title": "عکس خانوادگی ۴۲",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2042.jpg"
+    },
+    {
+      "id": "processed-gallery-43",
+      "title": "عکس خانوادگی ۴۳",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2043.jpg"
+    },
+    {
+      "id": "processed-gallery-44",
+      "title": "عکس خانوادگی ۴۴",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2044.jpg"
+    },
+    {
+      "id": "processed-gallery-45",
+      "title": "عکس خانوادگی ۴۵",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2045.jpg"
+    },
+    {
+      "id": "processed-gallery-46",
+      "title": "عکس خانوادگی ۴۶",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2046.jpg"
+    },
+    {
+      "id": "processed-gallery-47",
+      "title": "عکس خانوادگی ۴۷",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2047.jpg"
+    },
+    {
+      "id": "processed-gallery-48",
+      "title": "عکس خانوادگی ۴۸",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2048.jpg"
+    },
+    {
+      "id": "processed-gallery-49",
+      "title": "عکس خانوادگی ۴۹",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2049.jpg"
+    },
+    {
+      "id": "processed-gallery-50",
+      "title": "عکس خانوادگی ۵۰",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2050.jpg"
+    },
+    {
+      "id": "processed-gallery-51",
+      "title": "عکس خانوادگی ۵۱",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2051.jpg"
+    },
+    {
+      "id": "processed-gallery-52",
+      "title": "عکس خانوادگی ۵۲",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2052.jpg"
+    },
+    {
+      "id": "processed-gallery-53",
+      "title": "عکس خانوادگی ۵۳",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2053.jpg"
+    },
+    {
+      "id": "processed-gallery-54",
+      "title": "عکس خانوادگی ۵۴",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2054.jpg"
+    },
+    {
+      "id": "processed-gallery-55",
+      "title": "عکس خانوادگی ۵۵",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2055.jpg"
+    },
+    {
+      "id": "processed-gallery-56",
+      "title": "عکس خانوادگی ۵۶",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2056.jpg"
+    },
+    {
+      "id": "processed-gallery-57",
+      "title": "عکس خانوادگی ۵۷",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2057.jpg"
+    },
+    {
+      "id": "processed-gallery-58",
+      "title": "عکس خانوادگی ۵۸",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2058.jpg"
+    },
+    {
+      "id": "processed-gallery-59",
+      "title": "عکس خانوادگی ۵۹",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2059.jpg"
+    },
+    {
+      "id": "processed-gallery-60",
+      "title": "عکس خانوادگی ۶۰",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2060.jpg"
+    },
+    {
+      "id": "processed-gallery-61",
+      "title": "عکس خانوادگی ۶۱",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2061.jpg"
+    },
+    {
+      "id": "processed-gallery-62",
+      "title": "عکس خانوادگی ۶۲",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2062.jpg"
+    },
+    {
+      "id": "processed-gallery-63",
+      "title": "عکس خانوادگی ۶۳",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2063.jpg"
+    },
+    {
+      "id": "processed-gallery-64",
+      "title": "عکس خانوادگی ۶۴",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2064.jpg"
+    },
+    {
+      "id": "processed-gallery-65",
+      "title": "عکس خانوادگی ۶۵",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2065.jpg"
+    },
+    {
+      "id": "processed-gallery-66",
+      "title": "عکس خانوادگی ۶۶",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2066.jpg"
+    },
+    {
+      "id": "processed-gallery-67",
+      "title": "عکس خانوادگی ۶۷",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2067.jpg"
+    },
+    {
+      "id": "processed-gallery-68",
+      "title": "عکس خانوادگی ۶۸",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2068.jpg"
+    },
+    {
+      "id": "processed-gallery-69",
+      "title": "عکس خانوادگی ۶۹",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2069.jpg"
+    },
+    {
+      "id": "processed-gallery-70",
+      "title": "عکس خانوادگی ۷۰",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2070.jpg"
+    },
+    {
+      "id": "processed-gallery-71",
+      "title": "عکس خانوادگی ۷۱",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2071.jpg"
+    },
+    {
+      "id": "processed-gallery-72",
+      "title": "عکس خانوادگی ۷۲",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2072.jpg"
+    },
+    {
+      "id": "processed-gallery-73",
+      "title": "عکس خانوادگی ۷۳",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2073.jpg"
+    },
+    {
+      "id": "processed-gallery-74",
+      "title": "عکس خانوادگی ۷۴",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2074.jpg"
+    },
+    {
+      "id": "processed-gallery-75",
+      "title": "عکس خانوادگی ۷۵",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2075.jpg"
+    },
+    {
+      "id": "processed-gallery-76",
+      "title": "عکس خانوادگی ۷۶",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2076.jpg"
+    },
+    {
+      "id": "processed-gallery-77",
+      "title": "عکس خانوادگی ۷۷",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2077.jpg"
+    },
+    {
+      "id": "processed-gallery-78",
+      "title": "عکس خانوادگی ۷۸",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2078.jpg"
+    },
+    {
+      "id": "processed-gallery-79",
+      "title": "عکس خانوادگی ۷۹",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2079.jpg"
+    },
+    {
+      "id": "processed-gallery-80",
+      "title": "عکس خانوادگی ۸۰",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2080.jpg"
+    },
+    {
+      "id": "processed-gallery-81",
+      "title": "عکس خانوادگی ۸۱",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2081.jpg"
+    },
+    {
+      "id": "processed-gallery-82",
+      "title": "عکس خانوادگی ۸۲",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2082.jpg"
+    },
+    {
+      "id": "processed-gallery-83",
+      "title": "عکس خانوادگی ۸۳",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2083.jpg"
+    },
+    {
+      "id": "processed-gallery-84",
+      "title": "عکس خانوادگی ۸۴",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2084.jpg"
+    },
+    {
+      "id": "processed-gallery-85",
+      "title": "عکس خانوادگی ۸۵",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2085.jpg"
+    },
+    {
+      "id": "processed-gallery-86",
+      "title": "عکس خانوادگی ۸۶",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2086.jpg"
+    },
+    {
+      "id": "processed-gallery-87",
+      "title": "عکس خانوادگی ۸۷",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2087.jpg"
+    },
+    {
+      "id": "processed-gallery-88",
+      "title": "عکس خانوادگی ۸۸",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2088.jpg"
+    },
+    {
+      "id": "processed-gallery-89",
+      "title": "عکس خانوادگی ۸۹",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2089.jpg"
+    },
+    {
+      "id": "processed-gallery-90",
+      "title": "عکس خانوادگی ۹۰",
+      "caption": "از مجموعه عکس‌های پردازش‌شده خاندان",
+      "src": "assets/images/Processed/JPG%20Files/Processed/IMG%2090.jpg"
+    }
+  ],
+  "socialInfluencers": [
+    {
+      "id": "inf1",
+      "name": "روایت بندپی",
+      "handle": "@bandpey روایت",
+      "focus": "فرهنگ و آیین‌های بندپی شرقی",
+      "bio": "نمونه معرفی برای کسانی که درباره تاریخ محلی، روستاها، گویش و خاطره‌های منطقه محتوا تولید می‌کنند.",
+      "avatar": ""
+    },
+    {
+      "id": "inf2",
+      "name": "خانه فیروزجا",
+      "handle": "@firouzja archive",
+      "focus": "عکس‌ها و روایت‌های خانوادگی",
+      "bio": "نمونه کارت برای معرفی گردآورندگان عکس، ویدیو و روایت‌های مرتبط با خاندان و زادگاه.",
+      "avatar": ""
+    },
+    {
+      "id": "inf3",
+      "name": "نامه‌های مازرونی",
+      "handle": "@mazandarani notes",
+      "focus": "نوشتار، گویش و خاطره‌های مازندران",
+      "bio": "جایی برای معرفی تولیدکنندگان محتوای فرهنگی که پیوندی با منطقه و تاریخ ما دارند.",
+      "avatar": ""
+    }
+  ],
+  "socialPosts": [
+    {
+      "id": "soc1",
+      "authorId": "inf1",
+      "title": "روایت تصویری از گردهمایی",
+      "caption": "نمونه پست محلی برای نمایش عکس یا ویدیوی ذخیره‌شده در آرشیو خود وب‌سایت.",
+      "media": {
+        "id": "m1783801086736mig3v",
+        "type": "image",
+        "src": "assets/images/Processed/JPG%20Files/Processed/IMG%201.jpg",
+        "name": "نمونه عکس",
+        "addedAt": ""
+      },
+      "createdAt": "2026-07-08T00:00:00.000Z"
+    },
+    {
+      "id": "soc2",
+      "authorId": "inf2",
+      "title": "چهره‌ها و خاطره‌ها",
+      "caption": "این بخش ظاهر شبکه‌های اجتماعی را دارد، اما فایل‌ها از فضای ذخیره‌سازی خودمان خوانده می‌شوند.",
+      "media": {
+        "id": "m1783801086736n8g0g",
+        "type": "image",
+        "src": "assets/images/Processed/JPG%20Files/Processed/IMG%202.jpg",
+        "name": "نمونه عکس",
+        "addedAt": ""
+      },
+      "createdAt": "2026-07-08T00:00:00.000Z"
+    },
+    {
+      "id": "soc3",
+      "authorId": "inf3",
+      "title": "یادداشت کوتاه منطقه‌ای",
+      "caption": "ادمین می‌تواند برای هر پست عنوان، شرح، تولیدکننده محتوا و فایل عکس یا ویدیو ثبت کند.",
+      "media": {
+        "id": "m178380108673659hyb",
+        "type": "image",
+        "src": "assets/images/Processed/JPG%20Files/Processed/IMG%203.jpg",
+        "name": "نمونه عکس",
+        "addedAt": ""
+      },
+      "createdAt": "2026-07-08T00:00:00.000Z"
+    }
+  ],
   "submissions": [],
-  "articleComments": []
+  "articleComments": [],
+  "history": "این بخش از این نسخه به بعد بر پایه کتاب خانوادگی «از بالاگنجکلا تا پایین‌شالینگچال» تکمیل شده است. مقاله‌ها خلاصه و بازنویسی‌شده‌اند و برای هر مورد صفحه‌های منبع ذکر شده است.",
+  "historyArticles": [
+    {
+      "id": "ha-legacy",
+      "title": "یادداشت پیشین نوشتار تاریخ",
+      "author": "دبیرخانه خاندان",
+      "date": "۱۲ شروینه ما ۱۴۱۱ تبری",
+      "sortDate": "1900-01-01",
+      "body": [
+        "این بخش از این نسخه به بعد بر پایه کتاب خانوادگی «از بالاگنجکلا تا پایین‌شالینگچال» تکمیل شده است. مقاله‌ها خلاصه و بازنویسی‌شده‌اند و برای هر مورد صفحه‌های منبع ذکر شده است."
+      ],
+      "figures": [],
+      "references": [],
+      "createdAt": "2026-07-11T20:18:06.736Z"
+    }
+  ],
+  "bookSeedVersion": "demo-scenarios-2026-07-05",
+  "publishedVersion": "site-state-v1",
+  "publishedAt": "2026-07-11T20:25:56.315Z",
+  "updatedAt": "2026-07-11T20:25:56.315Z",
+  "gallerySeedVersion": "processed-jpg-gallery-2026-07-08"
 }
