@@ -1,0 +1,17 @@
+{
+  "name": "firouzjaei-site-api",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/functions/*.js",
+  "engines": {
+    "node": ">=20 <23"
+  },
+  "scripts": {
+    "start": "func start",
+    "check": "node --check src/functions/state.js"
+  },
+  "dependencies": {
+    "@azure/functions": "4.16.2",
+    "@azure/storage-blob": "12.32.0"
+  }
+}

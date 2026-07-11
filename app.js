@@ -1,24 +1,16 @@
 const OWNER_EMAIL = "mdfirouzjaei@gmail.com";
-const DEFAULT_OWNER_PASSWORD = "April18!";
-const LEGACY_OWNER_PASSWORDS = ["owner-demo-1403"];
 const STORAGE_KEY = "firouzjaei-family-site-state-v1";
 const STORAGE_BACKUP_KEY = "firouzjaei-family-site-state-backup-v1";
 const SESSION_KEY = "firouzjaei-family-site-session-v1";
-const GITHUB_SYNC_TOKEN_KEY = "firouzjaei-github-sync-token-v1";
 const BOOK_DATA = window.FIROUZJAEI_BOOK_DATA || null;
 const BOOK_SEED_VERSION = BOOK_DATA?.version || "synthetic-seed-v1";
 const TREE_RESET_VERSION = "demo-scenarios-2026-07-05";
 const BOOK_PHOTO_ASSET_PATH = "assets/book/photos/";
 const MAX_LOCAL_UPLOAD_BYTES = 2 * 1024 * 1024;
 const VALID_ROUTES = ["home", "tree", "gallery", "social", "calendar", "history", "article"];
-const SHARED_STATE_VERSION = "site-state-v1";
-const SHARED_STATE_URL = "https://raw.githubusercontent.com/mdfirouzjaei/firouzjaei.com/main/assets/data/site-state.json";
-const GITHUB_SYNC_CONFIG = {
-  owner: "mdfirouzjaei",
-  repo: "firouzjaei.com",
-  branch: "main",
-  path: "assets/data/site-state.json",
-};
+const SHARED_STATE_VERSION = "site-state-v2-azure";
+const AZURE_STATE_API = "/api/state";
+const AZURE_AUTH_ME_URL = "/.auth/me";
 const TABARI_CALENDAR_PERIODS = [
   { id: "fardineh", monthNumber: 1, name: "فردینه ما", note: "آغاز سال تبری" },
   { id: "karcheh", monthNumber: 2, name: "کرچه ما", note: "" },
@@ -370,7 +362,6 @@ const sampleState = {
   admins: [
     {
       email: OWNER_EMAIL,
-      password: DEFAULT_OWNER_PASSWORD,
       role: "owner",
     },
   ],
@@ -769,6 +760,9 @@ let sharedPublishInProgress = false;
 let sharedPublishQueued = false;
 let syncToastTimer = null;
 let localOnlyNoticeShown = false;
+let azureBackendAvailable = false;
+let microsoftAuthAvailable = false;
+let remoteStateEtag = "";
 let mentionMenu = null;
 let mentionTarget = null;
 let mentionRange = null;
@@ -910,7 +904,15 @@ function normalizeState(value) {
   if (!normalized.socialInfluencers.length) normalized.socialInfluencers = clone(sampleState.socialInfluencers).map(normalizeSocialInfluencer).filter(Boolean);
   normalized.socialPosts = (normalized.socialPosts || []).map(normalizeSocialPost).filter(Boolean);
   if (!normalized.socialPosts.length) normalized.socialPosts = clone(sampleState.socialPosts).map(normalizeSocialPost).filter(Boolean);
-  normalized.admins = normalized.admins || clone(sampleState).admins;
+  normalized.admins = (Array.isArray(normalized.admins) ? normalized.admins : clone(sampleState).admins)
+    .map((admin) => ({
+      email: String(admin?.email || "").trim().toLowerCase(),
+      role: admin?.role === "owner" ? "owner" : "admin",
+    }))
+    .filter((admin) => admin.email);
+  const owner = normalized.admins.find((admin) => admin.email === OWNER_EMAIL);
+  if (owner) owner.role = "owner";
+  else normalized.admins.unshift({ email: OWNER_EMAIL, role: "owner" });
   normalized.subscribers = normalized.subscribers || [];
   normalized.bookSeedVersion = normalized.bookSeedVersion || sampleState.bookSeedVersion || BOOK_SEED_VERSION;
   normalized.submissions = (normalized.submissions || []).map(normalizeSubmission).filter(Boolean);
@@ -943,13 +945,7 @@ function loadState() {
   try {
     const parsedState = JSON.parse(raw);
     const loadedState = normalizeState(parsedState);
-    const owner = loadedState.admins.find((admin) => admin.email.toLowerCase() === OWNER_EMAIL);
-    let shouldPersist = parsedState.bookSeedVersion !== loadedState.bookSeedVersion;
-    if (owner && LEGACY_OWNER_PASSWORDS.includes(owner.password)) {
-      owner.password = DEFAULT_OWNER_PASSWORD;
-      shouldPersist = true;
-    }
-    if (shouldPersist) localStorage.setItem(STORAGE_KEY, JSON.stringify(loadedState));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(loadedState));
     return loadedState;
   } catch {
     return normalizeState(clone(sampleState));
@@ -991,7 +987,7 @@ function notifyLocalOnlySave() {
   if (!isAdmin() || localOnlyNoticeShown) return;
   localOnlyNoticeShown = true;
   setSyncMessage(
-    "ذخیره همگانی هنوز فعال نیست؛ تغییرات فقط در همین مرورگر می‌ماند. برای نمایش روی موبایل، در پنل مدیر بخش داده‌ها توکن GitHub را ذخیره کنید و «انتشار تغییرات روی سایت» را بزنید.",
+    "ارتباط با Azure برقرار نیست؛ نسخه پشتیبان تغییرات در همین مرورگر نگه‌داری شد. پس از برقراری ارتباط، «ذخیره اکنون» را بزنید.",
     false,
     { toast: true, persistent: true, warning: true }
   );
@@ -1031,8 +1027,8 @@ function sharedStateSnapshot() {
   return snapshot;
 }
 
-function githubSyncToken() {
-  return localStorage.getItem(GITHUB_SYNC_TOKEN_KEY) || sessionStorage.getItem(GITHUB_SYNC_TOKEN_KEY) || "";
+function canSaveToAzure() {
+  return microsoftAuthAvailable && isAdmin();
 }
 
 function showSyncToast(message, tone = "info", { persistent = false } = {}) {
@@ -1061,17 +1057,7 @@ function setSyncMessage(message, isError = false, { toast = false, persistent = 
   if (toast) showSyncToast(message, isError ? "error" : warning ? "warning" : "info", { persistent });
 }
 
-function syncTokenField() {
-  return $("#githubSyncToken");
-}
-
 function hydrateSyncControls() {
-  const tokenInput = syncTokenField();
-  if (!tokenInput) return;
-  const storedToken = githubSyncToken();
-  tokenInput.value = storedToken;
-  const remember = $("#rememberGithubSyncToken");
-  if (remember) remember.checked = Boolean(localStorage.getItem(GITHUB_SYNC_TOKEN_KEY));
   updateSyncDiagnostics();
 }
 
@@ -1085,28 +1071,23 @@ function updateSyncDiagnostics(publishedRaw = null) {
   target.innerHTML = `
     <span>درخت این مرورگر: ${toPersianDigits(localCount)} نفر</span>
     ${publishedText}
-    <span>${githubSyncToken() ? "انتشار GitHub فعال است" : "انتشار GitHub فعال نیست"}</span>
+    <span>${azureBackendAvailable ? "فضای Azure متصل است" : "در انتظار اتصال به Azure"}</span>
+    <span>${session?.email ? `حساب مایکروسافت: ${escapeHtml(session.email)}` : "حساب مدیر وارد نشده است"}</span>
   `;
 }
 
-function utf8ToBase64(value) {
-  const bytes = new TextEncoder().encode(value);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
-  }
-  return btoa(binary);
-}
-
 async function fetchPublishedStateJson() {
-  const urls = [SHARED_STATE_URL, "assets/data/site-state.json"];
+  const urls = [AZURE_STATE_API, "assets/data/site-state.json"];
   let lastError = null;
   for (const url of urls) {
     try {
       const response = await fetch(`${url}?v=${Date.now()}`, { cache: "no-store" });
       if (response.ok) {
         const published = await response.json();
+        if (url === AZURE_STATE_API) {
+          azureBackendAvailable = true;
+          remoteStateEtag = response.headers.get("etag") || "";
+        }
         updateSyncDiagnostics(published);
         return published;
       }
@@ -1139,7 +1120,7 @@ async function loadPublishedState({ force = false, notify = false } = {}) {
       backupStateIfNeeded(state);
       refreshAll();
       setSyncMessage(
-        `GitHub هنوز درخت منتشرشده ندارد، پس نسخه مرورگر با ${toPersianDigits(statePeopleCount(localRaw))} نفر حفظ شد. برای نمایش روی موبایل، «انتشار تغییرات روی سایت» را بزنید.`,
+        `فضای مشترک هنوز درختی ندارد، پس نسخه مرورگر با ${toPersianDigits(statePeopleCount(localRaw))} نفر حفظ شد. پس از ورود با حساب مایکروسافت، «ذخیره اکنون» را بزنید.`,
         false,
         { toast: true, persistent: true, warning: true }
       );
@@ -1163,90 +1144,49 @@ async function loadPublishedState({ force = false, notify = false } = {}) {
   }
 }
 
-async function githubContentsRequest(pathSuffix = "", options = {}) {
-  const token = githubSyncToken();
-  if (!token) throw new Error("برای انتشار، ابتدا توکن GitHub را وارد کنید.");
-  const { owner, repo, path } = GITHUB_SYNC_CONFIG;
-  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}${pathSuffix}`;
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "X-GitHub-Api-Version": "2022-11-28",
-      ...(options.headers || {}),
-    },
-  });
-  if (response.status === 404) return null;
-  if (!response.ok) {
-    const detail = await response.json().catch(() => null);
-    const error = new Error(detail?.message || "ارتباط با GitHub انجام نشد.");
-    error.status = response.status;
-    error.detail = detail;
-    throw error;
-  }
-  return response.json();
-}
-
-function isGithubShaConflict(error) {
-  return error?.status === 409 || /sha|does not match/i.test(error?.message || "");
-}
-
-function wait(ms) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-async function putSharedStateFile(content, commitMessage) {
-  let lastError = null;
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const currentFile = await githubContentsRequest(`?ref=${encodeURIComponent(GITHUB_SYNC_CONFIG.branch)}`);
-    const body = {
-      message: commitMessage,
-      content: utf8ToBase64(content),
-      branch: GITHUB_SYNC_CONFIG.branch,
-    };
-    if (currentFile?.sha) body.sha = currentFile.sha;
-
-    try {
-      return await githubContentsRequest("", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-    } catch (error) {
-      lastError = error;
-      if (!isGithubShaConflict(error) || attempt === 3) throw error;
-      setSyncMessage("فایل داده روی GitHub تازه‌تر شده بود؛ دوباره با نسخه جدید تلاش می‌کنم...", false, { toast: true, warning: true });
-      await wait(650 * attempt);
-    }
-  }
-  throw lastError || new Error("انتشار داده روی GitHub انجام نشد.");
-}
-
 async function publishSharedState({ silent = false } = {}) {
   if (!isAdmin()) return false;
   if (sharedPublishInProgress) {
     sharedPublishQueued = true;
-    if (!silent) setSyncMessage("انتشار قبلی هنوز در حال انجام است؛ تغییر تازه بعد از آن منتشر می‌شود.", false, { toast: true, warning: true });
+    if (!silent) setSyncMessage("ذخیره قبلی هنوز در حال انجام است؛ تغییر تازه بلافاصله پس از آن ذخیره می‌شود.", false, { toast: true, warning: true });
     return false;
   }
   sharedPublishInProgress = true;
   sharedPublishQueued = false;
   try {
-    if (!silent) setSyncMessage("در حال انتشار داده روی GitHub...", false, { toast: true });
+    if (!silent) setSyncMessage("در حال ذخیره داده در Azure...", false, { toast: true });
     const snapshot = sharedStateSnapshot();
-    const content = JSON.stringify(snapshot, null, 2);
-    await putSharedStateFile(content, `Update family site data ${new Date().toISOString()}`);
-    state = snapshot;
+    const response = await fetch(AZURE_STATE_API, {
+      method: "PUT",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        ...(remoteStateEtag ? { "If-Match": remoteStateEtag } : {}),
+      },
+      body: JSON.stringify(snapshot),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(payload?.message || "ذخیره داده در Azure انجام نشد.");
+      error.status = response.status;
+      throw error;
+    }
+    azureBackendAvailable = true;
+    remoteStateEtag = response.headers.get("etag") || remoteStateEtag;
+    state = normalizeState(payload?.state || payload || snapshot);
     persistState();
-    updateSyncDiagnostics(snapshot);
+    updateSyncDiagnostics(state);
     localOnlyNoticeShown = false;
-    if (!silent) setSyncMessage("داده روی GitHub منتشر شد. چند لحظه بعد روی موبایل هم دیده می‌شود.", false, { toast: true });
+    if (!silent) setSyncMessage("تغییرات در Azure ذخیره شد و اکنون روی دستگاه‌های دیگر در دسترس است.", false, { toast: true });
     return true;
   } catch (error) {
     if (!silent) {
+      let message = error.message || "ذخیره داده در Azure انجام نشد.";
+      if (error.status === 401) message = "نشست مایکروسافت پایان یافته است؛ دوباره وارد شوید.";
+      if (error.status === 403) message = "این حساب مایکروسافت در فهرست مدیران سایت نیست.";
+      if (error.status === 409 || error.status === 412) message = "نسخه تازه‌تری روی Azure وجود دارد. ابتدا داده را تازه‌سازی کنید و سپس دوباره ذخیره کنید.";
       setSyncMessage(
-        error.message || "انتشار داده روی GitHub انجام نشد.",
+        message,
         true,
         { toast: true, persistent: true }
       );
@@ -1254,7 +1194,7 @@ async function publishSharedState({ silent = false } = {}) {
     return false;
   } finally {
     sharedPublishInProgress = false;
-    if (sharedPublishQueued && githubSyncToken() && isAdmin()) {
+    if (sharedPublishQueued && canSaveToAzure()) {
       sharedPublishQueued = false;
       scheduleSharedPublish();
     }
@@ -1263,40 +1203,14 @@ async function publishSharedState({ silent = false } = {}) {
 
 function scheduleSharedPublish() {
   if (!isAdmin()) return;
-  if (!githubSyncToken()) {
+  if (!canSaveToAzure()) {
     notifyLocalOnlySave();
     return;
   }
   clearTimeout(sharedPublishTimer);
   sharedPublishTimer = window.setTimeout(() => {
     publishSharedState({ silent: false });
-  }, 1600);
-}
-
-async function saveGithubSyncToken() {
-  const tokenInput = syncTokenField();
-  const token = tokenInput?.value.trim() || "";
-  if (!token) {
-    localStorage.removeItem(GITHUB_SYNC_TOKEN_KEY);
-    sessionStorage.removeItem(GITHUB_SYNC_TOKEN_KEY);
-    setSyncMessage("توکن GitHub پاک شد. تغییرات بعدی فقط در همین مرورگر ذخیره می‌شود.", false, { toast: true, warning: true });
-    localOnlyNoticeShown = false;
-    return;
-  }
-  const remember = $("#rememberGithubSyncToken")?.checked;
-  const targetStorage = remember ? localStorage : sessionStorage;
-  const otherStorage = remember ? sessionStorage : localStorage;
-  targetStorage.setItem(GITHUB_SYNC_TOKEN_KEY, token);
-  otherStorage.removeItem(GITHUB_SYNC_TOKEN_KEY);
-  setSyncMessage("توکن GitHub ذخیره شد. در حال آزمایش انتشار روی GitHub...", false, { toast: true });
-  const didPublish = await publishSharedState();
-  if (!didPublish) {
-    setSyncMessage(
-      "توکن ذخیره شد، اما انتشار موفق نبود. پیام خطا را بررسی کنید و مطمئن شوید توکن دسترسی Contents: Read and write دارد.",
-      true,
-      { toast: true, persistent: true }
-    );
-  }
+  }, 900);
 }
 
 function loadSession() {
@@ -1322,12 +1236,53 @@ function saveSession(value) {
   }
 }
 
+function microsoftPrincipalFromPayload(payload) {
+  if (payload?.clientPrincipal) return payload.clientPrincipal;
+  if (Array.isArray(payload) && payload[0]?.clientPrincipal) return payload[0].clientPrincipal;
+  return null;
+}
+
+function microsoftPrincipalEmail(principal) {
+  const claims = Array.isArray(principal?.claims) ? principal.claims : [];
+  const emailClaim = claims.find((claim) => {
+    const type = String(claim?.typ || claim?.type || "").toLowerCase();
+    return type === "email" || type === "emails" || type === "preferred_username" || type.endsWith("/emailaddress");
+  });
+  return String(principal?.userDetails || emailClaim?.val || emailClaim?.value || "").trim().toLowerCase();
+}
+
+async function loadMicrosoftSession() {
+  try {
+    const response = await fetch(`${AZURE_AUTH_ME_URL}?v=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    const isAzureAuthResponse = Array.isArray(payload) || Object.prototype.hasOwnProperty.call(payload || {}, "clientPrincipal");
+    if (!isAzureAuthResponse) throw new Error("Microsoft authentication is unavailable.");
+    microsoftAuthAvailable = true;
+    const principal = microsoftPrincipalFromPayload(payload);
+    const email = microsoftPrincipalEmail(principal);
+    saveSession(email ? { email, provider: "microsoft", userId: principal?.userId || "" } : null);
+    return Boolean(email);
+  } catch {
+    microsoftAuthAvailable = false;
+    saveSession(null);
+    return false;
+  }
+}
+
+function loginWithMicrosoft() {
+  const returnPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  window.location.assign(`/.auth/login/aad?post_login_redirect_uri=${encodeURIComponent(returnPath)}`);
+}
+
 function isAdmin() {
-  return Boolean(session && state.admins.some((admin) => admin.email === session.email));
+  const email = String(session?.email || "").toLowerCase();
+  return Boolean(email && state.admins.some((admin) => admin.email.toLowerCase() === email));
 }
 
 function isOwner() {
-  const admin = state.admins.find((item) => item.email === session?.email);
+  const email = String(session?.email || "").toLowerCase();
+  const admin = state.admins.find((item) => item.email.toLowerCase() === email);
   return admin?.role === "owner";
 }
 
@@ -3812,7 +3767,7 @@ function updateAdminStatus() {
   document.body.classList.toggle("admin-mode", isAdmin());
   const loginButton = $("[data-open-login]");
   if (loginButton) loginButton.textContent = isAdmin() ? "پنل مدیر" : "ورود مدیر";
-  if (isAdmin() && !githubSyncToken()) notifyLocalOnlySave();
+  if (isAdmin() && !azureBackendAvailable) notifyLocalOnlySave();
 }
 
 function personOptions(selectedId = "", includeEmpty = true) {
@@ -4315,6 +4270,9 @@ function logoutAdmin() {
   closeDialog("#personDialog");
   updateAdminStatus();
   renderTree();
+  if (microsoftAuthAvailable) {
+    window.location.assign("/.auth/logout?post_logout_redirect_uri=/");
+  }
 }
 
 function setAdminTab(tab) {
@@ -4328,6 +4286,7 @@ function bindEvents() {
   $("[data-open-subscribe]").addEventListener("click", () => $("#subscribeDialog").showModal());
   $("[data-close-subscribe]").addEventListener("click", () => $("#subscribeDialog").close());
   $("[data-open-login]").addEventListener("click", () => (isAdmin() ? openAdminPanel() : $("#loginDialog").showModal()));
+  $("[data-microsoft-login]").addEventListener("click", loginWithMicrosoft);
   $("[data-close-login]").addEventListener("click", () => $("#loginDialog").close());
   $("[data-close-admin]").addEventListener("click", () => $("#adminDialog").close());
   $("[data-close-person]").addEventListener("click", () => $("#personDialog").close());
@@ -4399,33 +4358,7 @@ function bindEvents() {
     fields[`${fieldName}Unknown`]?.addEventListener("change", () => syncPersonDateField(fields, fieldName));
   });
 
-  $("#loginForm").addEventListener("submit", (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const fields = form.elements;
-    const returnRoute = parseRouteHash();
-    const email = fields.email.value.trim().toLowerCase();
-    const password = fields.password.value;
-    const admin = state.admins.find((item) => item.email.toLowerCase() === email && item.password === password);
-    if (!admin) {
-      $("#loginMessage").textContent = "ایمیل یا رمز عبور درست نیست.";
-      return;
-    }
-    saveSession({ email: admin.email });
-    form.reset();
-    $("#loginDialog").close();
-    updateAdminStatus();
-    renderTree();
-    if (returnRoute.route === "article") {
-      routeTo("article", { articleId: returnRoute.articleId });
-    } else if (returnRoute.route === "history") {
-      routeTo("history");
-    } else if (returnRoute.route === "social") {
-      routeTo("social");
-    } else {
-      routeTo("tree");
-    }
-  });
+  $("#loginForm").addEventListener("submit", (event) => event.preventDefault());
 
   $("#subscribeForm").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -4541,13 +4474,8 @@ function bindEvents() {
     const form = event.currentTarget;
     const fields = form.elements;
     const email = fields.email.value.trim().toLowerCase();
-    const password = fields.password.value.trim();
     const existing = state.admins.find((item) => item.email.toLowerCase() === email);
-    if (existing) {
-      existing.password = password;
-    } else {
-      state.admins.push({ email, password, role: "admin" });
-    }
+    if (!existing) state.admins.push({ email, role: "admin" });
     saveState();
     form.reset();
     refreshAdminLists();
@@ -4704,7 +4632,6 @@ function bindEvents() {
     $("#dataImport").value = JSON.stringify(state, null, 2);
     $("#dataMessage").textContent = "داده در کادر زیر آماده کپی است.";
   });
-  $("[data-save-sync-token]").addEventListener("click", saveGithubSyncToken);
   $("[data-publish-shared-data]").addEventListener("click", () => publishSharedState());
   $("[data-load-shared-data]").addEventListener("click", () => loadPublishedState({ force: true, notify: true }));
   $("[data-import-data]").addEventListener("click", () => {
@@ -4752,6 +4679,7 @@ async function init() {
   clearPersonForm();
   renderTabariToday();
   startBandpeyClock();
+  await loadMicrosoftSession();
   await loadPublishedState();
   refreshAll();
   const next = parseRouteHash();

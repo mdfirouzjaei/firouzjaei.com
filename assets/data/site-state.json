@@ -2,7 +2,6 @@
   "admins": [
     {
       "email": "mdfirouzjaei@gmail.com",
-      "password": "April18!",
       "role": "owner"
     }
   ],
