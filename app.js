@@ -2,6 +2,7 @@ const OWNER_EMAIL = "mdfirouzjaei@gmail.com";
 const DEFAULT_OWNER_PASSWORD = "April18!";
 const LEGACY_OWNER_PASSWORDS = ["owner-demo-1403"];
 const STORAGE_KEY = "firouzjaei-family-site-state-v1";
+const STORAGE_BACKUP_KEY = "firouzjaei-family-site-state-backup-v1";
 const SESSION_KEY = "firouzjaei-family-site-session-v1";
 const GITHUB_SYNC_TOKEN_KEY = "firouzjaei-github-sync-token-v1";
 const BOOK_DATA = window.FIROUZJAEI_BOOK_DATA || null;
@@ -959,9 +960,30 @@ function persistState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+function statePeopleCount(value) {
+  return Array.isArray(value?.people) ? value.people.length : 0;
+}
+
+function stateHasPeople(value) {
+  return statePeopleCount(value) > 0;
+}
+
+function backupStateIfNeeded(value = state) {
+  if (!stateHasPeople(value)) return;
+  localStorage.setItem(
+    STORAGE_BACKUP_KEY,
+    JSON.stringify({
+      backedUpAt: new Date().toISOString(),
+      state: value,
+    })
+  );
+}
+
 function saveState() {
   state.updatedAt = new Date().toISOString();
+  backupStateIfNeeded(state);
   persistState();
+  updateSyncDiagnostics();
   scheduleSharedPublish();
 }
 
@@ -1050,6 +1072,21 @@ function hydrateSyncControls() {
   tokenInput.value = storedToken;
   const remember = $("#rememberGithubSyncToken");
   if (remember) remember.checked = Boolean(localStorage.getItem(GITHUB_SYNC_TOKEN_KEY));
+  updateSyncDiagnostics();
+}
+
+function updateSyncDiagnostics(publishedRaw = null) {
+  const target = $("#syncDiagnostics");
+  if (!target) return;
+  const localCount = statePeopleCount(state);
+  const publishedText = publishedRaw
+    ? `<span>درخت منتشرشده: ${toPersianDigits(statePeopleCount(publishedRaw))} نفر</span>`
+    : "";
+  target.innerHTML = `
+    <span>درخت این مرورگر: ${toPersianDigits(localCount)} نفر</span>
+    ${publishedText}
+    <span>${githubSyncToken() ? "انتشار GitHub فعال است" : "انتشار GitHub فعال نیست"}</span>
+  `;
 }
 
 function utf8ToBase64(value) {
@@ -1068,7 +1105,11 @@ async function fetchPublishedStateJson() {
   for (const url of urls) {
     try {
       const response = await fetch(`${url}?v=${Date.now()}`, { cache: "no-store" });
-      if (response.ok) return response.json();
+      if (response.ok) {
+        const published = await response.json();
+        updateSyncDiagnostics(published);
+        return published;
+      }
       lastError = new Error(`HTTP ${response.status}`);
     } catch (error) {
       lastError = error;
@@ -1083,6 +1124,9 @@ async function loadPublishedState({ force = false, notify = false } = {}) {
     const publishedState = normalizeState(publishedRaw);
     const localRawText = localStorage.getItem(STORAGE_KEY);
     const localRaw = localRawText ? JSON.parse(localRawText) : null;
+    const publishedHasPeople = stateHasPeople(publishedRaw);
+    const localHasPeople = stateHasPeople(localRaw);
+    const shouldProtectLocalTree = localRaw && localHasPeople && !publishedHasPeople && !force;
     const shouldKeepLocal =
       localRaw &&
       !force &&
@@ -1090,12 +1134,24 @@ async function loadPublishedState({ force = false, notify = false } = {}) {
       stateTimestamp(localRaw) === 0 &&
       stateHasCustomTree(localRaw) &&
       stateTimestamp(publishedRaw) > 0;
+    if (shouldProtectLocalTree) {
+      state = normalizeState(localRaw);
+      backupStateIfNeeded(state);
+      refreshAll();
+      setSyncMessage(
+        `GitHub هنوز درخت منتشرشده ندارد، پس نسخه مرورگر با ${toPersianDigits(statePeopleCount(localRaw))} نفر حفظ شد. برای نمایش روی موبایل، «انتشار تغییرات روی سایت» را بزنید.`,
+        false,
+        { toast: true, persistent: true, warning: true }
+      );
+      return false;
+    }
     const shouldUsePublished =
       force ||
       !localRaw ||
       (!shouldKeepLocal && stateTimestamp(publishedRaw) >= stateTimestamp(localRaw));
 
     if (!shouldUsePublished) return false;
+    backupStateIfNeeded(state);
     state = publishedState;
     persistState();
     refreshAll();
@@ -1183,6 +1239,7 @@ async function publishSharedState({ silent = false } = {}) {
     await putSharedStateFile(content, `Update family site data ${new Date().toISOString()}`);
     state = snapshot;
     persistState();
+    updateSyncDiagnostics(snapshot);
     localOnlyNoticeShown = false;
     if (!silent) setSyncMessage("داده روی GitHub منتشر شد. چند لحظه بعد روی موبایل هم دیده می‌شود.", false, { toast: true });
     return true;
