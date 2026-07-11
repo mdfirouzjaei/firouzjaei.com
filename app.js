@@ -747,6 +747,7 @@ let treeZoom = 1;
 let pendingRelationship = null;
 let expandedPersonIds = new Set();
 let activeRootId = null;
+let allRootsExpanded = false;
 let selectedArticleId = null;
 let selectedGalleryItemId = null;
 let selectedCalendarYear = null;
@@ -1999,12 +2000,17 @@ function descendantIdsOf(personId, visited = new Set()) {
   return childPeopleOf(personId).flatMap((child) => [child.id, ...descendantIdsOf(child.id, visited)]);
 }
 
+function expandablePersonIds() {
+  return state.people.filter((person) => childPeopleOf(person.id).length).map((person) => person.id);
+}
+
 function collapsePersonBranch(personId) {
   expandedPersonIds.delete(personId);
   descendantIdsOf(personId).forEach((id) => expandedPersonIds.delete(id));
 }
 
 function openPersonBranchOnly(personId) {
+  allRootsExpanded = false;
   const rootId = startingPersonIds().has(personId) ? personId : activeRootId || primaryRootForPerson(personId);
   activeRootId = rootId && personById(rootId) ? rootId : null;
   const path = activeRootId ? pathFromRootToPerson(activeRootId, personId) : [];
@@ -2012,6 +2018,7 @@ function openPersonBranchOnly(personId) {
 }
 
 function setActiveRoot(rootId = null) {
+  allRootsExpanded = false;
   activeRootId = rootId && personById(rootId) ? rootId : null;
   expandedPersonIds = activeRootId ? new Set([activeRootId]) : new Set();
   selectedPersonId = activeRootId;
@@ -2019,12 +2026,35 @@ function setActiveRoot(rootId = null) {
 }
 
 function focusPersonBranch(personId) {
+  allRootsExpanded = false;
   const rootId = primaryRootForPerson(personId);
   activeRootId = rootId && personById(rootId) ? rootId : null;
   const path = activeRootId ? pathFromRootToPerson(activeRootId, personId) : [];
   expandedPersonIds = new Set(path.slice(0, -1));
   if (activeRootId) expandedPersonIds.add(activeRootId);
   selectedPersonId = personId;
+  renderTree();
+}
+
+function clearTreeSearch() {
+  const searchInput = $("#familySearch");
+  if (searchInput) searchInput.value = "";
+}
+
+function expandWholeTree() {
+  clearTreeSearch();
+  activeRootId = null;
+  allRootsExpanded = true;
+  expandedPersonIds = new Set(expandablePersonIds());
+  renderTree();
+}
+
+function collapseWholeTree() {
+  clearTreeSearch();
+  activeRootId = null;
+  allRootsExpanded = false;
+  expandedPersonIds = new Set();
+  selectedPersonId = null;
   renderTree();
 }
 
@@ -2154,11 +2184,12 @@ function visibleTreePeople(searchTerm = "") {
 
   if (activeRootId && !personById(activeRootId)) activeRootId = null;
   const visibleIds = new Set(activeRootId ? [activeRootId] : startingPeople().map((person) => person.id));
-  if (!activeRootId) {
+  const shouldTraverseAllRoots = !activeRootId && (allRootsExpanded || expandedPersonIds.size);
+  if (!activeRootId && !shouldTraverseAllRoots) {
     return sortTreePeople(state.people.filter((person) => visibleIds.has(person.id)));
   }
 
-  visibleIds.add(activeRootId);
+  if (activeRootId) visibleIds.add(activeRootId);
   let changed = true;
   while (changed) {
     changed = false;
@@ -2167,13 +2198,15 @@ function visibleTreePeople(searchTerm = "") {
       if (!person) return;
       (person.spouseIds || []).forEach((spouseId) => {
         const spouse = personById(spouseId);
-        if (spouse && shouldShowSpouseConnection(person, spouse) && !visibleIds.has(spouseId)) {
+        const shouldShowSpouse = shouldTraverseAllRoots || shouldShowSpouseConnection(person, spouse);
+        if (spouse && shouldShowSpouse && !visibleIds.has(spouseId)) {
           visibleIds.add(spouseId);
           changed = true;
         }
       });
       if (!expandedPersonIds.has(id)) return;
-      navigableChildPeopleOf(id).forEach((child) => {
+      const children = activeRootId ? navigableChildPeopleOf(id) : childPeopleOf(id);
+      children.forEach((child) => {
         if (!visibleIds.has(child.id)) {
           visibleIds.add(child.id);
           changed = true;
@@ -2336,7 +2369,7 @@ function renderRootNavigator(searchTerm = "", matchCount = 0) {
 
   const allButton = document.createElement("button");
   allButton.type = "button";
-  allButton.className = `root-chip ${!activeRootId ? "active" : ""}`;
+  allButton.className = `root-chip ${!activeRootId && !allRootsExpanded && !expandedPersonIds.size ? "active" : ""}`;
   allButton.textContent = "فقط ریشه‌ها";
   allButton.addEventListener("click", () => setActiveRoot(null));
   rootNav.appendChild(allButton);
@@ -2445,6 +2478,7 @@ function renderTree() {
       toggleButton.addEventListener("click", (event) => {
         event.stopPropagation();
         if (expandedPersonIds.has(person.id)) {
+          allRootsExpanded = false;
           if (startingPersonIds().has(person.id) && activeRootId === person.id) {
             activeRootId = null;
             expandedPersonIds = new Set();
@@ -3970,6 +4004,8 @@ function bindEvents() {
   $$("[data-logout]").forEach((button) => button.addEventListener("click", logoutAdmin));
 
   $("#familySearch").addEventListener("input", renderTree);
+  $("[data-expand-tree]").addEventListener("click", expandWholeTree);
+  $("[data-collapse-tree]").addEventListener("click", collapseWholeTree);
   $("[data-zoom-in]").addEventListener("click", () => setZoom(treeZoom + 0.1));
   $("[data-zoom-out]").addEventListener("click", () => setZoom(treeZoom - 0.1));
   $("[data-zoom-reset]").addEventListener("click", () => setZoom(1));

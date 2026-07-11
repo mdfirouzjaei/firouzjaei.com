@@ -414,6 +414,12 @@ h2 {
   flex-wrap: wrap;
 }
 
+.tree-wide-action {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 0.84rem;
+}
+
 .icon-button {
   display: inline-grid;
   width: 40px;
