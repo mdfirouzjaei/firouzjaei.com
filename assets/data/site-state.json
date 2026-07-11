@@ -7,7 +7,42 @@
     }
   ],
   "subscribers": [],
-  "people": [],
+  "people": [
+    {
+      "id": "p1783810512389",
+      "spouseIds": [],
+      "parentIds": [],
+      "name": "آقاداداش",
+      "birth": "1048",
+      "gender": "male",
+      "death": "",
+      "generation": 0,
+      "slot": 0,
+      "photo": "",
+      "story": "",
+      "photos": [],
+      "media": [],
+      "mentionHandle": "اقاداداش"
+    },
+    {
+      "id": "p1783810546779",
+      "spouseIds": [],
+      "parentIds": [
+        "p1783810512389"
+      ],
+      "name": "آقا میرزاآقا",
+      "birth": "1100",
+      "gender": "male",
+      "death": "",
+      "generation": 1,
+      "slot": 0,
+      "photo": "",
+      "story": "",
+      "photos": [],
+      "media": [],
+      "mentionHandle": "اقا_میرزااقا"
+    }
+  ],
   "gallery": [
     {
       "id": "processed-gallery-01",
@@ -640,7 +675,7 @@
   ],
   "bookSeedVersion": "demo-scenarios-2026-07-05",
   "publishedVersion": "site-state-v1",
-  "publishedAt": "2026-07-11T22:54:41.998Z",
-  "updatedAt": "2026-07-11T22:54:41.998Z",
+  "publishedAt": "2026-07-11T22:55:48.380Z",
+  "updatedAt": "2026-07-11T22:55:48.380Z",
   "gallerySeedVersion": "processed-jpg-gallery-2026-07-08"
 }
