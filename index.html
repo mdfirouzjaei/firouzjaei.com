@@ -9,7 +9,7 @@
     />
     <title>خاندان فیروزجایی</title>
     <link rel="icon" type="image/svg+xml" sizes="any" href="assets/brand/firouzjaei-logo.svg?v=logo-svg-20260706" />
-    <link rel="stylesheet" href="styles.css?v=header-fit-20260710" />
+    <link rel="stylesheet" href="styles.css?v=unknown-dates-20260710" />
   </head>
   <body>
     <div class="app-shell">
@@ -291,6 +291,10 @@
           </label>
           <label>سال تولد
             <input name="birth" type="text" />
+            <span class="inline-check">
+              <input name="birthUnknown" type="checkbox" />
+              <span>نامشخص</span>
+            </span>
           </label>
           <label>جنسیت
             <select name="gender">
@@ -301,6 +305,10 @@
           </label>
           <label>سال درگذشت
             <input name="death" type="text" />
+            <span class="inline-check">
+              <input name="deathUnknown" type="checkbox" />
+              <span>نامشخص</span>
+            </span>
           </label>
           <label>نسل
             <input name="generation" type="number" min="0" max="8" required />
@@ -603,6 +611,6 @@
     </template>
 
     <script src="assets/book/book-data.js?v=demo-tree-20260705"></script>
-    <script src="app.js?v=social-network-20260708"></script>
+    <script src="app.js?v=unknown-dates-20260710"></script>
   </body>
 </html>

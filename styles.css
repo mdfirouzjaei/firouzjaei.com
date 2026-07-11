@@ -554,6 +554,29 @@ label select {
   margin-top: 6px;
 }
 
+.inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.inline-check input {
+  width: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--green);
+}
+
+label input:disabled {
+  background: #f3f5f3;
+  color: var(--muted);
+}
+
 label textarea {
   padding: 10px;
   margin-top: 6px;

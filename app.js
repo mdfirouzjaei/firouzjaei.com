@@ -117,6 +117,7 @@ const NODE_BASE_X = 150;
 const NODE_BASE_Y = 120;
 const NODE_X_GAP = 190;
 const NODE_Y_GAP = 250;
+const UNKNOWN_DATE_LABEL = "نامشخص";
 const GENDER_LABELS = {
   male: "مرد",
   female: "زن",
@@ -1111,6 +1112,40 @@ function normalizeSearchText(value = "") {
     .replace(/[ۀة]/g, "ه")
     .replace(/[\u200c\u200e\u200f\s._-]+/g, "")
     .trim();
+}
+
+function isUnknownDateValue(value = "") {
+  const normalized = normalizeSearchText(value);
+  return ["نامشخص", "نامعلوم", "unknown"].some((item) => normalized === normalizeSearchText(item));
+}
+
+function normalizePersonDate(value = "", isUnknown = false) {
+  if (isUnknown) return UNKNOWN_DATE_LABEL;
+  const trimmed = String(value || "").trim();
+  return isUnknownDateValue(trimmed) ? UNKNOWN_DATE_LABEL : trimmed;
+}
+
+function setPersonDateField(fields, name, value = "") {
+  const input = fields[name];
+  const unknownToggle = fields[`${name}Unknown`];
+  if (!input || !unknownToggle) return;
+  const isUnknown = isUnknownDateValue(value);
+  unknownToggle.checked = isUnknown;
+  input.value = isUnknown ? UNKNOWN_DATE_LABEL : value || "";
+  syncPersonDateField(fields, name);
+}
+
+function syncPersonDateField(fields, name) {
+  const input = fields[name];
+  const unknownToggle = fields[`${name}Unknown`];
+  if (!input || !unknownToggle) return;
+  if (unknownToggle.checked) {
+    input.value = UNKNOWN_DATE_LABEL;
+    input.disabled = true;
+    return;
+  }
+  input.disabled = false;
+  if (isUnknownDateValue(input.value)) input.value = "";
 }
 
 function normalizeMentionHandle(value = "") {
@@ -3773,9 +3808,9 @@ function fillPersonForm(id) {
   $("#personEditorTitle").textContent = "ویرایش فرد";
   fields.id.value = person.id;
   fields.name.value = person.name || "";
-  fields.birth.value = person.birth || "";
+  setPersonDateField(fields, "birth", person.birth || "");
   fields.gender.value = normalizeGender(person.gender);
-  fields.death.value = person.death || "";
+  setPersonDateField(fields, "death", person.death || "");
   fields.generation.value = person.generation ?? 0;
   fields.slot.value = person.slot ?? 0;
   fields.photo.value = person.photo || "";
@@ -3795,6 +3830,8 @@ function clearPersonForm() {
   form.reset();
   $("#personEditorTitle").textContent = "افزودن فرد";
   fields.id.value = "";
+  setPersonDateField(fields, "birth", "");
+  setPersonDateField(fields, "death", "");
   fields.gender.value = "unknown";
   fields.generation.value = 0;
   fields.slot.value = 0;
@@ -3936,6 +3973,10 @@ function bindEvents() {
   $("[data-zoom-in]").addEventListener("click", () => setZoom(treeZoom + 0.1));
   $("[data-zoom-out]").addEventListener("click", () => setZoom(treeZoom - 0.1));
   $("[data-zoom-reset]").addEventListener("click", () => setZoom(1));
+  ["birth", "death"].forEach((fieldName) => {
+    const fields = $("#personEditor").elements;
+    fields[`${fieldName}Unknown`]?.addEventListener("change", () => syncPersonDateField(fields, fieldName));
+  });
 
   $("#loginForm").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -4010,9 +4051,9 @@ function bindEvents() {
       }
     }
     person.name = fields.name.value.trim();
-    person.birth = fields.birth.value.trim();
+    person.birth = normalizePersonDate(fields.birth.value, fields.birthUnknown?.checked);
     person.gender = normalizeGender(fields.gender.value);
-    person.death = fields.death.value.trim();
+    person.death = normalizePersonDate(fields.death.value, fields.deathUnknown?.checked);
     person.generation = generation;
     person.slot = Number(fields.slot.value || 0);
     person.photo = headshotMedia?.src || fields.photo.value.trim();
