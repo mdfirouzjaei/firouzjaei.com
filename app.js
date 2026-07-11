@@ -2402,6 +2402,34 @@ function renderTreeEmpty(nodes, searchTerm = "") {
   nodes.appendChild(empty);
 }
 
+function treeNodeAnchor(personId) {
+  const node = $$(".person-node").find((item) => item.dataset.id === personId);
+  if (!node) return null;
+  const rect = node.getBoundingClientRect();
+  return { personId, top: rect.top };
+}
+
+function restoreTreeNodeAnchor(anchor) {
+  if (!anchor) return;
+  requestAnimationFrame(() => {
+    const node = $$(".person-node").find((item) => item.dataset.id === anchor.personId);
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    window.scrollBy({
+      top: rect.top - anchor.top,
+      left: 0,
+      behavior: "auto",
+    });
+    node.focus({ preventScroll: true });
+  });
+}
+
+function renderTreeAroundPerson(personId) {
+  const anchor = treeNodeAnchor(personId);
+  renderTree();
+  restoreTreeNodeAnchor(anchor);
+}
+
 function renderTree() {
   const nodes = $("#treeNodes");
   const lines = $("#treeLines");
@@ -2476,6 +2504,7 @@ function renderTree() {
       toggleButton.title = isExpanded ? "بستن نسل های پایین تر" : "باز کردن نسل های پایین تر";
       toggleButton.setAttribute("aria-label", toggleButton.title);
       toggleButton.addEventListener("click", (event) => {
+        event.preventDefault();
         event.stopPropagation();
         if (expandedPersonIds.has(person.id)) {
           allRootsExpanded = false;
@@ -2488,7 +2517,7 @@ function renderTree() {
         } else {
           openPersonBranchOnly(person.id);
         }
-        renderTree();
+        renderTreeAroundPerson(person.id);
       });
     } else if (toggleButton) {
       toggleButton.hidden = true;
