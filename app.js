@@ -2009,12 +2009,17 @@ function collapsePersonBranch(personId) {
   descendantIdsOf(personId).forEach((id) => expandedPersonIds.delete(id));
 }
 
-function openPersonBranchOnly(personId) {
+function expandPersonBranch(personId) {
   allRootsExpanded = false;
-  const rootId = startingPersonIds().has(personId) ? personId : activeRootId || primaryRootForPerson(personId);
-  activeRootId = rootId && personById(rootId) ? rootId : null;
-  const path = activeRootId ? pathFromRootToPerson(activeRootId, personId) : [];
-  expandedPersonIds = new Set(path.length ? path : [activeRootId, personId].filter(Boolean));
+  const hadExpandedBranches = expandedPersonIds.size > 0;
+  if (!activeRootId && !hadExpandedBranches) {
+    const rootId = startingPersonIds().has(personId) ? personId : primaryRootForPerson(personId);
+    activeRootId = rootId && personById(rootId) ? rootId : null;
+  }
+  const pathRootId = activeRootId || primaryRootForPerson(personId);
+  const path = pathRootId ? pathFromRootToPerson(pathRootId, personId) : [];
+  path.forEach((pathId) => expandedPersonIds.add(pathId));
+  expandedPersonIds.add(personId);
 }
 
 function setActiveRoot(rootId = null) {
@@ -2508,14 +2513,9 @@ function renderTree() {
         event.stopPropagation();
         if (expandedPersonIds.has(person.id)) {
           allRootsExpanded = false;
-          if (startingPersonIds().has(person.id) && activeRootId === person.id) {
-            activeRootId = null;
-            expandedPersonIds = new Set();
-          } else {
-            collapsePersonBranch(person.id);
-          }
+          collapsePersonBranch(person.id);
         } else {
-          openPersonBranchOnly(person.id);
+          expandPersonBranch(person.id);
         }
         renderTreeAroundPerson(person.id);
       });
