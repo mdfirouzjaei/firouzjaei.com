@@ -1124,9 +1124,47 @@ async function githubContentsRequest(pathSuffix = "", options = {}) {
   if (response.status === 404) return null;
   if (!response.ok) {
     const detail = await response.json().catch(() => null);
-    throw new Error(detail?.message || "ارتباط با GitHub انجام نشد.");
+    const error = new Error(detail?.message || "ارتباط با GitHub انجام نشد.");
+    error.status = response.status;
+    error.detail = detail;
+    throw error;
   }
   return response.json();
+}
+
+function isGithubShaConflict(error) {
+  return error?.status === 409 || /sha|does not match/i.test(error?.message || "");
+}
+
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function putSharedStateFile(content, commitMessage) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const currentFile = await githubContentsRequest(`?ref=${encodeURIComponent(GITHUB_SYNC_CONFIG.branch)}`);
+    const body = {
+      message: commitMessage,
+      content: utf8ToBase64(content),
+      branch: GITHUB_SYNC_CONFIG.branch,
+    };
+    if (currentFile?.sha) body.sha = currentFile.sha;
+
+    try {
+      return await githubContentsRequest("", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      lastError = error;
+      if (!isGithubShaConflict(error) || attempt === 3) throw error;
+      setSyncMessage("فایل داده روی GitHub تازه‌تر شده بود؛ دوباره با نسخه جدید تلاش می‌کنم...", false, { toast: true, warning: true });
+      await wait(650 * attempt);
+    }
+  }
+  throw lastError || new Error("انتشار داده روی GitHub انجام نشد.");
 }
 
 async function publishSharedState({ silent = false } = {}) {
@@ -1140,20 +1178,9 @@ async function publishSharedState({ silent = false } = {}) {
   sharedPublishQueued = false;
   try {
     if (!silent) setSyncMessage("در حال انتشار داده روی GitHub...", false, { toast: true });
-    const currentFile = await githubContentsRequest(`?ref=${encodeURIComponent(GITHUB_SYNC_CONFIG.branch)}`);
     const snapshot = sharedStateSnapshot();
     const content = JSON.stringify(snapshot, null, 2);
-    const body = {
-      message: `Update family site data ${new Date().toISOString()}`,
-      content: utf8ToBase64(content),
-      branch: GITHUB_SYNC_CONFIG.branch,
-    };
-    if (currentFile?.sha) body.sha = currentFile.sha;
-    await githubContentsRequest("", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    await putSharedStateFile(content, `Update family site data ${new Date().toISOString()}`);
     state = snapshot;
     persistState();
     localOnlyNoticeShown = false;
