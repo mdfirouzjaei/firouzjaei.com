@@ -7,7 +7,24 @@
     }
   ],
   "subscribers": [],
-  "people": [],
+  "people": [
+    {
+      "id": "p1783801852478",
+      "spouseIds": [],
+      "parentIds": [],
+      "name": "Taco",
+      "birth": "",
+      "gender": "unknown",
+      "death": "",
+      "generation": 0,
+      "slot": 0,
+      "photo": "",
+      "story": "",
+      "photos": [],
+      "media": [],
+      "mentionHandle": "taco"
+    }
+  ],
   "gallery": [
     {
       "id": "processed-gallery-01",
@@ -640,7 +657,7 @@
   ],
   "bookSeedVersion": "demo-scenarios-2026-07-05",
   "publishedVersion": "site-state-v1",
-  "publishedAt": "2026-07-11T20:30:15.149Z",
-  "updatedAt": "2026-07-11T20:30:15.149Z",
+  "publishedAt": "2026-07-11T21:59:30.335Z",
+  "updatedAt": "2026-07-11T21:59:30.335Z",
   "gallerySeedVersion": "processed-jpg-gallery-2026-07-08"
 }
