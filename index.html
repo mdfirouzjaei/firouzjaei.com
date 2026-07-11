@@ -9,7 +9,7 @@
     />
     <title>خاندان فیروزجایی</title>
     <link rel="icon" type="image/svg+xml" sizes="any" href="assets/brand/firouzjaei-logo.svg?v=logo-svg-20260706" />
-    <link rel="stylesheet" href="styles.css?v=shared-state-20260711" />
+    <link rel="stylesheet" href="styles.css?v=github-sync-status-20260711" />
   </head>
   <body>
     <div class="app-shell">
@@ -52,6 +52,7 @@
           <button class="quick-button admin-only signout-button" type="button" data-logout>خروج</button>
         </div>
       </header>
+      <div class="sync-toast admin-only" id="syncToast" role="status" aria-live="polite"></div>
 
       <main>
         <section class="view active home-view" data-view="home">
@@ -394,6 +395,7 @@
                 <p>
                   <strong>ذخیره همگانی سایت</strong>
                   <span>برای اینکه تغییرات درخت روی موبایل و دستگاه‌های دیگر دیده شود، داده را روی GitHub منتشر کنید.</span>
+                  <small>بدون این مرحله، تغییرات فقط داخل همین مرورگر می‌ماند.</small>
                 </p>
               </div>
               <div class="form-grid">
@@ -590,6 +592,6 @@
     </template>
 
     <script src="assets/book/book-data.js?v=demo-tree-20260705"></script>
-    <script src="app.js?v=shared-state-20260711"></script>
+    <script src="app.js?v=github-sync-status-20260711"></script>
   </body>
 </html>

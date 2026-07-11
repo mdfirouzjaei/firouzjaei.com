@@ -2172,6 +2172,42 @@ body.admin-mode .admin-only {
   color: #9a243d;
 }
 
+.warning-message {
+  color: #72521a;
+}
+
+.sync-toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 80;
+  display: none;
+  max-width: min(440px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border: 1px solid rgba(36, 85, 76, 0.2);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--green);
+  box-shadow: var(--shadow);
+  line-height: 1.6;
+}
+
+body.admin-mode .sync-toast.visible {
+  display: block;
+}
+
+.sync-toast.warning {
+  border-color: rgba(185, 133, 40, 0.36);
+  background: #fffaf0;
+  color: #72521a;
+}
+
+.sync-toast.error {
+  border-color: rgba(154, 36, 61, 0.28);
+  background: #fff1f3;
+  color: #9a243d;
+}
+
 .admin-note {
   display: flex;
   align-items: center;

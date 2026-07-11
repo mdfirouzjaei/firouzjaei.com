@@ -765,6 +765,9 @@ let weatherForecastCache = null;
 let weatherForecastPromise = null;
 let sharedPublishTimer = null;
 let sharedPublishInProgress = false;
+let sharedPublishQueued = false;
+let syncToastTimer = null;
+let localOnlyNoticeShown = false;
 let mentionMenu = null;
 let mentionTarget = null;
 let mentionRange = null;
@@ -962,6 +965,16 @@ function saveState() {
   scheduleSharedPublish();
 }
 
+function notifyLocalOnlySave() {
+  if (!isAdmin() || localOnlyNoticeShown) return;
+  localOnlyNoticeShown = true;
+  setSyncMessage(
+    "ذخیره همگانی هنوز فعال نیست؛ تغییرات فقط در همین مرورگر می‌ماند. برای نمایش روی موبایل، در پنل مدیر بخش داده‌ها توکن GitHub را ذخیره کنید و «انتشار تغییرات روی سایت» را بزنید.",
+    false,
+    { toast: true, persistent: true, warning: true }
+  );
+}
+
 function stateTimestamp(value) {
   const timestamp = Date.parse(value?.updatedAt || value?.publishedAt || "");
   return Number.isFinite(timestamp) ? timestamp : 0;
@@ -1000,11 +1013,30 @@ function githubSyncToken() {
   return localStorage.getItem(GITHUB_SYNC_TOKEN_KEY) || sessionStorage.getItem(GITHUB_SYNC_TOKEN_KEY) || "";
 }
 
-function setSyncMessage(message, isError = false) {
+function showSyncToast(message, tone = "info", { persistent = false } = {}) {
+  const toast = $("#syncToast");
+  if (!toast) return;
+  clearTimeout(syncToastTimer);
+  toast.textContent = message;
+  toast.classList.toggle("visible", Boolean(message));
+  toast.classList.toggle("error", tone === "error");
+  toast.classList.toggle("warning", tone === "warning");
+  if (message && !persistent) {
+    syncToastTimer = window.setTimeout(() => {
+      toast.classList.remove("visible", "error", "warning");
+      toast.textContent = "";
+    }, 6500);
+  }
+}
+
+function setSyncMessage(message, isError = false, { toast = false, persistent = false, warning = false } = {}) {
   const target = $("#syncMessage") || $("#dataMessage");
-  if (!target) return;
-  target.textContent = message;
-  target.classList.toggle("error-message", Boolean(isError));
+  if (target) {
+    target.textContent = message;
+    target.classList.toggle("error-message", Boolean(isError));
+    target.classList.toggle("warning-message", Boolean(warning));
+  }
+  if (toast) showSyncToast(message, isError ? "error" : warning ? "warning" : "info", { persistent });
 }
 
 function syncTokenField() {
@@ -1030,11 +1062,24 @@ function utf8ToBase64(value) {
   return btoa(binary);
 }
 
+async function fetchPublishedStateJson() {
+  const urls = [SHARED_STATE_URL, "assets/data/site-state.json"];
+  let lastError = null;
+  for (const url of urls) {
+    try {
+      const response = await fetch(`${url}?v=${Date.now()}`, { cache: "no-store" });
+      if (response.ok) return response.json();
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("دریافت داده منتشرشده انجام نشد.");
+}
+
 async function loadPublishedState({ force = false, notify = false } = {}) {
   try {
-    const response = await fetch(`${SHARED_STATE_URL}?v=${Date.now()}`, { cache: "no-store" });
-    if (!response.ok) return false;
-    const publishedRaw = await response.json();
+    const publishedRaw = await fetchPublishedStateJson();
     const publishedState = normalizeState(publishedRaw);
     const localRawText = localStorage.getItem(STORAGE_KEY);
     const localRaw = localRawText ? JSON.parse(localRawText) : null;
@@ -1085,10 +1130,16 @@ async function githubContentsRequest(pathSuffix = "", options = {}) {
 }
 
 async function publishSharedState({ silent = false } = {}) {
-  if (!isAdmin() || sharedPublishInProgress) return false;
+  if (!isAdmin()) return false;
+  if (sharedPublishInProgress) {
+    sharedPublishQueued = true;
+    if (!silent) setSyncMessage("انتشار قبلی هنوز در حال انجام است؛ تغییر تازه بعد از آن منتشر می‌شود.", false, { toast: true, warning: true });
+    return false;
+  }
   sharedPublishInProgress = true;
+  sharedPublishQueued = false;
   try {
-    if (!silent) setSyncMessage("در حال انتشار داده روی سایت...");
+    if (!silent) setSyncMessage("در حال انتشار داده روی GitHub...", false, { toast: true });
     const currentFile = await githubContentsRequest(`?ref=${encodeURIComponent(GITHUB_SYNC_CONFIG.branch)}`);
     const snapshot = sharedStateSnapshot();
     const content = JSON.stringify(snapshot, null, 2);
@@ -1096,8 +1147,8 @@ async function publishSharedState({ silent = false } = {}) {
       message: `Update family site data ${new Date().toISOString()}`,
       content: utf8ToBase64(content),
       branch: GITHUB_SYNC_CONFIG.branch,
-      sha: currentFile?.sha,
     };
+    if (currentFile?.sha) body.sha = currentFile.sha;
     await githubContentsRequest("", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -1105,31 +1156,47 @@ async function publishSharedState({ silent = false } = {}) {
     });
     state = snapshot;
     persistState();
-    if (!silent) setSyncMessage("داده منتشر شد. چند لحظه بعد روی موبایل هم دیده می‌شود.");
+    localOnlyNoticeShown = false;
+    if (!silent) setSyncMessage("داده روی GitHub منتشر شد. چند لحظه بعد روی موبایل هم دیده می‌شود.", false, { toast: true });
     return true;
   } catch (error) {
-    if (!silent) setSyncMessage(error.message || "انتشار داده انجام نشد.", true);
+    if (!silent) {
+      setSyncMessage(
+        error.message || "انتشار داده روی GitHub انجام نشد.",
+        true,
+        { toast: true, persistent: true }
+      );
+    }
     return false;
   } finally {
     sharedPublishInProgress = false;
+    if (sharedPublishQueued && githubSyncToken() && isAdmin()) {
+      sharedPublishQueued = false;
+      scheduleSharedPublish();
+    }
   }
 }
 
 function scheduleSharedPublish() {
-  if (!githubSyncToken() || !isAdmin()) return;
+  if (!isAdmin()) return;
+  if (!githubSyncToken()) {
+    notifyLocalOnlySave();
+    return;
+  }
   clearTimeout(sharedPublishTimer);
   sharedPublishTimer = window.setTimeout(() => {
-    publishSharedState({ silent: true });
+    publishSharedState({ silent: false });
   }, 1600);
 }
 
-function saveGithubSyncToken() {
+async function saveGithubSyncToken() {
   const tokenInput = syncTokenField();
   const token = tokenInput?.value.trim() || "";
   if (!token) {
     localStorage.removeItem(GITHUB_SYNC_TOKEN_KEY);
     sessionStorage.removeItem(GITHUB_SYNC_TOKEN_KEY);
-    setSyncMessage("توکن GitHub پاک شد.");
+    setSyncMessage("توکن GitHub پاک شد. تغییرات بعدی فقط در همین مرورگر ذخیره می‌شود.", false, { toast: true, warning: true });
+    localOnlyNoticeShown = false;
     return;
   }
   const remember = $("#rememberGithubSyncToken")?.checked;
@@ -1137,8 +1204,15 @@ function saveGithubSyncToken() {
   const otherStorage = remember ? sessionStorage : localStorage;
   targetStorage.setItem(GITHUB_SYNC_TOKEN_KEY, token);
   otherStorage.removeItem(GITHUB_SYNC_TOKEN_KEY);
-  setSyncMessage("توکن GitHub ذخیره شد. از این به بعد تغییرات مدیر می‌تواند همگانی منتشر شود.");
-  publishSharedState();
+  setSyncMessage("توکن GitHub ذخیره شد. در حال آزمایش انتشار روی GitHub...", false, { toast: true });
+  const didPublish = await publishSharedState();
+  if (!didPublish) {
+    setSyncMessage(
+      "توکن ذخیره شد، اما انتشار موفق نبود. پیام خطا را بررسی کنید و مطمئن شوید توکن دسترسی Contents: Read and write دارد.",
+      true,
+      { toast: true, persistent: true }
+    );
+  }
 }
 
 function loadSession() {
@@ -3654,6 +3728,7 @@ function updateAdminStatus() {
   document.body.classList.toggle("admin-mode", isAdmin());
   const loginButton = $("[data-open-login]");
   if (loginButton) loginButton.textContent = isAdmin() ? "پنل مدیر" : "ورود مدیر";
+  if (isAdmin() && !githubSyncToken()) notifyLocalOnlySave();
 }
 
 function personOptions(selectedId = "", includeEmpty = true) {
