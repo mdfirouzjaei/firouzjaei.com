@@ -14,6 +14,7 @@ const MICROSOFT_CLIENT_ID = "4dc095fb-c566-428a-9c1c-b38e83abb289";
 const MICROSOFT_API_SCOPE = "api://6b50b1e0-1eed-4254-b036-397915168d73/access_as_user";
 const MICROSOFT_AUTHORITY = "https://login.microsoftonline.com/common";
 const MICROSOFT_LOGIN_RETURN_KEY = "firouzjaei-microsoft-login-return-v1";
+const MICROSOFT_AUTH_LIBRARY = "assets/vendor/microsoft-identity-client.min.js?v=5.17.0-20260711-retry";
 const TABARI_CALENDAR_PERIODS = [
   { id: "fardineh", monthNumber: 1, name: "فردینه ما", note: "آغاز سال تبری" },
   { id: "karcheh", monthNumber: 2, name: "کرچه ما", note: "" },
@@ -1251,8 +1252,26 @@ function saveSession(value) {
   }
 }
 
+function ensureMicrosoftAuthLibrary() {
+  if (window.msal?.PublicClientApplication) return Promise.resolve(true);
+  if (window.microsoftAuthLibraryPromise) return window.microsoftAuthLibraryPromise;
+
+  window.microsoftAuthLibraryPromise = new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = MICROSOFT_AUTH_LIBRARY;
+    script.async = true;
+    script.dataset.microsoftAuthFallback = "true";
+    script.addEventListener("load", () => resolve(Boolean(window.msal?.PublicClientApplication)), { once: true });
+    script.addEventListener("error", () => resolve(false), { once: true });
+    document.head.append(script);
+  });
+
+  return window.microsoftAuthLibraryPromise;
+}
+
 async function loadMicrosoftSession() {
-  if (!window.msal?.PublicClientApplication) {
+  const libraryReady = await ensureMicrosoftAuthLibrary();
+  if (!libraryReady) {
     microsoftAuthAvailable = false;
     saveSession(null);
     return false;
@@ -1264,17 +1283,41 @@ async function loadMicrosoftSession() {
         authority: MICROSOFT_AUTHORITY,
         redirectUri: `${window.location.origin}/`,
         postLogoutRedirectUri: `${window.location.origin}/`,
+        navigateToLoginRequestUrl: false,
       },
       cache: {
         cacheLocation: "localStorage",
       },
     });
     await microsoftAuthClient.initialize();
-    const redirectResult = await microsoftAuthClient.handleRedirectPromise();
+    microsoftAuthAvailable = true;
+  } catch (error) {
+    console.warn("Microsoft authentication initialization failed.", error);
+    microsoftAuthAvailable = false;
+    microsoftAuthClient = null;
+    microsoftAccount = null;
+    saveSession(null);
+    return false;
+  }
+
+  let redirectResult = null;
+  try {
+    redirectResult = await microsoftAuthClient.handleRedirectPromise();
+  } catch (error) {
+    console.warn("Microsoft authentication redirect could not be completed.", error);
+    if (!microsoftAuthClient.getAllAccounts().length) {
+      try {
+        await microsoftAuthClient.clearCache();
+      } catch (cacheError) {
+        console.warn("Microsoft authentication cache could not be reset.", cacheError);
+      }
+    }
+  }
+
+  try {
     const accounts = microsoftAuthClient.getAllAccounts();
     microsoftAccount = redirectResult?.account || microsoftAuthClient.getActiveAccount() || accounts[0] || null;
     if (microsoftAccount) microsoftAuthClient.setActiveAccount(microsoftAccount);
-    microsoftAuthAvailable = true;
     const email = String(microsoftAccount?.username || "").trim().toLowerCase();
     saveSession(email ? { email, provider: "microsoft", userId: microsoftAccount?.homeAccountId || "" } : null);
     const returnHash = sessionStorage.getItem(MICROSOFT_LOGIN_RETURN_KEY);
@@ -1283,9 +1326,8 @@ async function loadMicrosoftSession() {
       if (!window.location.hash) window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${returnHash}`);
     }
     return Boolean(email);
-  } catch {
-    microsoftAuthAvailable = false;
-    microsoftAuthClient = null;
+  } catch (error) {
+    console.warn("Microsoft authentication session could not be restored.", error);
     microsoftAccount = null;
     saveSession(null);
     return false;
@@ -1303,18 +1345,32 @@ async function microsoftAccessToken() {
 }
 
 async function loginWithMicrosoft() {
+  if (!microsoftAuthClient) await loadMicrosoftSession();
   if (!microsoftAuthClient) {
     $("#loginMessage").textContent = "سرویس ورود مایکروسافت آماده نیست. صفحه را تازه‌سازی کنید.";
     return;
   }
+  const loginRequest = {
+    scopes: [MICROSOFT_API_SCOPE],
+    prompt: "select_account",
+  };
   try {
     sessionStorage.setItem(MICROSOFT_LOGIN_RETURN_KEY, window.location.hash || "#tree");
-    await microsoftAuthClient.loginRedirect({
-      scopes: [MICROSOFT_API_SCOPE],
-      prompt: "select_account",
-      redirectStartPage: window.location.href,
-    });
-  } catch {
+    await microsoftAuthClient.loginRedirect(loginRequest);
+  } catch (error) {
+    if (error?.errorCode === "interaction_in_progress") {
+      try {
+        await microsoftAuthClient.clearCache();
+        microsoftAccount = null;
+        saveSession(null);
+        await microsoftAuthClient.loginRedirect(loginRequest);
+        return;
+      } catch (retryError) {
+        console.warn("Microsoft authentication retry failed.", retryError);
+      }
+    } else {
+      console.warn("Microsoft authentication could not start.", error);
+    }
     $("#loginMessage").textContent = "ورود مایکروسافت آغاز نشد. دوباره تلاش کنید.";
   }
 }
