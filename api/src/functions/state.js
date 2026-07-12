@@ -1,6 +1,6 @@
 const { app } = require("@azure/functions");
 const { BlobServiceClient } = require("@azure/storage-blob");
-const { randomBytes, scryptSync, timingSafeEqual } = require("node:crypto");
+const { createHash, randomBytes, scryptSync, timingSafeEqual } = require("node:crypto");
 const { SignJWT, jwtVerify } = require("jose");
 
 const OWNER_EMAIL = "mdfirouzjaei@gmail.com";
@@ -8,6 +8,8 @@ const CONTAINER_NAME = process.env.AZURE_STORAGE_CONTAINER || "site-data";
 const BLOB_NAME = process.env.AZURE_STATE_BLOB || "site-state.json";
 const CREDENTIALS_BLOB_NAME = process.env.AZURE_CREDENTIALS_BLOB || "admin-credentials.json";
 const MAX_STATE_BYTES = 32 * 1024 * 1024;
+const MAX_BACKUP_MEDIA_BYTES = 20 * 1024 * 1024;
+const RESTORED_MEDIA_PREFIX = "restored-media";
 const SITE_AUTH_SECRET = process.env.SITE_AUTH_SECRET || "";
 const OWNER_PASSWORD_HASH = process.env.OWNER_PASSWORD_HASH || "";
 const SITE_AUTH_ISSUER = "firouzjaei-family-api";
@@ -217,6 +219,138 @@ async function writeStateBlob(stored, state, ifMatch = "") {
     blobHTTPHeaders: { blobContentType: "application/json; charset=utf-8" },
     conditions: ifMatch && stored.etag ? { ifMatch } : undefined,
   });
+}
+
+function backupMediaDetails(source, declaredType = "") {
+  const extensionMatch = String(source || "").split(/[?#]/)[0].match(/\.([a-z0-9]{1,8})$/i);
+  const extension = extensionMatch ? `.${extensionMatch[1].toLowerCase()}` : "";
+  const mimeByExtension = {
+    ".avif": "image/avif",
+    ".gif": "image/gif",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".m4v": "video/mp4",
+    ".mov": "video/quicktime",
+    ".mp3": "audio/mpeg",
+    ".mp4": "video/mp4",
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".webm": "video/webm",
+    ".webp": "image/webp",
+  };
+  const normalizedType = String(declaredType || "").split(";")[0].trim().toLowerCase();
+  const contentType = normalizedType && normalizedType !== "application/octet-stream" ? normalizedType : mimeByExtension[extension] || "";
+  const supported = /^(?:image|video|audio)\/[a-z0-9][a-z0-9.+-]*$/.test(contentType) || contentType === "application/pdf";
+  return { extension, contentType, supported };
+}
+
+function decodeBackupDataUrl(dataUrl) {
+  const match = String(dataUrl || "").match(/^data:([^;,]+);base64,([a-z0-9+/=\r\n]+)$/i);
+  if (!match) throw new Error("Backup media is not a valid base64 data URL.");
+  return { declaredType: match[1], buffer: Buffer.from(match[2].replace(/\s+/g, ""), "base64") };
+}
+
+async function uploadBackupMedia(request, context) {
+  try {
+    const email = await authenticatedEmail(request);
+    if (!email) return jsonResponse(401, { message: "نشست مدیریت پایان یافته است؛ دوباره وارد شوید." });
+    if (email !== OWNER_EMAIL) return jsonResponse(403, { message: "فقط مالک می‌تواند پشتیبان کامل را بازیابی کند." });
+
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonResponse(400, { message: "فایل رسانه‌ای پشتیبان معتبر نیست." });
+    }
+    const source = String(body?.source || "").trim();
+    const declaredSize = Number(body?.size);
+    const expectedHash = String(body?.sha256 || "").trim().toLowerCase();
+    if (!source || source.length > 4096) return jsonResponse(400, { message: "نشانی فایل رسانه‌ای پشتیبان معتبر نیست." });
+    if (!Number.isSafeInteger(declaredSize) || declaredSize <= 0 || declaredSize > MAX_BACKUP_MEDIA_BYTES) {
+      return jsonResponse(422, { message: "اندازه فایل رسانه‌ای پشتیبان معتبر نیست." });
+    }
+    if (!/^[a-f0-9]{64}$/.test(expectedHash)) {
+      return jsonResponse(422, { message: "شناسه فایل رسانه‌ای پشتیبان معتبر نیست." });
+    }
+
+    let declaredType;
+    let buffer;
+    try {
+      ({ declaredType, buffer } = decodeBackupDataUrl(body?.dataUrl));
+    } catch {
+      return jsonResponse(400, { message: "فایل رسانه‌ای پشتیبان معتبر نیست." });
+    }
+    if (!buffer.length) return jsonResponse(400, { message: "فایل رسانه‌ای پشتیبان خالی است." });
+    if (declaredSize !== buffer.length) {
+      return jsonResponse(422, { message: "اندازه فایل پشتیبان با فهرست آن مطابقت ندارد." });
+    }
+    if (buffer.length > MAX_BACKUP_MEDIA_BYTES) {
+      return jsonResponse(413, { message: "حجم یکی از فایل‌های پشتیبان بیش از حد مجاز است." });
+    }
+
+    const details = backupMediaDetails(source, body?.mimeType || declaredType);
+    if (!details.supported) return jsonResponse(415, { message: "نوع یکی از فایل‌های پشتیبان پشتیبانی نمی‌شود." });
+    const hash = createHash("sha256").update(buffer).digest("hex");
+    if (expectedHash !== hash) {
+      return jsonResponse(422, { message: "فایل پشتیبان آسیب دیده است؛ شناسه فایل مطابقت ندارد." });
+    }
+
+    const id = `${hash}${details.extension}`;
+    const container = await getContainerClient();
+    const blob = container.getBlockBlobClient(`${RESTORED_MEDIA_PREFIX}/${id}`);
+    if (!(await blob.exists())) {
+      try {
+        await blob.uploadData(buffer, {
+          blobHTTPHeaders: {
+            blobContentType: details.contentType,
+            blobCacheControl: "public, max-age=31536000, immutable",
+          },
+          conditions: { ifNoneMatch: "*" },
+        });
+      } catch (error) {
+        if (error?.statusCode !== 409 && error?.statusCode !== 412) throw error;
+      }
+    }
+
+    const origin = new URL(request.url).origin;
+    return jsonResponse(200, {
+      source,
+      sha256: hash,
+      size: buffer.length,
+      src: `${origin}/api/media/${id}`,
+    });
+  } catch (error) {
+    context.error("Unable to restore backup media", error);
+    return jsonResponse(500, { message: "بازیابی فایل رسانه‌ای در Azure انجام نشد." });
+  }
+}
+
+async function getRestoredMedia(request, context) {
+  try {
+    const id = String(request.params?.id || "").toLowerCase();
+    if (!/^[a-f0-9]{64}(?:\.[a-z0-9]{1,8})?$/.test(id)) return { status: 404 };
+    const container = await getContainerClient();
+    const blob = container.getBlockBlobClient(`${RESTORED_MEDIA_PREFIX}/${id}`);
+    const download = await blob.download();
+    const buffer = await streamToBuffer(download.readableStreamBody);
+    return {
+      status: 200,
+      body: buffer,
+      headers: {
+        "Cache-Control": download.cacheControl || "public, max-age=31536000, immutable",
+        "Content-Length": String(buffer.length),
+        "Content-Type": download.contentType || "application/octet-stream",
+        "Content-Disposition": "inline",
+        "X-Content-Type-Options": "nosniff",
+        ...(download.etag ? { ETag: download.etag } : {}),
+      },
+    };
+  } catch (error) {
+    if (error?.statusCode === 404) return { status: 404 };
+    context.error("Unable to read restored media", error);
+    return { status: 500 };
+  }
 }
 
 function loginAttemptKey(request, email) {
@@ -440,6 +574,20 @@ app.http("deleteAdmin", {
   authLevel: "anonymous",
   route: "auth/admins/{email}",
   handler: deleteAdmin,
+});
+
+app.http("uploadBackupMedia", {
+  methods: ["POST"],
+  authLevel: "anonymous",
+  route: "backup/media",
+  handler: uploadBackupMedia,
+});
+
+app.http("getRestoredMedia", {
+  methods: ["GET"],
+  authLevel: "anonymous",
+  route: "media/{id}",
+  handler: getRestoredMedia,
 });
 
 app.http("putSharedState", {

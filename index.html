@@ -9,7 +9,7 @@
     />
     <title>خاندان فیروزجایی</title>
     <link rel="icon" type="image/svg+xml" sizes="any" href="assets/brand/firouzjaei-logo.svg?v=logo-svg-20260706" />
-    <link rel="stylesheet" href="styles.css?v=azure-sync-20260711" />
+    <link rel="stylesheet" href="styles.css?v=full-backup-20260712" />
   </head>
   <body>
     <div class="app-shell">
@@ -405,8 +405,19 @@
               <div class="sync-diagnostics" id="syncDiagnostics"></div>
               <p class="form-message" id="syncMessage"></p>
             </div>
+            <div class="full-backup-panel full-backup-owner-tools">
+              <strong>پشتیبان کامل سایت</strong>
+              <p class="muted-note">همه داده‌های محتوایی و رسانه‌های پیوندشده در یک فایل JSON ذخیره می‌شوند. حساب‌ها و رمزهای مدیران تغییر نمی‌کنند.</p>
+              <div class="data-tools">
+                <button class="primary-action" type="button" data-export-full-backup>دانلود پشتیبان کامل</button>
+                <button class="soft-action" type="button" data-restore-full-backup>بازیابی پشتیبان</button>
+                <input id="fullBackupFile" type="file" accept="application/json,.json" hidden />
+              </div>
+              <progress class="backup-progress" id="backupProgress" max="1" value="0" hidden></progress>
+              <p class="form-message" id="backupMessage" role="status"></p>
+            </div>
             <div class="data-tools">
-              <button class="soft-action" type="button" data-export-data>خروجی گرفتن</button>
+              <button class="soft-action" type="button" data-export-data>نمایش JSON داده‌ها</button>
               <button class="danger-action" type="button" data-reset-data>بازگشت به داده آزمایشی</button>
             </div>
             <label>ورود داده
@@ -582,6 +593,6 @@
     </template>
 
     <script src="assets/book/book-data.js?v=demo-tree-20260705"></script>
-    <script src="app.js?v=azure-email-auth-20260711"></script>
+    <script src="app.js?v=full-backup-20260712"></script>
   </body>
 </html>

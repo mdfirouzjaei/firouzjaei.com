@@ -13,6 +13,11 @@ const AZURE_STATE_API = "https://firouzjaei-family-api.azurewebsites.net/api/sta
 const AZURE_API_BASE = AZURE_STATE_API.replace(/\/state$/, "");
 const ADMIN_LOGIN_API = `${AZURE_API_BASE}/auth/login`;
 const ADMIN_ACCOUNTS_API = `${AZURE_API_BASE}/auth/admins`;
+const BACKUP_MEDIA_API = `${AZURE_API_BASE}/backup/media`;
+const FULL_BACKUP_FORMAT = "firouzjaei-full-backup";
+const FULL_BACKUP_VERSION = 1;
+const MAX_BACKUP_FILE_COUNT = 2000;
+const MAX_BACKUP_MEDIA_BYTES = 20 * 1024 * 1024;
 const TABARI_CALENDAR_PERIODS = [
   { id: "fardineh", monthNumber: 1, name: "فردینه ما", note: "آغاز سال تبری" },
   { id: "karcheh", monthNumber: 2, name: "کرچه ما", note: "" },
@@ -3803,6 +3808,7 @@ function openHistoryEditor(articleId = "") {
 
 function updateAdminStatus() {
   document.body.classList.toggle("admin-mode", isAdmin());
+  document.body.classList.toggle("owner-mode", isOwner());
   const loginButton = $("[data-open-login]");
   if (loginButton) loginButton.textContent = isAdmin() ? "پنل مدیر" : "ورود مدیر";
   if (isAdmin() && !azureBackendAvailable) notifyLocalOnlySave();
@@ -4385,6 +4391,393 @@ async function removeAdminAccount(email) {
   }
 }
 
+function setBackupMessage(message, isError = false) {
+  const target = $("#backupMessage");
+  if (!target) return;
+  target.textContent = message;
+  target.classList.toggle("error-message", Boolean(isError));
+}
+
+function setBackupBusy(busy) {
+  $$('[data-export-full-backup], [data-restore-full-backup]').forEach((button) => {
+    button.disabled = Boolean(busy);
+  });
+}
+
+function setBackupProgress(value, max = 1) {
+  const progress = $("#backupProgress");
+  if (!progress) return;
+  progress.hidden = false;
+  progress.max = Math.max(1, Number(max) || 1);
+  progress.value = Math.min(progress.max, Math.max(0, Number(value) || 0));
+}
+
+function formatBackupBytes(bytes) {
+  const megabytes = Number(bytes || 0) / (1024 * 1024);
+  return `${new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 1 }).format(megabytes)} مگابایت`;
+}
+
+function isBackupMediaSource(value) {
+  if (typeof value !== "string" || !value || value.startsWith("data:")) return false;
+  try {
+    const url = new URL(value, window.location.href);
+    const azureOrigin = new URL(AZURE_API_BASE).origin;
+    return (
+      (url.origin === window.location.origin && url.pathname.startsWith("/assets/")) ||
+      (url.origin === azureOrigin && url.pathname.startsWith("/api/media/"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+function collectBackupMediaSources(value) {
+  const sources = new Set();
+  const visit = (item) => {
+    if (typeof item === "string") {
+      if (isBackupMediaSource(item)) sources.add(item);
+      return;
+    }
+    if (Array.isArray(item)) {
+      item.forEach(visit);
+      return;
+    }
+    if (item && typeof item === "object") Object.values(item).forEach(visit);
+  };
+  visit(value);
+  return Array.from(sources).sort((a, b) => a.localeCompare(b, "fa"));
+}
+
+function bytesToBase64(bytes) {
+  const chunkSize = 0x8000;
+  const chunks = [];
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    chunks.push(String.fromCharCode(...bytes.subarray(offset, offset + chunkSize)));
+  }
+  return btoa(chunks.join(""));
+}
+
+function bytesToHex(bytes) {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function sha256Hex(value) {
+  const input = typeof value === "string" ? new TextEncoder().encode(value) : value;
+  const digest = await crypto.subtle.digest("SHA-256", input);
+  return bytesToHex(new Uint8Array(digest));
+}
+
+function backupSourceName(source) {
+  const pathname = new URL(source, window.location.href).pathname;
+  const encodedName = pathname.split("/").filter(Boolean).pop() || "media";
+  try {
+    return decodeURIComponent(encodedName);
+  } catch {
+    return encodedName;
+  }
+}
+
+async function fetchPrivateStateForBackup() {
+  if (!session?.token) throw new Error("نشست مدیریت پایان یافته است؛ دوباره وارد شوید.");
+  const response = await fetch(`${AZURE_STATE_API}?v=${Date.now()}`, {
+    cache: "no-store",
+    headers: { Authorization: `Bearer ${session.token}` },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(payload?.message || "دریافت داده کامل سایت از Azure انجام نشد.");
+    error.status = response.status;
+    throw error;
+  }
+  return { state: payload, etag: response.headers.get("etag") || "" };
+}
+
+async function fetchBackupMediaRecord(source) {
+  const response = await fetch(new URL(source, window.location.href).href, { cache: "no-store" });
+  if (!response.ok) throw new Error(`دریافت فایل «${backupSourceName(source)}» انجام نشد.`);
+  const blob = await response.blob();
+  if (!blob.size) throw new Error(`فایل «${backupSourceName(source)}» خالی است.`);
+  if (blob.size > MAX_BACKUP_MEDIA_BYTES) throw new Error(`حجم فایل «${backupSourceName(source)}» بیش از حد مجاز است.`);
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const mimeType = blob.type || "application/octet-stream";
+  return {
+    source,
+    name: backupSourceName(source),
+    mimeType,
+    size: bytes.length,
+    sha256: await sha256Hex(bytes),
+    dataUrl: `data:${mimeType};base64,${bytesToBase64(bytes)}`,
+  };
+}
+
+function downloadBackupBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+}
+
+async function exportFullBackup() {
+  if (!isOwner()) {
+    setBackupMessage("فقط مالک می‌تواند پشتیبان کامل سایت را دریافت کند.", true);
+    return;
+  }
+  setBackupBusy(true);
+  setBackupProgress(0, 1);
+  setBackupMessage("در حال دریافت تازه‌ترین داده سایت از Azure...");
+  try {
+    const latest = await fetchPrivateStateForBackup();
+    const backupState = normalizeState(clone(latest.state));
+    const sources = collectBackupMediaSources(backupState);
+    if (sources.length > MAX_BACKUP_FILE_COUNT) throw new Error("تعداد فایل‌های سایت بیش از حد مجاز پشتیبان است.");
+    setBackupProgress(0, Math.max(1, sources.length));
+
+    const fileLines = [];
+    let totalFileBytes = 0;
+    const batchSize = 3;
+    for (let offset = 0; offset < sources.length; offset += batchSize) {
+      const records = await Promise.all(sources.slice(offset, offset + batchSize).map(fetchBackupMediaRecord));
+      records.forEach((record) => {
+        totalFileBytes += record.size;
+        fileLines.push(JSON.stringify(record));
+      });
+      const completed = Math.min(sources.length, offset + records.length);
+      setBackupProgress(completed, Math.max(1, sources.length));
+      setBackupMessage(`در حال گردآوری فایل‌ها: ${toPersianDigits(completed)} از ${toPersianDigits(sources.length)}`);
+    }
+
+    const stateJson = JSON.stringify(backupState);
+    const createdAt = new Date().toISOString();
+    const header = {
+      format: FULL_BACKUP_FORMAT,
+      version: FULL_BACKUP_VERSION,
+      createdAt,
+      site: "firouzjaei.com",
+      fileCount: fileLines.length,
+      totalFileBytes,
+      stateSha256: await sha256Hex(stateJson),
+      state: backupState,
+    };
+    const headerJson = JSON.stringify(header);
+    const parts = [`${headerJson.slice(0, -1)},\"files\":[\n`];
+    fileLines.forEach((line, index) => {
+      parts.push(line, index < fileLines.length - 1 ? ",\n" : "\n");
+    });
+    parts.push("]}\n");
+    const blob = new Blob(parts, { type: "application/json;charset=utf-8" });
+    const timestamp = createdAt.replace(/[:.]/g, "-");
+    downloadBackupBlob(blob, `firouzjaei-full-backup-${timestamp}.json`);
+    setBackupMessage(
+      `پشتیبان کامل با ${toPersianDigits(fileLines.length)} فایل و حجم ${formatBackupBytes(totalFileBytes)} آماده و دانلود شد.`
+    );
+  } catch (error) {
+    if (error.status === 401) logoutAdmin();
+    setBackupMessage(error.message || "ساخت پشتیبان کامل انجام نشد.", true);
+  } finally {
+    setBackupBusy(false);
+  }
+}
+
+async function forEachBackupLine(file, onLine) {
+  const reader = file.stream().getReader();
+  const decoder = new TextDecoder();
+  let lineParts = [];
+  const consumeText = async (text) => {
+    let start = 0;
+    let newlineIndex = text.indexOf("\n", start);
+    while (newlineIndex >= 0) {
+      lineParts.push(text.slice(start, newlineIndex));
+      await onLine(lineParts.join(""));
+      lineParts = [];
+      start = newlineIndex + 1;
+      newlineIndex = text.indexOf("\n", start);
+    }
+    if (start < text.length) lineParts.push(text.slice(start));
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    await consumeText(decoder.decode(value, { stream: true }));
+  }
+  await consumeText(decoder.decode());
+  if (lineParts.length) await onLine(lineParts.join(""));
+}
+
+function validateBackupHeader(header) {
+  if (!header || header.format !== FULL_BACKUP_FORMAT || header.version !== FULL_BACKUP_VERSION) {
+    throw new Error("این فایل، پشتیبان کامل معتبر خاندان فیروزجایی نیست.");
+  }
+  if (!header.state || typeof header.state !== "object" || Array.isArray(header.state)) {
+    throw new Error("داده اصلی پشتیبان معتبر نیست.");
+  }
+  if (!Number.isInteger(header.fileCount) || header.fileCount < 0 || header.fileCount > MAX_BACKUP_FILE_COUNT) {
+    throw new Error("تعداد فایل‌های پشتیبان معتبر نیست.");
+  }
+  if (
+    !Number.isSafeInteger(header.totalFileBytes) ||
+    header.totalFileBytes < 0 ||
+    header.totalFileBytes > header.fileCount * MAX_BACKUP_MEDIA_BYTES
+  ) {
+    throw new Error("حجم کل فایل‌های پشتیبان معتبر نیست.");
+  }
+  if (!/^[a-f0-9]{64}$/.test(String(header.stateSha256 || "").toLowerCase())) {
+    throw new Error("شناسه داده فایل پشتیبان معتبر نیست.");
+  }
+}
+
+async function uploadBackupMediaRecord(record) {
+  if (!record || typeof record.source !== "string" || typeof record.dataUrl !== "string") {
+    throw new Error("یکی از فایل‌های پشتیبان معتبر نیست.");
+  }
+  if (!Number.isSafeInteger(record.size) || record.size <= 0 || record.size > MAX_BACKUP_MEDIA_BYTES) {
+    throw new Error(`حجم فایل «${record.name || "رسانه"}» معتبر نیست.`);
+  }
+  if (!/^[a-f0-9]{64}$/.test(String(record.sha256 || "").toLowerCase())) {
+    throw new Error(`شناسه فایل «${record.name || "رسانه"}» معتبر نیست.`);
+  }
+  const response = await fetch(BACKUP_MEDIA_API, {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.token}`,
+    },
+    body: JSON.stringify(record),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload?.src) {
+    const error = new Error(payload?.message || `بازیابی فایل «${record.name || "رسانه"}» انجام نشد.`);
+    error.status = response.status;
+    throw error;
+  }
+  return { source: record.source, src: payload.src };
+}
+
+function replaceBackupMediaSources(value, sourceMap) {
+  if (typeof value === "string") return sourceMap.get(value) || value;
+  if (Array.isArray(value)) return value.map((item) => replaceBackupMediaSources(item, sourceMap));
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replaceBackupMediaSources(item, sourceMap)]));
+}
+
+async function publishRestoredBackup(restoredState, etag) {
+  const response = await fetch(AZURE_STATE_API, {
+    method: "PUT",
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.token}`,
+      ...(etag ? { "If-Match": etag } : {}),
+    },
+    body: JSON.stringify(restoredState),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(payload?.message || "جایگزینی داده پشتیبان در Azure انجام نشد.");
+    error.status = response.status;
+    throw error;
+  }
+  remoteStateEtag = response.headers.get("etag") || remoteStateEtag;
+  state = normalizeState(payload?.state || restoredState);
+  persistState();
+  refreshAll();
+}
+
+async function restoreFullBackup(file) {
+  if (!isOwner()) {
+    setBackupMessage("فقط مالک می‌تواند پشتیبان کامل سایت را بازیابی کند.", true);
+    return;
+  }
+  if (!file) return;
+  setBackupBusy(true);
+  setBackupProgress(0, 1);
+  setBackupMessage("در حال بررسی فایل پشتیبان...");
+  try {
+    const current = await fetchPrivateStateForBackup();
+    let header = null;
+    let finished = false;
+    let readFileCount = 0;
+    let readFileBytes = 0;
+    let uploadBatch = [];
+    const sourceMap = new Map();
+    const readSources = new Set();
+    let expectedSources = null;
+
+    const flushUploads = async () => {
+      if (!uploadBatch.length) return;
+      const restoredFiles = await Promise.all(uploadBatch.map(uploadBackupMediaRecord));
+      restoredFiles.forEach((item) => sourceMap.set(item.source, item.src));
+      uploadBatch = [];
+      setBackupProgress(readFileCount, Math.max(1, header?.fileCount || 1));
+      setBackupMessage(`در حال بازیابی فایل‌ها: ${toPersianDigits(readFileCount)} از ${toPersianDigits(header?.fileCount || 0)}`);
+    };
+
+    await forEachBackupLine(file, async (rawLine) => {
+      const line = rawLine.replace(/^\uFEFF/, "").trim();
+      if (!line) return;
+      if (!header) {
+        const marker = ',"files":[';
+        if (!line.endsWith(marker)) throw new Error("ساختار فایل پشتیبان معتبر نیست.");
+        header = JSON.parse(`${line.slice(0, -marker.length)}}`);
+        validateBackupHeader(header);
+        expectedSources = new Set(collectBackupMediaSources(header.state));
+        if (expectedSources.size !== header.fileCount) {
+          throw new Error("فهرست فایل‌های پشتیبان با داده سایت مطابقت ندارد.");
+        }
+        const stateJson = JSON.stringify(header.state);
+        if ((await sha256Hex(stateJson)) !== header.stateSha256.toLowerCase()) {
+          throw new Error("بخش داده فایل پشتیبان آسیب دیده است.");
+        }
+        setBackupProgress(0, Math.max(1, header.fileCount));
+        return;
+      }
+      if (line === "]}") {
+        await flushUploads();
+        finished = true;
+        return;
+      }
+      if (finished) throw new Error("پس از پایان پشتیبان داده اضافی پیدا شد.");
+      const record = JSON.parse(line.endsWith(",") ? line.slice(0, -1) : line);
+      if (!expectedSources.has(record?.source)) throw new Error("یک فایل ناشناس در پشتیبان پیدا شد.");
+      if (readSources.has(record.source)) throw new Error("یک فایل در پشتیبان بیش از یک بار ثبت شده است.");
+      readSources.add(record.source);
+      readFileCount += 1;
+      readFileBytes += Number(record.size || 0);
+      if (readFileCount > header.fileCount) throw new Error("تعداد فایل‌های پشتیبان با فهرست آن مطابقت ندارد.");
+      uploadBatch.push(record);
+      if (uploadBatch.length >= 2) await flushUploads();
+    });
+
+    if (!header || !finished) throw new Error("فایل پشتیبان کامل نیست.");
+    if (
+      readFileCount !== header.fileCount ||
+      readFileBytes !== header.totalFileBytes ||
+      sourceMap.size !== expectedSources.size
+    ) {
+      throw new Error("اندازه یا تعداد فایل‌های پشتیبان مطابقت ندارد.");
+    }
+    const restoredState = normalizeState(replaceBackupMediaSources(header.state, sourceMap));
+    setBackupMessage("در حال جایگزینی داده کامل سایت در Azure...");
+    await publishRestoredBackup(restoredState, current.etag);
+    setBackupProgress(Math.max(1, header.fileCount), Math.max(1, header.fileCount));
+    setBackupMessage(
+      `پشتیبان ${toPersianDigits(header.fileCount)} فایل با موفقیت بازیابی شد و سایت به‌روز شد.`
+    );
+  } catch (error) {
+    if (error.status === 401) logoutAdmin();
+    const message = error.status === 412 ? "در زمان بازیابی، نسخه تازه‌تری در Azure ذخیره شد؛ دوباره تلاش کنید." : error.message;
+    setBackupMessage(message || "بازیابی پشتیبان کامل انجام نشد.", true);
+  } finally {
+    setBackupBusy(false);
+    $("#fullBackupFile").value = "";
+  }
+}
+
 function setAdminTab(tab) {
   $$(".admin-tabs .tab").forEach((button) => button.classList.toggle("active", button.dataset.adminTab === tab));
   $$("[data-admin-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.adminPanel === tab));
@@ -4723,6 +5116,19 @@ function bindEvents() {
     $("#historyEditorDialog").close();
     refreshAll();
     routeTo("article", { articleId: nextArticle.id });
+  });
+
+  $("[data-export-full-backup]").addEventListener("click", exportFullBackup);
+  $("[data-restore-full-backup]").addEventListener("click", () => $("#fullBackupFile").click());
+  $("#fullBackupFile").addEventListener("change", (event) => {
+    const file = event.currentTarget.files?.[0];
+    if (!file) return;
+    const confirmed = window.confirm("این پشتیبان جایگزین تمام داده فعلی سایت می‌شود. بازیابی انجام شود؟");
+    if (!confirmed) {
+      event.currentTarget.value = "";
+      return;
+    }
+    restoreFullBackup(file);
   });
 
   $("[data-export-data]").addEventListener("click", () => {
