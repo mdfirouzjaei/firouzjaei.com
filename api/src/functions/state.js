@@ -1,16 +1,21 @@
 const { app } = require("@azure/functions");
 const { BlobServiceClient } = require("@azure/storage-blob");
-const { createRemoteJWKSet, jwtVerify } = require("jose");
+const { randomBytes, scryptSync, timingSafeEqual } = require("node:crypto");
+const { SignJWT, jwtVerify } = require("jose");
 
 const OWNER_EMAIL = "mdfirouzjaei@gmail.com";
 const CONTAINER_NAME = process.env.AZURE_STORAGE_CONTAINER || "site-data";
 const BLOB_NAME = process.env.AZURE_STATE_BLOB || "site-state.json";
+const CREDENTIALS_BLOB_NAME = process.env.AZURE_CREDENTIALS_BLOB || "admin-credentials.json";
 const MAX_STATE_BYTES = 32 * 1024 * 1024;
-const MICROSOFT_API_AUDIENCE = process.env.MICROSOFT_API_AUDIENCE || "6b50b1e0-1eed-4254-b036-397915168d73";
-const MICROSOFT_API_SCOPE = "access_as_user";
-const MICROSOFT_JWKS = createRemoteJWKSet(new URL("https://login.microsoftonline.com/common/discovery/v2.0/keys"));
+const SITE_AUTH_SECRET = process.env.SITE_AUTH_SECRET || "";
+const OWNER_PASSWORD_HASH = process.env.OWNER_PASSWORD_HASH || "";
+const SITE_AUTH_ISSUER = "firouzjaei-family-api";
+const SITE_AUTH_AUDIENCE = "firouzjaei.com";
+const SITE_SESSION_SECONDS = 30 * 24 * 60 * 60;
 
 let containerPromise = null;
+const loginAttempts = new Map();
 
 function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
@@ -29,52 +34,36 @@ function jsonResponse(status, body, etag = "") {
   };
 }
 
-function clientPrincipal(request) {
-  const encoded = request.headers.get("x-ms-client-principal");
-  if (!encoded) return null;
+function authSecretKey() {
+  const key = Buffer.from(SITE_AUTH_SECRET, "base64");
+  if (key.length < 32) throw new Error("Site authentication is not configured.");
+  return key;
+}
+
+async function bearerSession(request) {
+  const authorization = request.headers.get("authorization") || "";
+  if (!authorization.toLowerCase().startsWith("bearer ")) return null;
+  const token = authorization.slice(7).trim();
+  if (!token) return null;
+  const { payload } = await jwtVerify(token, authSecretKey(), {
+    issuer: SITE_AUTH_ISSUER,
+    audience: SITE_AUTH_AUDIENCE,
+    algorithms: ["HS256"],
+  });
+  const email = normalizeEmail(payload?.email || payload?.sub);
+  return email ? { email, role: payload?.role === "owner" ? "owner" : "admin" } : null;
+}
+
+async function authenticatedSession(request) {
   try {
-    return JSON.parse(Buffer.from(encoded, "base64").toString("utf8"));
+    return await bearerSession(request);
   } catch {
     return null;
   }
 }
 
-function principalEmail(principal) {
-  const claims = Array.isArray(principal?.claims) ? principal.claims : [];
-  const emailClaim = claims.find((claim) => {
-    const type = String(claim?.typ || claim?.type || "").toLowerCase();
-    return type === "email" || type === "emails" || type === "preferred_username" || type.endsWith("/emailaddress");
-  });
-  return normalizeEmail(principal?.userDetails || emailClaim?.val || emailClaim?.value);
-}
-
-function hasValidMicrosoftIssuer(payload) {
-  const tenantId = String(payload?.tid || "").toLowerCase();
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(tenantId)) return false;
-  return payload?.iss === `https://login.microsoftonline.com/${tenantId}/v2.0`;
-}
-
-async function bearerEmail(request) {
-  const authorization = request.headers.get("authorization") || "";
-  if (!authorization.toLowerCase().startsWith("bearer ")) return "";
-  const token = authorization.slice(7).trim();
-  if (!token) return "";
-  const { payload } = await jwtVerify(token, MICROSOFT_JWKS, {
-    audience: [MICROSOFT_API_AUDIENCE, `api://${MICROSOFT_API_AUDIENCE}`],
-  });
-  const scopes = String(payload?.scp || "").split(/\s+/).filter(Boolean);
-  if (!hasValidMicrosoftIssuer(payload) || !scopes.includes(MICROSOFT_API_SCOPE)) return "";
-  return normalizeEmail(payload?.preferred_username || payload?.email || payload?.upn);
-}
-
 async function authenticatedEmail(request) {
-  try {
-    const tokenEmail = await bearerEmail(request);
-    if (tokenEmail) return tokenEmail;
-  } catch {
-    return "";
-  }
-  return principalEmail(clientPrincipal(request));
+  return (await authenticatedSession(request))?.email || "";
 }
 
 function sanitizeState(value) {
@@ -108,6 +97,67 @@ function isAdminEmail(email, state) {
   return (state?.admins || []).some((admin) => normalizeEmail(admin?.email) === normalized);
 }
 
+function passwordHash(password) {
+  const salt = randomBytes(16);
+  const cost = 16384;
+  const blockSize = 8;
+  const parallelization = 1;
+  const derived = scryptSync(String(password), salt, 64, {
+    N: cost,
+    r: blockSize,
+    p: parallelization,
+    maxmem: 64 * 1024 * 1024,
+  });
+  return ["scrypt", cost, blockSize, parallelization, salt.toString("base64"), derived.toString("base64")].join("$");
+}
+
+function passwordMatches(password, encodedHash) {
+  const [algorithm, costRaw, blockSizeRaw, parallelizationRaw, saltRaw, hashRaw] = String(encodedHash || "").split("$");
+  if (algorithm !== "scrypt" || !saltRaw || !hashRaw) return false;
+  const expected = Buffer.from(hashRaw, "base64");
+  if (!expected.length) return false;
+  const actual = scryptSync(String(password), Buffer.from(saltRaw, "base64"), expected.length, {
+    N: Number(costRaw),
+    r: Number(blockSizeRaw),
+    p: Number(parallelizationRaw),
+    maxmem: 64 * 1024 * 1024,
+  });
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+function normalizeCredentials(value) {
+  const credentials = (Array.isArray(value) ? value : [])
+    .map((credential) => ({
+      email: normalizeEmail(credential?.email),
+      role: credential?.role === "owner" ? "owner" : "admin",
+      passwordHash: String(credential?.passwordHash || ""),
+      updatedAt: String(credential?.updatedAt || ""),
+    }))
+    .filter((credential) => credential.email && credential.passwordHash);
+  const owner = credentials.find((credential) => credential.email === OWNER_EMAIL);
+  if (owner) owner.role = "owner";
+  else if (OWNER_PASSWORD_HASH) {
+    credentials.unshift({
+      email: OWNER_EMAIL,
+      role: "owner",
+      passwordHash: OWNER_PASSWORD_HASH,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+  return credentials;
+}
+
+async function issueSessionToken(email, role) {
+  return new SignJWT({ email, role })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setIssuer(SITE_AUTH_ISSUER)
+    .setAudience(SITE_AUTH_AUDIENCE)
+    .setSubject(email)
+    .setIssuedAt()
+    .setExpirationTime(`${SITE_SESSION_SECONDS}s`)
+    .sign(authSecretKey());
+}
+
 async function getContainerClient() {
   if (!containerPromise) {
     containerPromise = (async () => {
@@ -120,6 +170,26 @@ async function getContainerClient() {
     })();
   }
   return containerPromise;
+}
+
+async function readCredentials() {
+  const container = await getContainerClient();
+  const blob = container.getBlockBlobClient(CREDENTIALS_BLOB_NAME);
+  try {
+    const download = await blob.download();
+    const buffer = await streamToBuffer(download.readableStreamBody);
+    return { credentials: normalizeCredentials(JSON.parse(buffer.toString("utf8"))), blob };
+  } catch (error) {
+    if (error?.statusCode === 404) return { credentials: normalizeCredentials([]), blob };
+    throw error;
+  }
+}
+
+async function writeCredentials(blob, credentials) {
+  const content = Buffer.from(JSON.stringify(normalizeCredentials(credentials), null, 2), "utf8");
+  await blob.uploadData(content, {
+    blobHTTPHeaders: { blobContentType: "application/json; charset=utf-8" },
+  });
 }
 
 async function streamToBuffer(stream) {
@@ -141,12 +211,157 @@ async function readStateBlob() {
   }
 }
 
+async function writeStateBlob(stored, state, ifMatch = "") {
+  const content = Buffer.from(JSON.stringify(sanitizeState(state), null, 2), "utf8");
+  return stored.blob.uploadData(content, {
+    blobHTTPHeaders: { blobContentType: "application/json; charset=utf-8" },
+    conditions: ifMatch && stored.etag ? { ifMatch } : undefined,
+  });
+}
+
+function loginAttemptKey(request, email) {
+  const forwarded = String(request.headers.get("x-forwarded-for") || "").split(",")[0].trim();
+  return `${forwarded || "unknown"}:${email}`;
+}
+
+function isLoginRateLimited(key) {
+  const now = Date.now();
+  for (const [attemptKey, record] of loginAttempts) {
+    if (record.resetAt <= now) loginAttempts.delete(attemptKey);
+  }
+  const record = loginAttempts.get(key);
+  return Boolean(record && record.count >= 6 && record.resetAt > now);
+}
+
+function recordLoginFailure(key) {
+  const now = Date.now();
+  const record = loginAttempts.get(key);
+  if (!record || record.resetAt <= now) {
+    loginAttempts.set(key, { count: 1, resetAt: now + 15 * 60 * 1000 });
+    return;
+  }
+  record.count += 1;
+}
+
+async function loginAdmin(request, context) {
+  try {
+    if (!SITE_AUTH_SECRET || !OWNER_PASSWORD_HASH) {
+      return jsonResponse(503, { message: "ورود مدیر هنوز در Azure پیکربندی نشده است." });
+    }
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonResponse(400, { message: "ایمیل و رمز عبور را وارد کنید." });
+    }
+    const email = normalizeEmail(body?.email);
+    const password = String(body?.password || "");
+    if (!email || !password || password.length > 256) {
+      return jsonResponse(400, { message: "ایمیل و رمز عبور را وارد کنید." });
+    }
+
+    const attemptKey = loginAttemptKey(request, email);
+    if (isLoginRateLimited(attemptKey)) {
+      return jsonResponse(429, { message: "تلاش‌های ورود بیش از حد بود. پانزده دقیقه بعد دوباره امتحان کنید." });
+    }
+
+    const [stored, credentialStore] = await Promise.all([readStateBlob(), readCredentials()]);
+    const credential = credentialStore.credentials.find((item) => item.email === email);
+    if (!stored.state || !isAdminEmail(email, stored.state) || !credential || !passwordMatches(password, credential.passwordHash)) {
+      recordLoginFailure(attemptKey);
+      return jsonResponse(401, { message: "ایمیل یا رمز عبور درست نیست." });
+    }
+
+    loginAttempts.delete(attemptKey);
+    const role = email === OWNER_EMAIL ? "owner" : "admin";
+    const token = await issueSessionToken(email, role);
+    return jsonResponse(200, {
+      token,
+      email,
+      role,
+      expiresAt: new Date(Date.now() + SITE_SESSION_SECONDS * 1000).toISOString(),
+    });
+  } catch (error) {
+    context.error("Unable to authenticate administrator", error);
+    return jsonResponse(500, { message: "ورود مدیر انجام نشد. دوباره تلاش کنید." });
+  }
+}
+
+async function upsertAdmin(request, context) {
+  try {
+    const ownerEmail = await authenticatedEmail(request);
+    if (!ownerEmail) return jsonResponse(401, { message: "نشست مدیریت پایان یافته است؛ دوباره وارد شوید." });
+    if (ownerEmail !== OWNER_EMAIL) return jsonResponse(403, { message: "فقط مالک می‌تواند مدیران را تغییر دهد." });
+
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonResponse(400, { message: "اطلاعات مدیر کامل نیست." });
+    }
+    const email = normalizeEmail(body?.email);
+    const password = String(body?.password || "");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return jsonResponse(400, { message: "ایمیل مدیر درست نیست." });
+    if (password.length < 8 || password.length > 128) {
+      return jsonResponse(400, { message: "رمز عبور باید دست‌کم ۸ نویسه باشد." });
+    }
+
+    const [stored, credentialStore] = await Promise.all([readStateBlob(), readCredentials()]);
+    if (!stored.state) return jsonResponse(404, { message: "داده مشترک سایت پیدا نشد." });
+    const now = new Date().toISOString();
+    const role = email === OWNER_EMAIL ? "owner" : "admin";
+    const existingAdmin = stored.state.admins.find((admin) => admin.email === email);
+    if (existingAdmin) existingAdmin.role = role;
+    else stored.state.admins.push({ email, role });
+
+    const existingCredential = credentialStore.credentials.find((credential) => credential.email === email);
+    const nextCredential = { email, role, passwordHash: passwordHash(password), updatedAt: now };
+    if (existingCredential) Object.assign(existingCredential, nextCredential);
+    else credentialStore.credentials.push(nextCredential);
+
+    stored.state.updatedAt = now;
+    await writeCredentials(credentialStore.blob, credentialStore.credentials);
+    const upload = await writeStateBlob(stored, stored.state);
+    return jsonResponse(200, { admins: sanitizeState(stored.state).admins }, upload.etag || "");
+  } catch (error) {
+    context.error("Unable to save administrator", error);
+    return jsonResponse(500, { message: "ذخیره مدیر در Azure انجام نشد." });
+  }
+}
+
+async function deleteAdmin(request, context) {
+  try {
+    const ownerEmail = await authenticatedEmail(request);
+    if (!ownerEmail) return jsonResponse(401, { message: "نشست مدیریت پایان یافته است؛ دوباره وارد شوید." });
+    if (ownerEmail !== OWNER_EMAIL) return jsonResponse(403, { message: "فقط مالک می‌تواند مدیران را تغییر دهد." });
+
+    const email = normalizeEmail(decodeURIComponent(String(request.params?.email || "")));
+    if (!email || email === OWNER_EMAIL) return jsonResponse(400, { message: "حساب مالک را نمی‌توان حذف کرد." });
+    const [stored, credentialStore] = await Promise.all([readStateBlob(), readCredentials()]);
+    if (!stored.state) return jsonResponse(404, { message: "داده مشترک سایت پیدا نشد." });
+    stored.state.admins = stored.state.admins.filter((admin) => admin.email !== email);
+    credentialStore.credentials = credentialStore.credentials.filter((credential) => credential.email !== email);
+    stored.state.updatedAt = new Date().toISOString();
+    await writeCredentials(credentialStore.blob, credentialStore.credentials);
+    const upload = await writeStateBlob(stored, stored.state);
+    return jsonResponse(200, { admins: sanitizeState(stored.state).admins }, upload.etag || "");
+  } catch (error) {
+    context.error("Unable to delete administrator", error);
+    return jsonResponse(500, { message: "حذف مدیر از Azure انجام نشد." });
+  }
+}
+
 async function getState(request, context) {
   try {
     const stored = await readStateBlob();
     if (!stored.state) return jsonResponse(404, { message: "داده مشترک هنوز ایجاد نشده است." });
-    const email = await authenticatedEmail(request);
-    const responseState = isAdminEmail(email, stored.state) ? stored.state : publicState(stored.state);
+    const hasBearerToken = String(request.headers.get("authorization") || "").toLowerCase().startsWith("bearer ");
+    const adminSession = await authenticatedSession(request);
+    if (hasBearerToken && !adminSession) return jsonResponse(401, { message: "نشست مدیریت پایان یافته است؛ دوباره وارد شوید." });
+    if (adminSession && !isAdminEmail(adminSession.email, stored.state)) {
+      return jsonResponse(403, { message: "این ایمیل در فهرست مدیران سایت نیست." });
+    }
+    const responseState = adminSession ? stored.state : publicState(stored.state);
     return jsonResponse(200, responseState, stored.etag);
   } catch (error) {
     context.error("Unable to read shared state", error);
@@ -158,8 +373,8 @@ async function putState(request, context) {
   try {
     const stored = await readStateBlob();
     const email = await authenticatedEmail(request);
-    if (!email) return jsonResponse(401, { message: "ابتدا با حساب مایکروسافت وارد شوید." });
-    if (!isAdminEmail(email, stored.state)) return jsonResponse(403, { message: "این حساب در فهرست مدیران سایت نیست." });
+    if (!email) return jsonResponse(401, { message: "نشست مدیریت پایان یافته است؛ دوباره وارد شوید." });
+    if (!isAdminEmail(email, stored.state)) return jsonResponse(403, { message: "این ایمیل در فهرست مدیران سایت نیست." });
 
     const raw = await request.text();
     if (Buffer.byteLength(raw, "utf8") > MAX_STATE_BYTES) {
@@ -177,6 +392,7 @@ async function putState(request, context) {
     }
 
     const state = sanitizeState(incoming);
+    state.admins = sanitizeState(stored.state).admins;
     const now = new Date().toISOString();
     state.updatedAt = now;
     state.publishedAt = now;
@@ -187,11 +403,7 @@ async function putState(request, context) {
       return jsonResponse(412, { message: "نسخه تازه‌تری در Azure ذخیره شده است." }, stored.etag);
     }
 
-    const content = Buffer.from(JSON.stringify(state, null, 2), "utf8");
-    const upload = await stored.blob.uploadData(content, {
-      blobHTTPHeaders: { blobContentType: "application/json; charset=utf-8" },
-      conditions: ifMatch && stored.etag ? { ifMatch: stored.etag } : undefined,
-    });
+    const upload = await writeStateBlob(stored, state, ifMatch);
     return jsonResponse(200, { state }, upload.etag || "");
   } catch (error) {
     if (error?.statusCode === 409 || error?.statusCode === 412) {
@@ -207,6 +419,27 @@ app.http("getSharedState", {
   authLevel: "anonymous",
   route: "state",
   handler: getState,
+});
+
+app.http("loginAdmin", {
+  methods: ["POST"],
+  authLevel: "anonymous",
+  route: "auth/login",
+  handler: loginAdmin,
+});
+
+app.http("upsertAdmin", {
+  methods: ["POST"],
+  authLevel: "anonymous",
+  route: "auth/admins",
+  handler: upsertAdmin,
+});
+
+app.http("deleteAdmin", {
+  methods: ["DELETE"],
+  authLevel: "anonymous",
+  route: "auth/admins/{email}",
+  handler: deleteAdmin,
 });
 
 app.http("putSharedState", {

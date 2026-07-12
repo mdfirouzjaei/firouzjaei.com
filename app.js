@@ -10,11 +10,9 @@ const MAX_LOCAL_UPLOAD_BYTES = 2 * 1024 * 1024;
 const VALID_ROUTES = ["home", "tree", "gallery", "social", "calendar", "history", "article"];
 const SHARED_STATE_VERSION = "site-state-v2-azure";
 const AZURE_STATE_API = "https://firouzjaei-family-api.azurewebsites.net/api/state";
-const MICROSOFT_CLIENT_ID = "4dc095fb-c566-428a-9c1c-b38e83abb289";
-const MICROSOFT_API_SCOPE = "api://6b50b1e0-1eed-4254-b036-397915168d73/access_as_user";
-const MICROSOFT_AUTHORITY = "https://login.microsoftonline.com/common";
-const MICROSOFT_LOGIN_RETURN_KEY = "firouzjaei-microsoft-login-return-v1";
-const MICROSOFT_AUTH_LIBRARY = "assets/vendor/microsoft-identity-client.min.js?v=5.17.0-20260711-retry";
+const AZURE_API_BASE = AZURE_STATE_API.replace(/\/state$/, "");
+const ADMIN_LOGIN_API = `${AZURE_API_BASE}/auth/login`;
+const ADMIN_ACCOUNTS_API = `${AZURE_API_BASE}/auth/admins`;
 const TABARI_CALENDAR_PERIODS = [
   { id: "fardineh", monthNumber: 1, name: "فردینه ما", note: "آغاز سال تبری" },
   { id: "karcheh", monthNumber: 2, name: "کرچه ما", note: "" },
@@ -765,10 +763,8 @@ let sharedPublishQueued = false;
 let syncToastTimer = null;
 let localOnlyNoticeShown = false;
 let azureBackendAvailable = false;
-let microsoftAuthAvailable = false;
+let siteAuthAvailable = Boolean(session?.email && session?.token);
 let remoteStateEtag = "";
-let microsoftAuthClient = null;
-let microsoftAccount = null;
 let mentionMenu = null;
 let mentionTarget = null;
 let mentionRange = null;
@@ -1034,7 +1030,7 @@ function sharedStateSnapshot() {
 }
 
 function canSaveToAzure() {
-  return microsoftAuthAvailable && isAdmin();
+  return siteAuthAvailable && Boolean(session?.token) && isAdmin();
 }
 
 function showSyncToast(message, tone = "info", { persistent = false } = {}) {
@@ -1078,7 +1074,7 @@ function updateSyncDiagnostics(publishedRaw = null) {
     <span>درخت این مرورگر: ${toPersianDigits(localCount)} نفر</span>
     ${publishedText}
     <span>${azureBackendAvailable ? "فضای Azure متصل است" : "در انتظار اتصال به Azure"}</span>
-    <span>${session?.email ? `حساب مایکروسافت: ${escapeHtml(session.email)}` : "حساب مدیر وارد نشده است"}</span>
+    <span>${session?.email ? `حساب مدیر: ${escapeHtml(session.email)}` : "حساب مدیر وارد نشده است"}</span>
   `;
 }
 
@@ -1088,13 +1084,7 @@ async function fetchPublishedStateJson() {
   for (const url of urls) {
     try {
       const headers = {};
-      if (url === AZURE_STATE_API && microsoftAccount) {
-        try {
-          headers.Authorization = `Bearer ${await microsoftAccessToken()}`;
-        } catch {
-          // Public data can still load when a Microsoft session needs renewal.
-        }
-      }
+      if (url === AZURE_STATE_API && session?.token) headers.Authorization = `Bearer ${session.token}`;
       const response = await fetch(`${url}?v=${Date.now()}`, { cache: "no-store", headers });
       if (response.ok) {
         const published = await response.json();
@@ -1104,6 +1094,11 @@ async function fetchPublishedStateJson() {
         }
         updateSyncDiagnostics(published);
         return published;
+      }
+      if (url === AZURE_STATE_API && response.status === 401 && session?.token) {
+        siteAuthAvailable = false;
+        saveSession(null);
+        updateAdminStatus();
       }
       lastError = new Error(`HTTP ${response.status}`);
     } catch (error) {
@@ -1134,7 +1129,7 @@ async function loadPublishedState({ force = false, notify = false } = {}) {
       backupStateIfNeeded(state);
       refreshAll();
       setSyncMessage(
-        `فضای مشترک هنوز درختی ندارد، پس نسخه مرورگر با ${toPersianDigits(statePeopleCount(localRaw))} نفر حفظ شد. پس از ورود با حساب مایکروسافت، «ذخیره اکنون» را بزنید.`,
+        `فضای مشترک هنوز درختی ندارد، پس نسخه مرورگر با ${toPersianDigits(statePeopleCount(localRaw))} نفر حفظ شد. پس از ورود مدیر، «ذخیره اکنون» را بزنید.`,
         false,
         { toast: true, persistent: true, warning: true }
       );
@@ -1170,13 +1165,17 @@ async function publishSharedState({ silent = false } = {}) {
   try {
     if (!silent) setSyncMessage("در حال ذخیره داده در Azure...", false, { toast: true });
     const snapshot = sharedStateSnapshot();
-    const accessToken = await microsoftAccessToken();
+    if (!session?.token) {
+      const error = new Error("نشست مدیریت پایان یافته است؛ دوباره وارد شوید.");
+      error.status = 401;
+      throw error;
+    }
     const response = await fetch(AZURE_STATE_API, {
       method: "PUT",
       cache: "no-store",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${session.token}`,
         ...(remoteStateEtag ? { "If-Match": remoteStateEtag } : {}),
       },
       body: JSON.stringify(snapshot),
@@ -1196,10 +1195,15 @@ async function publishSharedState({ silent = false } = {}) {
     if (!silent) setSyncMessage("تغییرات در Azure ذخیره شد و اکنون روی دستگاه‌های دیگر در دسترس است.", false, { toast: true });
     return true;
   } catch (error) {
+    if (error.status === 401) {
+      siteAuthAvailable = false;
+      saveSession(null);
+      updateAdminStatus();
+    }
     if (!silent) {
       let message = error.message || "ذخیره داده در Azure انجام نشد.";
-      if (error.status === 401) message = "نشست مایکروسافت پایان یافته است؛ دوباره وارد شوید.";
-      if (error.status === 403) message = "این حساب مایکروسافت در فهرست مدیران سایت نیست.";
+      if (error.status === 401) message = "نشست مدیریت پایان یافته است؛ دوباره وارد شوید.";
+      if (error.status === 403) message = "این ایمیل در فهرست مدیران سایت نیست.";
       if (error.status === 409 || error.status === 412) message = "نسخه تازه‌تری روی Azure وجود دارد. ابتدا داده را تازه‌سازی کنید و سپس دوباره ذخیره کنید.";
       setSyncMessage(
         message,
@@ -1252,135 +1256,69 @@ function saveSession(value) {
   }
 }
 
-function ensureMicrosoftAuthLibrary() {
-  if (window.msal?.PublicClientApplication) return Promise.resolve(true);
-  if (window.microsoftAuthLibraryPromise) return window.microsoftAuthLibraryPromise;
-
-  window.microsoftAuthLibraryPromise = new Promise((resolve) => {
-    const script = document.createElement("script");
-    script.src = MICROSOFT_AUTH_LIBRARY;
-    script.async = true;
-    script.dataset.microsoftAuthFallback = "true";
-    script.addEventListener("load", () => resolve(Boolean(window.msal?.PublicClientApplication)), { once: true });
-    script.addEventListener("error", () => resolve(false), { once: true });
-    document.head.append(script);
-  });
-
-  return window.microsoftAuthLibraryPromise;
+function restoreAdminSession() {
+  siteAuthAvailable = Boolean(session?.email && session?.token);
+  if (!siteAuthAvailable && session) saveSession(null);
+  return siteAuthAvailable;
 }
 
-async function loadMicrosoftSession() {
-  const libraryReady = await ensureMicrosoftAuthLibrary();
-  if (!libraryReady) {
-    microsoftAuthAvailable = false;
-    saveSession(null);
-    return false;
-  }
+async function loginAdmin(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const fields = form.elements;
+  const submitButton = form.querySelector('button[type="submit"]');
+  const returnRoute = parseRouteHash();
+  const email = fields.email.value.trim().toLowerCase();
+  const password = fields.password.value;
+  $("#loginMessage").textContent = "در حال بررسی حساب...";
+  submitButton.disabled = true;
+
   try {
-    microsoftAuthClient = new window.msal.PublicClientApplication({
-      auth: {
-        clientId: MICROSOFT_CLIENT_ID,
-        authority: MICROSOFT_AUTHORITY,
-        redirectUri: `${window.location.origin}/`,
-        postLogoutRedirectUri: `${window.location.origin}/`,
-        navigateToLoginRequestUrl: false,
-      },
-      cache: {
-        cacheLocation: "localStorage",
-      },
+    const response = await fetch(ADMIN_LOGIN_API, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
     });
-    await microsoftAuthClient.initialize();
-    microsoftAuthAvailable = true;
-  } catch (error) {
-    console.warn("Microsoft authentication initialization failed.", error);
-    microsoftAuthAvailable = false;
-    microsoftAuthClient = null;
-    microsoftAccount = null;
-    saveSession(null);
-    return false;
-  }
-
-  let redirectResult = null;
-  try {
-    redirectResult = await microsoftAuthClient.handleRedirectPromise();
-  } catch (error) {
-    console.warn("Microsoft authentication redirect could not be completed.", error);
-    if (!microsoftAuthClient.getAllAccounts().length) {
-      try {
-        await microsoftAuthClient.clearCache();
-      } catch (cacheError) {
-        console.warn("Microsoft authentication cache could not be reset.", cacheError);
-      }
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload?.token || !payload?.email) {
+      const error = new Error(payload?.message || "ورود مدیر انجام نشد.");
+      error.status = response.status;
+      throw error;
     }
-  }
 
-  try {
-    const accounts = microsoftAuthClient.getAllAccounts();
-    microsoftAccount = redirectResult?.account || microsoftAuthClient.getActiveAccount() || accounts[0] || null;
-    if (microsoftAccount) microsoftAuthClient.setActiveAccount(microsoftAccount);
-    const email = String(microsoftAccount?.username || "").trim().toLowerCase();
-    saveSession(email ? { email, provider: "microsoft", userId: microsoftAccount?.homeAccountId || "" } : null);
-    const returnHash = sessionStorage.getItem(MICROSOFT_LOGIN_RETURN_KEY);
-    if (returnHash) {
-      sessionStorage.removeItem(MICROSOFT_LOGIN_RETURN_KEY);
-      if (!window.location.hash) window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${returnHash}`);
-    }
-    return Boolean(email);
+    saveSession({
+      email: String(payload.email).toLowerCase(),
+      token: payload.token,
+      role: payload.role === "owner" ? "owner" : "admin",
+      provider: "site",
+      expiresAt: payload.expiresAt || "",
+    });
+    siteAuthAvailable = true;
+    form.reset();
+    $("#loginMessage").textContent = "";
+    closeDialog("#loginDialog");
+    await loadPublishedState({ force: true });
+    refreshAll();
+
+    if (returnRoute.route === "article") routeTo("article", { articleId: returnRoute.articleId });
+    else if (VALID_ROUTES.includes(returnRoute.route)) routeTo(returnRoute.route);
+    else routeTo("tree");
   } catch (error) {
-    console.warn("Microsoft authentication session could not be restored.", error);
-    microsoftAccount = null;
-    saveSession(null);
-    return false;
-  }
-}
-
-async function microsoftAccessToken() {
-  if (!microsoftAuthClient || !microsoftAccount) throw new Error("ابتدا با حساب مایکروسافت وارد شوید.");
-  const result = await microsoftAuthClient.acquireTokenSilent({
-    account: microsoftAccount,
-    scopes: [MICROSOFT_API_SCOPE],
-  });
-  if (!result?.accessToken) throw new Error("دریافت مجوز مایکروسافت انجام نشد؛ دوباره وارد شوید.");
-  return result.accessToken;
-}
-
-async function loginWithMicrosoft() {
-  if (!microsoftAuthClient) await loadMicrosoftSession();
-  if (!microsoftAuthClient) {
-    $("#loginMessage").textContent = "سرویس ورود مایکروسافت آماده نیست. صفحه را تازه‌سازی کنید.";
-    return;
-  }
-  const loginRequest = {
-    scopes: [MICROSOFT_API_SCOPE],
-    prompt: "select_account",
-  };
-  try {
-    sessionStorage.setItem(MICROSOFT_LOGIN_RETURN_KEY, window.location.hash || "#tree");
-    await microsoftAuthClient.loginRedirect(loginRequest);
-  } catch (error) {
-    if (error?.errorCode === "interaction_in_progress") {
-      try {
-        await microsoftAuthClient.clearCache();
-        microsoftAccount = null;
-        saveSession(null);
-        await microsoftAuthClient.loginRedirect(loginRequest);
-        return;
-      } catch (retryError) {
-        console.warn("Microsoft authentication retry failed.", retryError);
-      }
-    } else {
-      console.warn("Microsoft authentication could not start.", error);
-    }
-    $("#loginMessage").textContent = "ورود مایکروسافت آغاز نشد. دوباره تلاش کنید.";
+    $("#loginMessage").textContent = error.message || "ورود مدیر انجام نشد. دوباره تلاش کنید.";
+  } finally {
+    submitButton.disabled = false;
   }
 }
 
 function isAdmin() {
+  if (!siteAuthAvailable || !session?.token) return false;
   const email = String(session?.email || "").toLowerCase();
   return Boolean(email && state.admins.some((admin) => admin.email.toLowerCase() === email));
 }
 
 function isOwner() {
+  if (!isAdmin()) return false;
   const email = String(session?.email || "").toLowerCase();
   const admin = state.admins.find((item) => item.email.toLowerCase() === email);
   return admin?.role === "owner";
@@ -4253,11 +4191,7 @@ function refreshAdminLists() {
       button.className = "danger-action";
       button.type = "button";
       button.textContent = "حذف";
-      button.addEventListener("click", () => {
-        state.admins = state.admins.filter((item) => item.email !== admin.email);
-        saveState();
-        refreshAdminLists();
-      });
+      button.addEventListener("click", () => removeAdminAccount(admin.email));
       row.appendChild(button);
     }
     adminsList.appendChild(row);
@@ -4364,16 +4298,90 @@ function closeDialog(selector) {
 }
 
 function logoutAdmin() {
-  const account = microsoftAccount;
+  siteAuthAvailable = false;
   saveSession(null);
   closeDialog("#adminDialog");
   closeDialog("#personEditorDialog");
   closeDialog("#personDialog");
   updateAdminStatus();
   renderTree();
-  microsoftAccount = null;
-  if (microsoftAuthClient && account) {
-    microsoftAuthClient.logoutRedirect({ account, postLogoutRedirectUri: `${window.location.origin}/` });
+}
+
+async function saveAdminAccount(event) {
+  event.preventDefault();
+  if (!isOwner() || !session?.token) return;
+  const form = event.currentTarget;
+  const fields = form.elements;
+  const submitButton = form.querySelector('button[type="submit"]');
+  const message = $("#adminMessage");
+  submitButton.disabled = true;
+  message.textContent = "در حال ذخیره حساب مدیر...";
+
+  try {
+    const response = await fetch(ADMIN_ACCOUNTS_API, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.token}`,
+      },
+      body: JSON.stringify({
+        email: fields.email.value.trim().toLowerCase(),
+        password: fields.password.value,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(payload?.message || "ذخیره مدیر انجام نشد.");
+      error.status = response.status;
+      throw error;
+    }
+    state.admins = Array.isArray(payload.admins) ? payload.admins : state.admins;
+    remoteStateEtag = response.headers.get("etag") || remoteStateEtag;
+    persistState();
+    form.reset();
+    refreshAdminLists();
+    message.textContent = "حساب مدیر و رمز آن در Azure ذخیره شد.";
+  } catch (error) {
+    if (error.status === 401) {
+      siteAuthAvailable = false;
+      saveSession(null);
+      updateAdminStatus();
+    }
+    message.textContent = error.message || "ذخیره مدیر انجام نشد.";
+  } finally {
+    submitButton.disabled = false;
+  }
+}
+
+async function removeAdminAccount(email) {
+  if (!isOwner() || !session?.token) return;
+  const message = $("#adminMessage");
+  message.textContent = "در حال حذف مدیر...";
+  try {
+    const response = await fetch(`${ADMIN_ACCOUNTS_API}/${encodeURIComponent(email)}`, {
+      method: "DELETE",
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${session.token}` },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(payload?.message || "حذف مدیر انجام نشد.");
+      error.status = response.status;
+      throw error;
+    }
+    state.admins = Array.isArray(payload.admins) ? payload.admins : state.admins.filter((admin) => admin.email !== email);
+    remoteStateEtag = response.headers.get("etag") || remoteStateEtag;
+    persistState();
+    refreshAdminLists();
+    message.textContent = "مدیر حذف شد.";
+  } catch (error) {
+    if (error.status === 401) {
+      siteAuthAvailable = false;
+      saveSession(null);
+      updateAdminStatus();
+    }
+    message.textContent = error.message || "حذف مدیر انجام نشد.";
   }
 }
 
@@ -4388,7 +4396,7 @@ function bindEvents() {
   $("[data-open-subscribe]").addEventListener("click", () => $("#subscribeDialog").showModal());
   $("[data-close-subscribe]").addEventListener("click", () => $("#subscribeDialog").close());
   $("[data-open-login]").addEventListener("click", () => (isAdmin() ? openAdminPanel() : $("#loginDialog").showModal()));
-  $("[data-microsoft-login]").addEventListener("click", loginWithMicrosoft);
+  $("#loginForm").addEventListener("submit", loginAdmin);
   $("[data-close-login]").addEventListener("click", () => $("#loginDialog").close());
   $("[data-close-admin]").addEventListener("click", () => $("#adminDialog").close());
   $("[data-close-person]").addEventListener("click", () => $("#personDialog").close());
@@ -4459,8 +4467,6 @@ function bindEvents() {
     const fields = $("#personEditor").elements;
     fields[`${fieldName}Unknown`]?.addEventListener("change", () => syncPersonDateField(fields, fieldName));
   });
-
-  $("#loginForm").addEventListener("submit", (event) => event.preventDefault());
 
   $("#subscribeForm").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -4570,18 +4576,7 @@ function bindEvents() {
     refreshAll();
   });
 
-  $("#adminEditor").addEventListener("submit", (event) => {
-    event.preventDefault();
-    if (!isOwner()) return;
-    const form = event.currentTarget;
-    const fields = form.elements;
-    const email = fields.email.value.trim().toLowerCase();
-    const existing = state.admins.find((item) => item.email.toLowerCase() === email);
-    if (!existing) state.admins.push({ email, role: "admin" });
-    saveState();
-    form.reset();
-    refreshAdminLists();
-  });
+  $("#adminEditor").addEventListener("submit", saveAdminAccount);
 
   $$(".admin-tabs .tab").forEach((button) => button.addEventListener("click", () => setAdminTab(button.dataset.adminTab)));
 
@@ -4781,7 +4776,7 @@ async function init() {
   clearPersonForm();
   renderTabariToday();
   startBandpeyClock();
-  await loadMicrosoftSession();
+  restoreAdminSession();
   await loadPublishedState();
   refreshAll();
   const next = parseRouteHash();
