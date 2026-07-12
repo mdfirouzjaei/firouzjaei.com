@@ -1,10 +1,14 @@
 const { app } = require("@azure/functions");
 const { BlobServiceClient } = require("@azure/storage-blob");
+const { createRemoteJWKSet, jwtVerify } = require("jose");
 
 const OWNER_EMAIL = "mdfirouzjaei@gmail.com";
 const CONTAINER_NAME = process.env.AZURE_STORAGE_CONTAINER || "site-data";
 const BLOB_NAME = process.env.AZURE_STATE_BLOB || "site-state.json";
 const MAX_STATE_BYTES = 32 * 1024 * 1024;
+const MICROSOFT_API_AUDIENCE = process.env.MICROSOFT_API_AUDIENCE || "6b50b1e0-1eed-4254-b036-397915168d73";
+const MICROSOFT_API_SCOPE = "access_as_user";
+const MICROSOFT_JWKS = createRemoteJWKSet(new URL("https://login.microsoftonline.com/common/discovery/v2.0/keys"));
 
 let containerPromise = null;
 
@@ -19,6 +23,7 @@ function jsonResponse(status, body, etag = "") {
     headers: {
       "Cache-Control": "no-store, max-age=0",
       "Content-Type": "application/json; charset=utf-8",
+      "Access-Control-Expose-Headers": "ETag",
       ...(etag ? { ETag: etag } : {}),
     },
   };
@@ -41,6 +46,35 @@ function principalEmail(principal) {
     return type === "email" || type === "emails" || type === "preferred_username" || type.endsWith("/emailaddress");
   });
   return normalizeEmail(principal?.userDetails || emailClaim?.val || emailClaim?.value);
+}
+
+function hasValidMicrosoftIssuer(payload) {
+  const tenantId = String(payload?.tid || "").toLowerCase();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(tenantId)) return false;
+  return payload?.iss === `https://login.microsoftonline.com/${tenantId}/v2.0`;
+}
+
+async function bearerEmail(request) {
+  const authorization = request.headers.get("authorization") || "";
+  if (!authorization.toLowerCase().startsWith("bearer ")) return "";
+  const token = authorization.slice(7).trim();
+  if (!token) return "";
+  const { payload } = await jwtVerify(token, MICROSOFT_JWKS, {
+    audience: [MICROSOFT_API_AUDIENCE, `api://${MICROSOFT_API_AUDIENCE}`],
+  });
+  const scopes = String(payload?.scp || "").split(/\s+/).filter(Boolean);
+  if (!hasValidMicrosoftIssuer(payload) || !scopes.includes(MICROSOFT_API_SCOPE)) return "";
+  return normalizeEmail(payload?.preferred_username || payload?.email || payload?.upn);
+}
+
+async function authenticatedEmail(request) {
+  try {
+    const tokenEmail = await bearerEmail(request);
+    if (tokenEmail) return tokenEmail;
+  } catch {
+    return "";
+  }
+  return principalEmail(clientPrincipal(request));
 }
 
 function sanitizeState(value) {
@@ -77,8 +111,8 @@ function isAdminEmail(email, state) {
 async function getContainerClient() {
   if (!containerPromise) {
     containerPromise = (async () => {
-      const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
-      if (!connectionString) throw new Error("AZURE_STORAGE_CONNECTION_STRING is not configured.");
+      const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING || process.env.AzureWebJobsStorage;
+      if (!connectionString) throw new Error("Azure Storage is not configured.");
       const service = BlobServiceClient.fromConnectionString(connectionString);
       const container = service.getContainerClient(CONTAINER_NAME);
       await container.createIfNotExists();
@@ -111,7 +145,7 @@ async function getState(request, context) {
   try {
     const stored = await readStateBlob();
     if (!stored.state) return jsonResponse(404, { message: "داده مشترک هنوز ایجاد نشده است." });
-    const email = principalEmail(clientPrincipal(request));
+    const email = await authenticatedEmail(request);
     const responseState = isAdminEmail(email, stored.state) ? stored.state : publicState(stored.state);
     return jsonResponse(200, responseState, stored.etag);
   } catch (error) {
@@ -123,7 +157,7 @@ async function getState(request, context) {
 async function putState(request, context) {
   try {
     const stored = await readStateBlob();
-    const email = principalEmail(clientPrincipal(request));
+    const email = await authenticatedEmail(request);
     if (!email) return jsonResponse(401, { message: "ابتدا با حساب مایکروسافت وارد شوید." });
     if (!isAdminEmail(email, stored.state)) return jsonResponse(403, { message: "این حساب در فهرست مدیران سایت نیست." });
 

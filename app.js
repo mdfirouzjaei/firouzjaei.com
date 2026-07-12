@@ -9,8 +9,11 @@ const BOOK_PHOTO_ASSET_PATH = "assets/book/photos/";
 const MAX_LOCAL_UPLOAD_BYTES = 2 * 1024 * 1024;
 const VALID_ROUTES = ["home", "tree", "gallery", "social", "calendar", "history", "article"];
 const SHARED_STATE_VERSION = "site-state-v2-azure";
-const AZURE_STATE_API = "/api/state";
-const AZURE_AUTH_ME_URL = "/.auth/me";
+const AZURE_STATE_API = "https://firouzjaei-family-api.azurewebsites.net/api/state";
+const MICROSOFT_CLIENT_ID = "4dc095fb-c566-428a-9c1c-b38e83abb289";
+const MICROSOFT_API_SCOPE = "api://6b50b1e0-1eed-4254-b036-397915168d73/access_as_user";
+const MICROSOFT_AUTHORITY = "https://login.microsoftonline.com/common";
+const MICROSOFT_LOGIN_RETURN_KEY = "firouzjaei-microsoft-login-return-v1";
 const TABARI_CALENDAR_PERIODS = [
   { id: "fardineh", monthNumber: 1, name: "فردینه ما", note: "آغاز سال تبری" },
   { id: "karcheh", monthNumber: 2, name: "کرچه ما", note: "" },
@@ -763,6 +766,8 @@ let localOnlyNoticeShown = false;
 let azureBackendAvailable = false;
 let microsoftAuthAvailable = false;
 let remoteStateEtag = "";
+let microsoftAuthClient = null;
+let microsoftAccount = null;
 let mentionMenu = null;
 let mentionTarget = null;
 let mentionRange = null;
@@ -1081,7 +1086,15 @@ async function fetchPublishedStateJson() {
   let lastError = null;
   for (const url of urls) {
     try {
-      const response = await fetch(`${url}?v=${Date.now()}`, { cache: "no-store" });
+      const headers = {};
+      if (url === AZURE_STATE_API && microsoftAccount) {
+        try {
+          headers.Authorization = `Bearer ${await microsoftAccessToken()}`;
+        } catch {
+          // Public data can still load when a Microsoft session needs renewal.
+        }
+      }
+      const response = await fetch(`${url}?v=${Date.now()}`, { cache: "no-store", headers });
       if (response.ok) {
         const published = await response.json();
         if (url === AZURE_STATE_API) {
@@ -1156,11 +1169,13 @@ async function publishSharedState({ silent = false } = {}) {
   try {
     if (!silent) setSyncMessage("در حال ذخیره داده در Azure...", false, { toast: true });
     const snapshot = sharedStateSnapshot();
+    const accessToken = await microsoftAccessToken();
     const response = await fetch(AZURE_STATE_API, {
       method: "PUT",
       cache: "no-store",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
         ...(remoteStateEtag ? { "If-Match": remoteStateEtag } : {}),
       },
       body: JSON.stringify(snapshot),
@@ -1236,43 +1251,72 @@ function saveSession(value) {
   }
 }
 
-function microsoftPrincipalFromPayload(payload) {
-  if (payload?.clientPrincipal) return payload.clientPrincipal;
-  if (Array.isArray(payload) && payload[0]?.clientPrincipal) return payload[0].clientPrincipal;
-  return null;
-}
-
-function microsoftPrincipalEmail(principal) {
-  const claims = Array.isArray(principal?.claims) ? principal.claims : [];
-  const emailClaim = claims.find((claim) => {
-    const type = String(claim?.typ || claim?.type || "").toLowerCase();
-    return type === "email" || type === "emails" || type === "preferred_username" || type.endsWith("/emailaddress");
-  });
-  return String(principal?.userDetails || emailClaim?.val || emailClaim?.value || "").trim().toLowerCase();
-}
-
 async function loadMicrosoftSession() {
+  if (!window.msal?.PublicClientApplication) {
+    microsoftAuthAvailable = false;
+    saveSession(null);
+    return false;
+  }
   try {
-    const response = await fetch(`${AZURE_AUTH_ME_URL}?v=${Date.now()}`, { cache: "no-store" });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const payload = await response.json();
-    const isAzureAuthResponse = Array.isArray(payload) || Object.prototype.hasOwnProperty.call(payload || {}, "clientPrincipal");
-    if (!isAzureAuthResponse) throw new Error("Microsoft authentication is unavailable.");
+    microsoftAuthClient = new window.msal.PublicClientApplication({
+      auth: {
+        clientId: MICROSOFT_CLIENT_ID,
+        authority: MICROSOFT_AUTHORITY,
+        redirectUri: `${window.location.origin}/`,
+        postLogoutRedirectUri: `${window.location.origin}/`,
+      },
+      cache: {
+        cacheLocation: "localStorage",
+      },
+    });
+    await microsoftAuthClient.initialize();
+    const redirectResult = await microsoftAuthClient.handleRedirectPromise();
+    const accounts = microsoftAuthClient.getAllAccounts();
+    microsoftAccount = redirectResult?.account || microsoftAuthClient.getActiveAccount() || accounts[0] || null;
+    if (microsoftAccount) microsoftAuthClient.setActiveAccount(microsoftAccount);
     microsoftAuthAvailable = true;
-    const principal = microsoftPrincipalFromPayload(payload);
-    const email = microsoftPrincipalEmail(principal);
-    saveSession(email ? { email, provider: "microsoft", userId: principal?.userId || "" } : null);
+    const email = String(microsoftAccount?.username || "").trim().toLowerCase();
+    saveSession(email ? { email, provider: "microsoft", userId: microsoftAccount?.homeAccountId || "" } : null);
+    const returnHash = sessionStorage.getItem(MICROSOFT_LOGIN_RETURN_KEY);
+    if (returnHash) {
+      sessionStorage.removeItem(MICROSOFT_LOGIN_RETURN_KEY);
+      if (!window.location.hash) window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${returnHash}`);
+    }
     return Boolean(email);
   } catch {
     microsoftAuthAvailable = false;
+    microsoftAuthClient = null;
+    microsoftAccount = null;
     saveSession(null);
     return false;
   }
 }
 
-function loginWithMicrosoft() {
-  const returnPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-  window.location.assign(`/.auth/login/aad?post_login_redirect_uri=${encodeURIComponent(returnPath)}`);
+async function microsoftAccessToken() {
+  if (!microsoftAuthClient || !microsoftAccount) throw new Error("ابتدا با حساب مایکروسافت وارد شوید.");
+  const result = await microsoftAuthClient.acquireTokenSilent({
+    account: microsoftAccount,
+    scopes: [MICROSOFT_API_SCOPE],
+  });
+  if (!result?.accessToken) throw new Error("دریافت مجوز مایکروسافت انجام نشد؛ دوباره وارد شوید.");
+  return result.accessToken;
+}
+
+async function loginWithMicrosoft() {
+  if (!microsoftAuthClient) {
+    $("#loginMessage").textContent = "سرویس ورود مایکروسافت آماده نیست. صفحه را تازه‌سازی کنید.";
+    return;
+  }
+  try {
+    sessionStorage.setItem(MICROSOFT_LOGIN_RETURN_KEY, window.location.hash || "#tree");
+    await microsoftAuthClient.loginRedirect({
+      scopes: [MICROSOFT_API_SCOPE],
+      prompt: "select_account",
+      redirectStartPage: window.location.href,
+    });
+  } catch {
+    $("#loginMessage").textContent = "ورود مایکروسافت آغاز نشد. دوباره تلاش کنید.";
+  }
 }
 
 function isAdmin() {
@@ -4264,14 +4308,16 @@ function closeDialog(selector) {
 }
 
 function logoutAdmin() {
+  const account = microsoftAccount;
   saveSession(null);
   closeDialog("#adminDialog");
   closeDialog("#personEditorDialog");
   closeDialog("#personDialog");
   updateAdminStatus();
   renderTree();
-  if (microsoftAuthAvailable) {
-    window.location.assign("/.auth/logout?post_logout_redirect_uri=/");
+  microsoftAccount = null;
+  if (microsoftAuthClient && account) {
+    microsoftAuthClient.logoutRedirect({ account, postLogoutRedirectUri: `${window.location.origin}/` });
   }
 }
 

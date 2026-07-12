@@ -4,7 +4,7 @@
   "private": true,
   "main": "src/functions/*.js",
   "engines": {
-    "node": ">=20 <23"
+    "node": ">=24 <25"
   },
   "scripts": {
     "start": "func start",
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@azure/functions": "4.16.2",
-    "@azure/storage-blob": "12.32.0"
+    "@azure/storage-blob": "12.32.0",
+    "jose": "5.10.0"
   }
 }
