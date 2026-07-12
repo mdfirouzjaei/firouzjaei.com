@@ -731,10 +731,20 @@ label select:focus,
   stroke-linecap: round;
 }
 
+.tree-lines .routed-marriage-line {
+  stroke-width: 2.4;
+}
+
 .tree-lines .marriage-dot {
   fill: #fff;
   stroke: var(--wine);
   stroke-width: 2;
+}
+
+.tree-lines .descent-junction {
+  fill: #fff;
+  stroke: rgb(35, 83, 116);
+  stroke-width: 2.4;
 }
 
 .person-node {
