@@ -3825,6 +3825,39 @@ function personOptions(selectedId = "", includeEmpty = true) {
   );
 }
 
+function personOptionsForIds(personIds, selectedId = "", includeEmpty = true) {
+  const allowedIds = new Set((personIds || []).filter(Boolean));
+  const selectedIds = new Set(Array.isArray(selectedId) ? selectedId.filter(Boolean) : selectedId ? [selectedId] : []);
+  const empty = includeEmpty ? `<option value="">انتخاب نشده</option>` : "";
+  return (
+    empty +
+    (personIds || [])
+      .map((personId) => state.people.find((person) => person.id === personId))
+      .filter((person) => person && allowedIds.has(person.id))
+      .map((person) => `<option value="${person.id}" ${selectedIds.has(person.id) ? "selected" : ""}>${person.name}</option>`)
+      .join("")
+  );
+}
+
+function resetParentEditorGuidance() {
+  const fields = $("#personEditor").elements;
+  fields.parentOne.required = false;
+  fields.parentTwo.required = false;
+  fields.parentTwo.dataset.requireCoParent = "false";
+  fields.parentTwo.setCustomValidity("");
+  $("[data-parent-one-label]").textContent = "والد اول";
+  $("[data-parent-two-label]").textContent = "والد دوم";
+  const note = $("[data-co-parent-note]");
+  note.hidden = true;
+  note.textContent = "";
+}
+
+function syncCoParentValidity() {
+  const parentTwo = $("#personEditor").elements.parentTwo;
+  const needsCoParent = parentTwo.dataset.requireCoParent === "true";
+  parentTwo.setCustomValidity(needsCoParent && !parentTwo.value ? "والد دیگر این فرزند را انتخاب کنید." : "");
+}
+
 function selectedSelectValues(select) {
   return Array.from(select.selectedOptions)
     .map((option) => option.value)
@@ -4026,7 +4059,8 @@ function fillRelativeForm(baseId, relation) {
   pendingRelationship = { type: relation, baseId };
   const baseGeneration = Number(base.generation || 0);
   const baseSlot = Number(base.slot || 0);
-  const spouseId = base.spouseIds?.[0] || "";
+  const spouseIds = (base.spouseIds || []).filter((spouseId) => Boolean(personById(spouseId)));
+  const spouseId = spouseIds.length === 1 ? spouseIds[0] : "";
   const suggestedSpouseGender = oppositeSpouseGender(normalizeGender(base.gender));
 
   if (relation === "spouse") {
@@ -4042,9 +4076,20 @@ function fillRelativeForm(baseId, relation) {
     $("#personEditorTitle").textContent = `افزودن فرزند برای ${base.name}`;
     fields.generation.value = generation;
     fields.slot.value = nextAvailableSlot(generation, baseSlot);
-    const parentIds = orderedParentIds([base.id, spouseId]);
-    fields.parentOne.innerHTML = personOptions(parentIds[0] || base.id);
-    fields.parentTwo.innerHTML = personOptions(parentIds[1] || "");
+    const baseParentLabel = base.gender === "male" ? "پدر این فرزند" : base.gender === "female" ? "مادر این فرزند" : "والد اصلی این فرزند";
+    const coParentLabel = base.gender === "male" ? "مادر این فرزند" : base.gender === "female" ? "پدر این فرزند" : "والد دیگر این فرزند";
+    $("[data-parent-one-label]").textContent = baseParentLabel;
+    $("[data-parent-two-label]").textContent = coParentLabel;
+    fields.parentOne.innerHTML = personOptionsForIds([base.id], base.id, false);
+    fields.parentTwo.innerHTML = personOptionsForIds(spouseIds, spouseId);
+    if (spouseIds.length > 1) {
+      fields.parentTwo.required = true;
+      fields.parentTwo.dataset.requireCoParent = "true";
+      const note = $("[data-co-parent-note]");
+      note.hidden = false;
+      note.textContent = `${base.name} بیش از یک همسر دارد؛ ${coParentLabel} را انتخاب کنید تا شاخه فرزند به زوج درست متصل شود.`;
+      syncCoParentValidity();
+    }
   }
 
   if (relation === "parent") {
@@ -4218,6 +4263,7 @@ function fillPersonForm(id) {
   const fields = form.elements;
   if (!person) return;
   pendingRelationship = null;
+  resetParentEditorGuidance();
   $("#personEditorTitle").textContent = "ویرایش فرد";
   fields.id.value = person.id;
   fields.name.value = person.name || "";
@@ -4241,6 +4287,7 @@ function clearPersonForm() {
   const fields = form.elements;
   pendingRelationship = null;
   form.reset();
+  resetParentEditorGuidance();
   $("#personEditorTitle").textContent = "افزودن فرد";
   fields.id.value = "";
   setPersonDateField(fields, "birth", "");
@@ -5130,6 +5177,7 @@ function bindEvents() {
     }
     restoreFullBackup(file);
   });
+  $("#personEditor").elements.parentTwo.addEventListener("change", syncCoParentValidity);
 
   $("[data-export-data]").addEventListener("click", () => {
     $("#dataImport").value = JSON.stringify(state, null, 2);
