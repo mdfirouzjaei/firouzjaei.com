@@ -126,6 +126,7 @@ const NODE_BASE_X = 150;
 const NODE_BASE_Y = 120;
 const NODE_X_GAP = 190;
 const NODE_Y_GAP = 250;
+const MULTI_SPOUSE_SHELF_OFFSET = 210;
 const UNKNOWN_DATE_LABEL = "نامشخص";
 const GENDER_LABELS = {
   male: "مرد",
@@ -2180,13 +2181,6 @@ function routeTo(route, options = {}) {
   if (window.location.hash !== nextHash) window.location.hash = nextHash;
 }
 
-function nodePosition(person) {
-  return {
-    x: NODE_BASE_X + Number(person.slot || 0) * NODE_X_GAP,
-    y: NODE_BASE_Y + Number(person.generation || 0) * NODE_Y_GAP,
-  };
-}
-
 function genderSortValue(person) {
   if (person.gender === "male") return 0;
   if (person.gender === "female") return 1;
@@ -2626,6 +2620,36 @@ function compareTreeRowGroups(a, b) {
   return compareBirthYoungestFirst(aAnchor, bAnchor);
 }
 
+function orderTreeRowGroupMembers(group) {
+  const groupIds = new Set(group.map((person) => person.id));
+  const defaultOrder = group
+    .slice()
+    .sort(
+      (a, b) =>
+        genderSortValue(a) - genderSortValue(b) ||
+        Number(a.slot || 0) - Number(b.slot || 0) ||
+        a.name.localeCompare(b.name, "fa")
+    );
+  const hub = group
+    .slice()
+    .sort((a, b) => {
+      const aSpouses = (a.spouseIds || []).filter((id) => groupIds.has(id)).length;
+      const bSpouses = (b.spouseIds || []).filter((id) => groupIds.has(id)).length;
+      return bSpouses - aSpouses || defaultOrder.indexOf(a) - defaultOrder.indexOf(b);
+    })[0];
+  const spouses = (hub?.spouseIds || []).map(personById).filter((person) => person && groupIds.has(person.id));
+  if (!hub || spouses.length < 2) return defaultOrder;
+
+  const left = [];
+  const right = [];
+  spouses
+    .slice()
+    .sort((a, b) => Number(a.slot || 0) - Number(b.slot || 0) || a.name.localeCompare(b.name, "fa"))
+    .forEach((spouse, index) => (index % 2 === 0 ? left : right).push(spouse));
+  const connectedIds = new Set([hub.id, ...spouses.map((spouse) => spouse.id)]);
+  return [...left.reverse(), hub, ...right, ...defaultOrder.filter((person) => !connectedIds.has(person.id))];
+}
+
 function orderTreeRowPeople(generationPeople, positionedAncestors = new Map()) {
   const rowIds = new Set(generationPeople.map((person) => person.id));
   const placed = new Set();
@@ -2641,8 +2665,18 @@ function orderTreeRowPeople(generationPeople, positionedAncestors = new Map()) {
 
   sorted.forEach((person) => {
     if (placed.has(person.id)) return;
-    const group = [person, ...(person.spouseIds || []).map(personById).filter((spouse) => spouse && rowIds.has(spouse.id) && !placed.has(spouse.id))];
-    group.forEach((item) => placed.add(item.id));
+    const group = [];
+    const queue = [person];
+    while (queue.length) {
+      const current = queue.shift();
+      if (!current || placed.has(current.id)) continue;
+      placed.add(current.id);
+      group.push(current);
+      (current.spouseIds || [])
+        .map(personById)
+        .filter((spouse) => spouse && rowIds.has(spouse.id) && !placed.has(spouse.id))
+        .forEach((spouse) => queue.push(spouse));
+    }
     groups.push(group);
   });
 
@@ -2675,16 +2709,7 @@ function orderTreeRowPeople(generationPeople, positionedAncestors = new Map()) {
 
   return familyBuckets
     .flatMap((bucket) => bucket.groups)
-    .flatMap((group) =>
-      group
-        .slice()
-        .sort(
-          (a, b) =>
-            genderSortValue(a) - genderSortValue(b) ||
-            Number(a.slot || 0) - Number(b.slot || 0) ||
-            a.name.localeCompare(b.name, "fa")
-        )
-    );
+    .flatMap(orderTreeRowGroupMembers);
 }
 
 function treePositions(people = state.people) {
@@ -2696,16 +2721,51 @@ function treePositions(people = state.people) {
     generationMap.set(generation, [...(generationMap.get(generation) || []), person]);
   });
 
+  let previousGeneration = null;
+  let previousShelfOffset = 0;
+  let rowY = NODE_BASE_Y;
   Array.from(generationMap.keys())
     .sort((a, b) => a - b)
     .forEach((generation) => {
+      rowY =
+        previousGeneration === null
+          ? NODE_BASE_Y + generation * NODE_Y_GAP
+          : rowY + (generation - previousGeneration) * NODE_Y_GAP + previousShelfOffset;
       const generationPeople = generationMap.get(generation) || [];
       let nextSlot = -1;
       orderTreeRowPeople(generationPeople, positions).forEach((person) => {
         const displaySlot = nextSlot + 1;
         nextSlot = displaySlot;
-        positions.set(person.id, nodePosition({ ...person, slot: displaySlot }));
+        positions.set(person.id, {
+          x: NODE_BASE_X + displaySlot * NODE_X_GAP,
+          y: rowY,
+        });
       });
+
+      previousShelfOffset = 0;
+      const rowIds = new Set(generationPeople.map((person) => person.id));
+      const movedSpouses = new Set();
+      generationPeople
+        .slice()
+        .sort(
+          (a, b) =>
+            (b.spouseIds || []).filter((id) => rowIds.has(id)).length -
+              (a.spouseIds || []).filter((id) => rowIds.has(id)).length ||
+            a.id.localeCompare(b.id)
+        )
+        .forEach((hub) => {
+          const spouseIds = (hub.spouseIds || []).filter((id) => rowIds.has(id) && positions.has(id));
+          if (spouseIds.length < 2 || movedSpouses.has(hub.id)) return;
+          spouseIds.forEach((spouseId) => {
+            const spousePosition = positions.get(spouseId);
+            if (!spousePosition || movedSpouses.has(spouseId)) return;
+            spousePosition.y += MULTI_SPOUSE_SHELF_OFFSET;
+            movedSpouses.add(spouseId);
+          });
+          const extraConnectorRoom = Math.max(0, spouseIds.length - 4) * 26;
+          previousShelfOffset = Math.max(previousShelfOffset, MULTI_SPOUSE_SHELF_OFFSET + extraConnectorRoom);
+        });
+      previousGeneration = generation;
     });
 
   return positions;
@@ -2983,7 +3043,7 @@ function drawRelationships(svg, people, positions) {
       let descentStartY = a.y + 18;
       const marriageTitle = `پیوند همسری ${person.name} و ${spouse.name}`;
 
-      // Multi-spouse marriage lines travel above the cards, then descend through the nearest clear gap.
+      // Multiple spouses use a lower shelf so each couple has a distinct path and child branch.
       if (multiSpouseHub) {
         const partner = multiSpouseHub.id === person.id ? spouse : person;
         const hubPosition = positions.get(multiSpouseHub.id);
@@ -2994,6 +3054,8 @@ function drawRelationships(svg, people, positions) {
           .sort((left, right) => positions.get(left.id).x - positions.get(right.id).x || left.id.localeCompare(right.id));
         const partnerIndex = Math.max(0, hubSpouses.findIndex((item) => item.id === partner.id));
         const direction = Math.sign(partnerPosition.x - hubPosition.x) || 1;
+        const usesSpouseShelf =
+          hubSpouses.length >= 2 && hubSpouses.every((item) => positions.get(item.id).y > hubPosition.y);
         const sameSidePartners = hubSpouses
           .filter((item) => Math.sign(positions.get(item.id).x - hubPosition.x) === direction)
           .sort(
@@ -3001,18 +3063,30 @@ function drawRelationships(svg, people, positions) {
               Math.abs(positions.get(left.id).x - hubPosition.x) - Math.abs(positions.get(right.id).x - hubPosition.x)
           );
         const sideIndex = Math.max(0, sameSidePartners.findIndex((item) => item.id === partner.id));
-        const cardTopY = Math.min(hubPosition.y, partnerPosition.y) - 78;
-        const lowestLaneY = cardTopY - 16;
-        const laneSpacing =
-          hubSpouses.length > 1 ? Math.min(22, Math.max(0, (lowestLaneY - 4) / (hubSpouses.length - 1))) : 0;
-        const marriageY = lowestLaneY - partnerIndex * laneSpacing;
-        const dropOffset = 78 + Math.min(sideIndex, 3) * 10;
-        junctionX = hubPosition.x + direction * dropOffset;
-        descentStartY = marriageY;
-        addLine(svg, hubPosition.x, cardTopY, hubPosition.x, marriageY, "marriage-line routed-marriage-line", marriageTitle);
-        addLine(svg, partnerPosition.x, cardTopY, partnerPosition.x, marriageY, "marriage-line routed-marriage-line", marriageTitle);
-        addLine(svg, hubPosition.x, marriageY, partnerPosition.x, marriageY, "marriage-line routed-marriage-line", marriageTitle);
-        addCircle(svg, junctionX, marriageY, "marriage-dot routed-marriage-dot");
+        if (usesSpouseShelf) {
+          const hubAnchor = { x: hubPosition.x, y: hubPosition.y + 78 };
+          const spouseAnchor = { x: partnerPosition.x, y: partnerPosition.y - 78 };
+          const towardHub = Math.sign(hubPosition.x - partnerPosition.x) || 1;
+          junctionX = partnerPosition.x + towardHub * (NODE_X_GAP / 2);
+          const routeRatio = (junctionX - hubAnchor.x) / (spouseAnchor.x - hubAnchor.x);
+          const marriageY = hubAnchor.y + (spouseAnchor.y - hubAnchor.y) * routeRatio;
+          descentStartY = marriageY;
+          addLine(svg, hubAnchor.x, hubAnchor.y, spouseAnchor.x, spouseAnchor.y, "marriage-line shelf-marriage-line", marriageTitle);
+          addCircle(svg, junctionX, marriageY, "marriage-dot shelf-marriage-dot");
+        } else {
+          const cardTopY = Math.min(hubPosition.y, partnerPosition.y) - 78;
+          const lowestLaneY = cardTopY - 16;
+          const laneSpacing =
+            hubSpouses.length > 1 ? Math.min(22, Math.max(0, (lowestLaneY - 4) / (hubSpouses.length - 1))) : 0;
+          const marriageY = lowestLaneY - partnerIndex * laneSpacing;
+          const dropOffset = 78 + Math.min(sideIndex, 3) * 10;
+          junctionX = hubPosition.x + direction * dropOffset;
+          descentStartY = marriageY;
+          addLine(svg, hubPosition.x, cardTopY, hubPosition.x, marriageY, "marriage-line routed-marriage-line", marriageTitle);
+          addLine(svg, partnerPosition.x, cardTopY, partnerPosition.x, marriageY, "marriage-line routed-marriage-line", marriageTitle);
+          addLine(svg, hubPosition.x, marriageY, partnerPosition.x, marriageY, "marriage-line routed-marriage-line", marriageTitle);
+          addCircle(svg, junctionX, marriageY, "marriage-dot routed-marriage-dot");
+        }
       } else {
         addLine(svg, a.x, a.y + 6, b.x, b.y + 6, "marriage-line", marriageTitle);
         addCircle(svg, junctionX, (a.y + b.y) / 2 + 6, "marriage-dot");

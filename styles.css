@@ -735,6 +735,10 @@ label select:focus,
   stroke-width: 2.4;
 }
 
+.tree-lines .shelf-marriage-line {
+  stroke-width: 2.8;
+}
+
 .tree-lines .marriage-dot {
   fill: #fff;
   stroke: var(--wine);
