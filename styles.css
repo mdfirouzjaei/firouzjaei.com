@@ -513,6 +513,15 @@ h2 {
   box-shadow: 0 8px 20px rgba(36, 85, 76, 0.1);
 }
 
+.focused-root-chip {
+  cursor: default;
+}
+
+.focus-return-chip {
+  border-color: rgba(138, 47, 69, 0.24);
+  color: var(--wine);
+}
+
 .search-result-chip {
   cursor: default;
 }
@@ -729,6 +738,15 @@ label select:focus,
   stroke: rgba(138, 47, 69, 0.62);
   stroke-width: 2.7;
   stroke-linecap: round;
+}
+
+.tree-stage.focused-subtree {
+  background: #f6fbf8;
+}
+
+.tree-stage.focused-subtree .person-name {
+  font-size: 0.98rem;
+  font-weight: 820;
 }
 
 .tree-lines .routed-marriage-line {
@@ -2382,6 +2400,10 @@ body.admin-mode .sync-toast.visible {
   .tree-sidebar {
     grid-template-columns: 1fr;
     order: 2;
+  }
+
+  .tree-layout.focused-subtree-layout .tree-sidebar {
+    order: -1;
   }
 
   .site-directory {

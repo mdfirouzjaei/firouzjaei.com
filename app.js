@@ -127,6 +127,12 @@ const NODE_BASE_Y = 120;
 const NODE_X_GAP = 190;
 const NODE_Y_GAP = 250;
 const MULTI_SPOUSE_SHELF_OFFSET = 210;
+const DEEP_TREE_FOCUS_GENERATION = 8;
+const FOCUSED_TREE_MIN_WIDTH = 520;
+const FOCUSED_TREE_SIDE_PADDING = 92;
+const FOCUSED_TREE_MIN_X_GAP = 146;
+const FOCUSED_TREE_TARGET_SCALE = 0.86;
+const FOCUSED_TREE_WRAP_Y_GAP = 220;
 const UNKNOWN_DATE_LABEL = "نامشخص";
 const GENDER_LABELS = {
   male: "مرد",
@@ -757,6 +763,9 @@ let pendingRelationship = null;
 let expandedPersonIds = new Set();
 let activeRootId = null;
 let allRootsExpanded = false;
+let focusedSubtreeId = null;
+let focusedSubtreeReturnState = null;
+let currentTreeNodeXGap = NODE_X_GAP;
 let selectedArticleId = null;
 let selectedGalleryItemId = null;
 let selectedCalendarYear = null;
@@ -2350,12 +2359,64 @@ function expandablePersonIds() {
   return state.people.filter((person) => childPeopleOf(person.id).length).map((person) => person.id);
 }
 
+function treeNavigationRootId() {
+  return focusedSubtreeId || activeRootId;
+}
+
+function treeGenerationForPerson(personId) {
+  const person = personById(personId);
+  if (!person) return 0;
+  return treeDepthMap().get(personId) ?? Number(person.generation || 0);
+}
+
+function clearFocusedSubtree() {
+  focusedSubtreeId = null;
+  focusedSubtreeReturnState = null;
+}
+
+function enterFocusedSubtree(personId) {
+  if (!personById(personId)) return false;
+  focusedSubtreeReturnState = {
+    activeRootId,
+    allRootsExpanded,
+    expandedPersonIds: Array.from(expandedPersonIds),
+    selectedPersonId,
+    treeZoom,
+  };
+  clearTreeSearch();
+  focusedSubtreeId = personId;
+  activeRootId = null;
+  allRootsExpanded = false;
+  expandedPersonIds = new Set([personId]);
+  selectedPersonId = personId;
+  treeZoom = 1;
+  return true;
+}
+
+function exitFocusedSubtree() {
+  const previous = focusedSubtreeReturnState;
+  focusedSubtreeId = null;
+  focusedSubtreeReturnState = null;
+  activeRootId = previous?.activeRootId && personById(previous.activeRootId) ? previous.activeRootId : null;
+  allRootsExpanded = Boolean(previous?.allRootsExpanded);
+  expandedPersonIds = new Set((previous?.expandedPersonIds || []).filter((id) => personById(id)));
+  selectedPersonId = previous?.selectedPersonId && personById(previous.selectedPersonId)
+    ? previous.selectedPersonId
+    : null;
+  treeZoom = previous?.treeZoom || 1;
+  renderTree();
+}
+
 function collapsePersonBranch(personId) {
   expandedPersonIds.delete(personId);
   descendantIdsOf(personId).forEach((id) => expandedPersonIds.delete(id));
 }
 
 function expandPersonBranch(personId) {
+  if (!focusedSubtreeId && treeGenerationForPerson(personId) >= DEEP_TREE_FOCUS_GENERATION) {
+    enterFocusedSubtree(personId);
+    return;
+  }
   allRootsExpanded = false;
   const hadExpandedBranches = expandedPersonIds.size > 0;
   if (!activeRootId && !hadExpandedBranches) {
@@ -2369,6 +2430,7 @@ function expandPersonBranch(personId) {
 }
 
 function setActiveRoot(rootId = null) {
+  clearFocusedSubtree();
   allRootsExpanded = false;
   activeRootId = rootId && personById(rootId) ? rootId : null;
   expandedPersonIds = activeRootId ? new Set([activeRootId]) : new Set();
@@ -2377,6 +2439,7 @@ function setActiveRoot(rootId = null) {
 }
 
 function focusPersonBranch(personId) {
+  clearFocusedSubtree();
   allRootsExpanded = false;
   const rootId = primaryRootForPerson(personId);
   activeRootId = rootId && personById(rootId) ? rootId : null;
@@ -2394,6 +2457,15 @@ function clearTreeSearch() {
 
 function expandWholeTree() {
   clearTreeSearch();
+  if (focusedSubtreeId) {
+    const focusedIds = new Set([focusedSubtreeId, ...descendantIdsOf(focusedSubtreeId)]);
+    expandedPersonIds = new Set(
+      expandablePersonIds().filter((personId) => focusedIds.has(personId))
+    );
+    expandedPersonIds.add(focusedSubtreeId);
+    renderTree();
+    return;
+  }
   activeRootId = null;
   allRootsExpanded = true;
   expandedPersonIds = new Set(expandablePersonIds());
@@ -2402,6 +2474,7 @@ function expandWholeTree() {
 
 function collapseWholeTree() {
   clearTreeSearch();
+  clearFocusedSubtree();
   activeRootId = null;
   allRootsExpanded = false;
   expandedPersonIds = new Set();
@@ -2492,8 +2565,9 @@ function lineageStatsMarkup(personId) {
 
 function navigableChildPeopleOf(personId) {
   const children = childPeopleOf(personId);
-  if (!activeRootId) return children;
-  return children.filter((child) => personHasAncestor(child.id, activeRootId));
+  const navigationRootId = treeNavigationRootId();
+  if (!navigationRootId) return children;
+  return children.filter((child) => personHasAncestor(child.id, navigationRootId));
 }
 
 function navigableDescendantCount(personId, visited = new Set()) {
@@ -2503,8 +2577,9 @@ function navigableDescendantCount(personId, visited = new Set()) {
 }
 
 function shouldShowSpouseConnection(person, spouse) {
-  if (!activeRootId || !person || !spouse) return false;
-  return personHasAncestor(person.id, activeRootId) || personHasAncestor(spouse.id, activeRootId);
+  const navigationRootId = treeNavigationRootId();
+  if (!navigationRootId || !person || !spouse) return false;
+  return personHasAncestor(person.id, navigationRootId) || personHasAncestor(spouse.id, navigationRootId);
 }
 
 function matchingPeopleForSearch(searchTerm = "") {
@@ -2534,13 +2609,15 @@ function visibleTreePeople(searchTerm = "") {
   if (normalizeSearchText(searchTerm)) return searchContextPeople(searchTerm);
 
   if (activeRootId && !personById(activeRootId)) activeRootId = null;
-  const visibleIds = new Set(activeRootId ? [activeRootId] : startingPeople().map((person) => person.id));
-  const shouldTraverseAllRoots = !activeRootId && (allRootsExpanded || expandedPersonIds.size);
-  if (!activeRootId && !shouldTraverseAllRoots) {
+  if (focusedSubtreeId && !personById(focusedSubtreeId)) clearFocusedSubtree();
+  const navigationRootId = treeNavigationRootId();
+  const visibleIds = new Set(navigationRootId ? [navigationRootId] : startingPeople().map((person) => person.id));
+  const shouldTraverseAllRoots = !navigationRootId && (allRootsExpanded || expandedPersonIds.size);
+  if (!navigationRootId && !shouldTraverseAllRoots) {
     return sortTreePeople(state.people.filter((person) => visibleIds.has(person.id)));
   }
 
-  if (activeRootId) visibleIds.add(activeRootId);
+  if (navigationRootId) visibleIds.add(navigationRootId);
   let changed = true;
   while (changed) {
     changed = false;
@@ -2556,7 +2633,7 @@ function visibleTreePeople(searchTerm = "") {
         }
       });
       if (!expandedPersonIds.has(id)) return;
-      const children = activeRootId ? navigableChildPeopleOf(id) : childPeopleOf(id);
+      const children = navigationRootId ? navigableChildPeopleOf(id) : childPeopleOf(id);
       children.forEach((child) => {
         if (!visibleIds.has(child.id)) {
           visibleIds.add(child.id);
@@ -2607,7 +2684,10 @@ function treeDepthMap() {
 }
 
 function rowGroupAnchor(group) {
-  const activeDescendants = activeRootId ? group.filter((person) => personHasAncestor(person.id, activeRootId)) : [];
+  const navigationRootId = treeNavigationRootId();
+  const activeDescendants = navigationRootId
+    ? group.filter((person) => personHasAncestor(person.id, navigationRootId))
+    : [];
   if (activeDescendants.length) return sortChildrenByBirth(activeDescendants)[0] || activeDescendants[0];
   const descendants = group.filter((person) => (person.parentIds || []).length);
   return sortChildrenByBirth(descendants.length ? descendants : group)[0] || group[0];
@@ -2712,14 +2792,54 @@ function orderTreeRowPeople(generationPeople, positionedAncestors = new Map()) {
     .flatMap(orderTreeRowGroupMembers);
 }
 
-function treePositions(people = state.people) {
+function focusedTreeMinimumWidth() {
+  const stageWidth = $("#treeStage")?.clientWidth || TREE_CANVAS_WIDTH;
+  return Math.min(FOCUSED_TREE_MIN_WIDTH, Math.max(260, stageWidth - 28));
+}
+
+function focusedTreeLayout(generationMap) {
+  const widestRowCount = Math.max(1, ...Array.from(generationMap.values()).map((row) => row.length));
+  const stageWidth = $("#treeStage")?.clientWidth || TREE_CANVAS_WIDTH;
+  const minimumWidth = focusedTreeMinimumWidth();
+  const targetCanvasWidth = Math.max(minimumWidth, stageWidth - 28) / FOCUSED_TREE_TARGET_SCALE;
+  const availableForGaps = targetCanvasWidth - FOCUSED_TREE_SIDE_PADDING * 2;
+  let columnCount = Math.max(
+    1,
+    Math.min(
+      widestRowCount,
+      Math.floor(Math.max(0, availableForGaps) / FOCUSED_TREE_MIN_X_GAP) + 1
+    )
+  );
+  if (columnCount < widestRowCount && columnCount > 2 && columnCount % 2) columnCount -= 1;
+  const xGap = columnCount <= 1
+    ? NODE_X_GAP
+    : Math.max(
+        FOCUSED_TREE_MIN_X_GAP,
+        Math.min(NODE_X_GAP, availableForGaps / (columnCount - 1))
+      );
+  return {
+    columnCount,
+    xGap,
+    width: Math.max(
+      minimumWidth,
+      FOCUSED_TREE_SIDE_PADDING * 2 + (columnCount - 1) * xGap
+    ),
+  };
+}
+
+function treePositions(people = state.people, { focusId = "" } = {}) {
   const positions = new Map();
   const generationMap = new Map();
   const depths = treeDepthMap();
+  const focusDepth = focusId ? depths.get(focusId) ?? Number(personById(focusId)?.generation || 0) : 0;
   people.forEach((person) => {
-    const generation = depths.get(person.id) ?? Number(person.generation || 0);
+    const absoluteGeneration = depths.get(person.id) ?? Number(person.generation || 0);
+    const generation = focusId ? Math.max(0, absoluteGeneration - focusDepth) : absoluteGeneration;
     generationMap.set(generation, [...(generationMap.get(generation) || []), person]);
   });
+
+  const focusedLayout = focusId ? focusedTreeLayout(generationMap) : null;
+  currentTreeNodeXGap = focusedLayout?.xGap || NODE_X_GAP;
 
   let previousGeneration = null;
   let previousShelfOffset = 0;
@@ -2732,17 +2852,31 @@ function treePositions(people = state.people) {
           ? NODE_BASE_Y + generation * NODE_Y_GAP
           : rowY + (generation - previousGeneration) * NODE_Y_GAP + previousShelfOffset;
       const generationPeople = generationMap.get(generation) || [];
-      let nextSlot = -1;
-      orderTreeRowPeople(generationPeople, positions).forEach((person) => {
-        const displaySlot = nextSlot + 1;
-        nextSlot = displaySlot;
-        positions.set(person.id, {
-          x: NODE_BASE_X + displaySlot * NODE_X_GAP,
-          y: rowY,
+      const orderedPeople = orderTreeRowPeople(generationPeople, positions);
+      const rowChunks = focusId
+        ? Array.from(
+            { length: Math.ceil(orderedPeople.length / focusedLayout.columnCount) },
+            (_, index) => orderedPeople.slice(
+              index * focusedLayout.columnCount,
+              (index + 1) * focusedLayout.columnCount
+            )
+          )
+        : [orderedPeople];
+      rowChunks.forEach((chunk, chunkIndex) => {
+        const rowContentWidth = Math.max(0, chunk.length - 1) * currentTreeNodeXGap;
+        const rowBaseX = focusId
+          ? FOCUSED_TREE_SIDE_PADDING +
+            (focusedLayout.width - FOCUSED_TREE_SIDE_PADDING * 2 - rowContentWidth) / 2
+          : NODE_BASE_X;
+        chunk.forEach((person, displaySlot) => {
+          positions.set(person.id, {
+            x: rowBaseX + displaySlot * currentTreeNodeXGap,
+            y: rowY + chunkIndex * FOCUSED_TREE_WRAP_Y_GAP,
+          });
         });
       });
 
-      previousShelfOffset = 0;
+      previousShelfOffset = focusId ? Math.max(0, rowChunks.length - 1) * FOCUSED_TREE_WRAP_Y_GAP : 0;
       const rowIds = new Set(generationPeople.map((person) => person.id));
       const movedSpouses = new Set();
       generationPeople
@@ -2765,22 +2899,30 @@ function treePositions(people = state.people) {
           const extraConnectorRoom = Math.max(0, spouseIds.length - 4) * 26;
           previousShelfOffset = Math.max(previousShelfOffset, MULTI_SPOUSE_SHELF_OFFSET + extraConnectorRoom);
         });
+      if (focusId && generationPeople.length) {
+        const lowestPersonY = Math.max(...generationPeople.map((person) => positions.get(person.id)?.y || rowY));
+        previousShelfOffset = Math.max(previousShelfOffset, lowestPersonY - rowY);
+      }
       previousGeneration = generation;
     });
 
   return positions;
 }
 
-function treeCanvasSize(positions = treePositions()) {
+function treeCanvasSize(positions = treePositions(), { focused = false } = {}) {
   const positionList = Array.from(positions.values());
-  if (!positionList.length) return { width: TREE_CANVAS_WIDTH, height: TREE_CANVAS_HEIGHT };
+  const minimumWidth = focused ? focusedTreeMinimumWidth() : TREE_CANVAS_WIDTH;
+  const minimumHeight = focused ? 520 : TREE_CANVAS_HEIGHT;
+  const trailingSpace = focused ? FOCUSED_TREE_SIDE_PADDING : 230;
+  if (!positionList.length) return { width: minimumWidth, height: minimumHeight };
   return {
-    width: Math.max(TREE_CANVAS_WIDTH, Math.max(...positionList.map((position) => position.x)) + 230),
-    height: Math.max(TREE_CANVAS_HEIGHT, Math.max(...positionList.map((position) => position.y)) + 220),
+    width: Math.max(minimumWidth, Math.max(...positionList.map((position) => position.x)) + trailingSpace),
+    height: Math.max(minimumHeight, Math.max(...positionList.map((position) => position.y)) + 220),
   };
 }
 
 function branchBridgeRootForPerson(person) {
+  if (focusedSubtreeId) return "";
   if (!activeRootId || !person) return "";
   if (isStartingPerson(person)) return "";
   if (!(person.parentIds || []).length) return "";
@@ -2807,6 +2949,31 @@ function renderRootNavigator(searchTerm = "", matchCount = 0) {
       : `نتیجه‌ای برای «${searchTerm}» پیدا نشد`;
     rootNav.appendChild(result);
     return;
+  }
+
+  if (focusedSubtreeId) {
+    const focusedPerson = personById(focusedSubtreeId);
+    if (!focusedPerson) {
+      clearFocusedSubtree();
+    } else {
+      const title = document.createElement("span");
+      title.className = "root-nav-title";
+      title.textContent = "شاخه متمرکز";
+      rootNav.appendChild(title);
+
+      const focusedChip = document.createElement("span");
+      focusedChip.className = "root-chip active focused-root-chip";
+      focusedChip.innerHTML = `<strong>${escapeHtml(focusedPerson.name)}</strong><small>${toPersianDigits(descendantCount(focusedPerson.id))}</small>`;
+      rootNav.appendChild(focusedChip);
+
+      const backButton = document.createElement("button");
+      backButton.type = "button";
+      backButton.className = "root-chip focus-return-chip";
+      backButton.textContent = "بازگشت به نسل‌های پیشین";
+      backButton.addEventListener("click", exitFocusedSubtree);
+      rootNav.appendChild(backButton);
+      return;
+    }
   }
 
   const title = document.createElement("span");
@@ -2883,14 +3050,17 @@ function renderTree() {
   const template = $("#nodeTemplate");
   const searchTerm = $("#familySearch").value.trim();
   const hasSearch = Boolean(normalizeSearchText(searchTerm));
+  const focusViewId = hasSearch ? "" : focusedSubtreeId;
   const searchMatches = hasSearch ? matchingPeopleForSearch(searchTerm) : [];
   const searchMatchIds = new Set(searchMatches.map((person) => person.id));
   nodes.innerHTML = "";
   lines.innerHTML = "";
+  $("#treeStage")?.classList.toggle("focused-subtree", Boolean(focusViewId));
+  $(".tree-layout")?.classList.toggle("focused-subtree-layout", Boolean(focusViewId));
   renderRootNavigator(searchTerm, searchMatches.length);
 
   const people = visibleTreePeople(searchTerm);
-  const positions = treePositions(people);
+  const positions = treePositions(people, { focusId: focusViewId });
 
   drawRelationships(lines, people, positions);
 
@@ -2917,7 +3087,7 @@ function renderTree() {
     node.dataset.gender = normalizeGender(person.gender);
     node.classList.add(`gender-${normalizeGender(person.gender)}`);
     node.classList.toggle("selected", selectedPersonId === person.id);
-    node.classList.toggle("active-root", activeRootId === person.id);
+    node.classList.toggle("active-root", activeRootId === person.id || focusedSubtreeId === person.id);
     node.classList.toggle("search-match", hasSearch && searchMatchIds.has(person.id));
     node.classList.toggle("search-context", hasSearch && !searchMatchIds.has(person.id));
 
@@ -3003,7 +3173,9 @@ function fitTreeToStage() {
   if (!stage || !canvas || !stage.clientWidth) return;
 
   const searchTerm = $("#familySearch")?.value.trim() || "";
-  const { width, height } = treeCanvasSize(treePositions(visibleTreePeople(searchTerm)));
+  const focusViewId = normalizeSearchText(searchTerm) ? "" : focusedSubtreeId;
+  const positions = treePositions(visibleTreePeople(searchTerm), { focusId: focusViewId });
+  const { width, height } = treeCanvasSize(positions, { focused: Boolean(focusViewId) });
   const availableWidth = Math.max(260, stage.clientWidth - 28);
   const fitScale = Math.min(1, availableWidth / width);
   treeScale = fitScale * treeZoom;
@@ -3067,7 +3239,7 @@ function drawRelationships(svg, people, positions) {
           const hubAnchor = { x: hubPosition.x, y: hubPosition.y + 78 };
           const spouseAnchor = { x: partnerPosition.x, y: partnerPosition.y - 78 };
           const towardHub = Math.sign(hubPosition.x - partnerPosition.x) || 1;
-          junctionX = partnerPosition.x + towardHub * (NODE_X_GAP / 2);
+          junctionX = partnerPosition.x + towardHub * (currentTreeNodeXGap / 2);
           const routeRatio = (junctionX - hubAnchor.x) / (spouseAnchor.x - hubAnchor.x);
           const marriageY = hubAnchor.y + (spouseAnchor.y - hubAnchor.y) * routeRatio;
           descentStartY = marriageY;
@@ -3115,19 +3287,40 @@ function drawRelationships(svg, people, positions) {
       })
       .sort((left, right) => left.key.localeCompare(right.key));
     const laneIndex = Math.max(0, relatedConnections.findIndex((other) => other.key === key));
-    const childY = childTop - 84 - laneIndex * 26;
     const familyTitle = `فرزندان ${person.name} و ${spouse.name}`;
     const allChildrenInferred = positionedChildren.every((child) => isInferredDescent(person, child) || isInferredDescent(spouse, child));
     const parentTitle = allChildrenInferred ? `${familyTitle}؛ ${inferredDescentTitle(true)}` : familyTitle;
-    addLine(svg, junctionX, descentStartY, junctionX, childY, `${descentLineClass(allChildrenInferred)} family-connector`, parentTitle);
-    addCircle(svg, junctionX, childY, "descent-junction", 4);
-    positionedChildren.forEach((child) => {
-      const c = positions.get(child.id);
-      const inferred = isInferredDescent(person, child) || isInferredDescent(spouse, child);
-      const childTitle = `${child.name}، فرزند ${person.name} و ${spouse.name}${inferred ? `؛ ${inferredDescentTitle(true)}` : ""}`;
-      const className = `${descentLineClass(inferred)} family-connector`;
-      addLine(svg, junctionX, childY, c.x, childY, className, childTitle);
-      addLine(svg, c.x, childY, c.x, c.y - 78, className, childTitle);
+    const childRows = Array.from(
+      positionedChildren.reduce((rows, child) => {
+        const position = positions.get(child.id);
+        const row = rows.get(position.y) || [];
+        row.push(child);
+        rows.set(position.y, row);
+        return rows;
+      }, new Map())
+    ).sort((left, right) => left[0] - right[0]);
+    let descentY = descentStartY;
+    childRows.forEach(([rowY, rowChildren]) => {
+      const branchY = rowY - 84 - laneIndex * 26;
+      addLine(
+        svg,
+        junctionX,
+        descentY,
+        junctionX,
+        branchY,
+        `${descentLineClass(allChildrenInferred)} family-connector`,
+        parentTitle
+      );
+      addCircle(svg, junctionX, branchY, "descent-junction", 4);
+      rowChildren.forEach((child) => {
+        const c = positions.get(child.id);
+        const inferred = isInferredDescent(person, child) || isInferredDescent(spouse, child);
+        const childTitle = `${child.name}، فرزند ${person.name} و ${spouse.name}${inferred ? `؛ ${inferredDescentTitle(true)}` : ""}`;
+        const className = `${descentLineClass(inferred)} family-connector`;
+        addLine(svg, junctionX, branchY, c.x, branchY, className, childTitle);
+        addLine(svg, c.x, branchY, c.x, c.y - 78, className, childTitle);
+      });
+      descentY = branchY;
     });
   });
 
@@ -5374,7 +5567,7 @@ function bindEvents() {
     const next = parseRouteHash();
     if (VALID_ROUTES.includes(next.route)) routeTo(next.route, { articleId: next.articleId });
   });
-  window.addEventListener("resize", fitTreeToStage);
+  window.addEventListener("resize", renderTree);
 }
 
 function setZoom(value) {
