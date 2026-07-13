@@ -9,7 +9,7 @@
     />
     <title>خاندان فیروزجایی</title>
     <link rel="icon" type="image/svg+xml" sizes="any" href="assets/brand/firouzjaei-logo.svg?v=logo-svg-20260706" />
-    <link rel="stylesheet" href="styles.css?v=deep-focus-20260713" />
+    <link rel="stylesheet" href="styles.css?v=spouse-search-20260713" />
   </head>
   <body>
     <div class="app-shell">
@@ -273,10 +273,15 @@
           <label>جایگاه افقی
             <input name="slot" type="number" min="0" required />
           </label>
-          <label>همسران
-            <select name="spouseId" multiple size="4"></select>
+          <div class="spouse-picker">
+            <label for="spouseSearch">همسران</label>
+            <span class="search-box spouse-search-box">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>
+              <input id="spouseSearch" name="spouseSearch" type="search" placeholder="جست‌وجوی نام یا @شناسه" autocomplete="off" aria-label="جست‌وجوی همسر" />
+            </span>
+            <select name="spouseId" multiple size="5" aria-label="همسران انتخاب‌شده"></select>
             <small class="field-note">برای انتخاب چند همسر، گزینه‌ها را با Ctrl یا Command انتخاب کنید.</small>
-          </label>
+          </div>
           <label><span data-parent-one-label>والد اول</span>
             <select name="parentOne"></select>
           </label>
@@ -594,6 +599,6 @@
     </template>
 
     <script src="assets/book/book-data.js?v=demo-tree-20260705"></script>
-    <script src="app.js?v=unlimited-tree-slots-20260713"></script>
+    <script src="app.js?v=spouse-search-20260713"></script>
   </body>
 </html>

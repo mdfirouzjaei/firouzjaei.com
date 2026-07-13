@@ -548,7 +548,8 @@ h2 {
 .search-box input,
 label input,
 label textarea,
-label select {
+label select,
+.spouse-picker select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -562,8 +563,21 @@ label select {
   padding: 0 40px 0 12px;
 }
 
+.spouse-search-box {
+  margin-top: 6px;
+}
+
+.spouse-search-box input {
+  margin-top: 0;
+}
+
+.spouse-picker select[multiple] {
+  line-height: 1.7;
+}
+
 label input,
-label select {
+label select,
+.spouse-picker select {
   min-height: 42px;
   padding: 0 10px;
   margin-top: 6px;
@@ -681,6 +695,7 @@ label textarea {
 label input:focus,
 label textarea:focus,
 label select:focus,
+.spouse-picker select:focus,
 .search-box input:focus {
   border-color: rgba(36, 85, 76, 0.55);
   box-shadow: 0 0 0 3px rgba(36, 85, 76, 0.11);

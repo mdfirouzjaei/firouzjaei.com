@@ -4199,6 +4199,44 @@ function personOptionsForIds(personIds, selectedId = "", includeEmpty = true) {
   );
 }
 
+function spouseMatchesSearch(person, searchTerm = "") {
+  const query = normalizeSearchText(String(searchTerm || "").replace(/^@+/, ""));
+  if (!query) return true;
+  return [person.name, person.mentionHandle, mentionContext(person)]
+    .filter(Boolean)
+    .some((value) => normalizeSearchText(value).includes(query));
+}
+
+function renderSpouseOptions(selectedIds = [], searchTerm = "") {
+  const fields = $("#personEditor")?.elements;
+  const select = fields?.spouseId;
+  const searchInput = fields?.spouseSearch;
+  if (!select) return;
+
+  const selected = new Set((Array.isArray(selectedIds) ? selectedIds : [selectedIds]).filter(Boolean));
+  const currentPersonId = fields.id?.value || "";
+  const people = state.people
+    .filter((person) => person.id !== currentPersonId)
+    .filter((person) => selected.has(person.id) || spouseMatchesSearch(person, searchTerm))
+    .sort(
+      (a, b) =>
+        Number(selected.has(b.id)) - Number(selected.has(a.id)) ||
+        a.name.localeCompare(b.name, "fa") ||
+        a.id.localeCompare(b.id)
+    );
+
+  select.innerHTML = people.length
+    ? people
+        .map((person) => {
+          const handle = personMentionLabel(person);
+          const label = handle ? `${person.name} (${handle})` : person.name;
+          return `<option value="${escapeHtml(person.id)}" ${selected.has(person.id) ? "selected" : ""}>${escapeHtml(label)}</option>`;
+        })
+        .join("")
+    : '<option value="" disabled>نتیجه‌ای پیدا نشد</option>';
+  if (searchInput && searchInput.value !== searchTerm) searchInput.value = searchTerm;
+}
+
 function resetParentEditorGuidance() {
   const fields = $("#personEditor").elements;
   fields.parentOne.required = false;
@@ -4427,7 +4465,7 @@ function fillRelativeForm(baseId, relation) {
     fields.generation.value = baseGeneration;
     fields.gender.value = suggestedSpouseGender;
     fields.slot.value = nextAvailableSlot(baseGeneration, preferredSpouseSlot(base, suggestedSpouseGender));
-    fields.spouseId.innerHTML = personOptions([base.id], false);
+    renderSpouseOptions([base.id], "");
   }
 
   if (relation === "child") {
@@ -4607,9 +4645,10 @@ function refreshAdminLists() {
     adminsList.appendChild(row);
   });
 
-  $$('select[name="spouseId"]').forEach((select) => {
-    select.innerHTML = personOptions([], false);
-  });
+  const spouseFields = $("#personEditor")?.elements;
+  if (spouseFields?.spouseId) {
+    renderSpouseOptions(selectedSelectValues(spouseFields.spouseId), spouseFields.spouseSearch?.value || "");
+  }
   $$('select[name="parentOne"], select[name="parentTwo"]').forEach((select) => {
     select.innerHTML = personOptions();
   });
@@ -4636,7 +4675,7 @@ function fillPersonForm(id) {
   fields.story.value = person.story || "";
   fields.photos.value = (person.photos || []).join("\n");
   fields.mediaFiles.value = "";
-  fields.spouseId.innerHTML = personOptions(person.spouseIds || [], false);
+  renderSpouseOptions(person.spouseIds || [], "");
   fields.parentOne.innerHTML = personOptions(person.parentIds?.[0] || "");
   fields.parentTwo.innerHTML = personOptions(person.parentIds?.[1] || "");
 }
@@ -4654,7 +4693,7 @@ function clearPersonForm() {
   fields.gender.value = "unknown";
   fields.generation.value = 0;
   fields.slot.value = 0;
-  fields.spouseId.innerHTML = personOptions([], false);
+  renderSpouseOptions([], "");
   fields.parentOne.innerHTML = personOptions();
   fields.parentTwo.innerHTML = personOptions();
 }
@@ -4684,7 +4723,7 @@ function openRootEditor() {
   fields.slot.value = nextRootSlot();
   fields.parentOne.value = "";
   fields.parentTwo.value = "";
-  fields.spouseId.innerHTML = personOptions([], false);
+  renderSpouseOptions([], "");
   $("#personEditorDialog").showModal();
 }
 
@@ -5265,6 +5304,13 @@ function bindEvents() {
   ["birth", "death"].forEach((fieldName) => {
     const fields = $("#personEditor").elements;
     fields[`${fieldName}Unknown`]?.addEventListener("change", () => syncPersonDateField(fields, fieldName));
+  });
+  const personEditorFields = $("#personEditor").elements;
+  personEditorFields.spouseSearch?.addEventListener("input", (event) => {
+    renderSpouseOptions(selectedSelectValues(personEditorFields.spouseId), event.currentTarget.value);
+  });
+  personEditorFields.spouseSearch?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") event.preventDefault();
   });
 
   $("#subscribeForm").addEventListener("submit", (event) => {
