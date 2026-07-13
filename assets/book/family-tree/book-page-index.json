@@ -1,0 +1,46 @@
+{
+  "version": "2026-07-12",
+  "sourceTitle": "از بالاگنجکلا تا پایین شالینگچال (خاندان تقی فیروزجایی)",
+  "pdfPages": 366,
+  "printedPageOffset": 0,
+  "sections": [
+    {
+      "id": "common-ancestry",
+      "title": "شال تبار و نیای مشترک",
+      "startPage": 26,
+      "endPage": 30,
+      "rootPerson": "آقاداداش"
+    },
+    {
+      "id": "mehdi-soltan",
+      "title": "خاندان مهدی سلطان فرزند حاج تقی",
+      "startPage": 31,
+      "endPage": 194,
+      "rootPerson": "مهدی سلطان"
+    },
+    {
+      "id": "haji-biglar",
+      "title": "خاندان حاجی بیگلر فرزند حاجی تقی",
+      "startPage": 195,
+      "endPage": 302,
+      "rootPerson": "حاجی بیگلر"
+    },
+    {
+      "id": "ali-khan",
+      "title": "خاندان علی خان فرزند حاجی تقی",
+      "startPage": 303,
+      "endPage": 326,
+      "rootPerson": "علی خان"
+    },
+    {
+      "id": "tahmasb",
+      "title": "خاندان طهماسب فرزند حاجی تقی",
+      "startPage": 327,
+      "endPage": 366,
+      "rootPerson": "طهماسب"
+    }
+  ],
+  "visualIndex": "tmp/pdfs/book-index/pages-*.jpg",
+  "renderedPages": "tmp/book-work/pages/page-NNN-NNN.png",
+  "ocrPages": "assets/book/ocr/page-NNN.clean.txt"
+}

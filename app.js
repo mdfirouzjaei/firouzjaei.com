@@ -4,7 +4,7 @@ const STORAGE_BACKUP_KEY = "firouzjaei-family-site-state-backup-v1";
 const SESSION_KEY = "firouzjaei-family-site-session-v1";
 const BOOK_DATA = window.FIROUZJAEI_BOOK_DATA || null;
 const BOOK_SEED_VERSION = BOOK_DATA?.version || "synthetic-seed-v1";
-const TREE_RESET_VERSION = "demo-scenarios-2026-07-05";
+const TREE_RESET_VERSION = BOOK_SEED_VERSION;
 const BOOK_PHOTO_ASSET_PATH = "assets/book/photos/";
 const MAX_LOCAL_UPLOAD_BYTES = 2 * 1024 * 1024;
 const VALID_ROUTES = ["home", "tree", "gallery", "social", "calendar", "history", "article"];
@@ -738,15 +738,15 @@ const sampleState = {
 function applyBookSeed(target, bookData) {
   if (!bookData || typeof bookData !== "object") return;
   target.bookSeedVersion = TREE_RESET_VERSION;
-  target.people = clone(DEMO_SCENARIO_PEOPLE);
+  target.people = Array.isArray(bookData.people) && bookData.people.length
+    ? clone(bookData.people)
+    : clone(DEMO_SCENARIO_PEOPLE);
   if (Array.isArray(bookData.gallery)) target.gallery = clone(bookData.gallery);
   if (Array.isArray(bookData.historyArticles)) target.historyArticles = clone(bookData.historyArticles);
   if (bookData.history) target.history = bookData.history;
 }
 
 applyBookSeed(sampleState, BOOK_DATA);
-sampleState.people = clone(DEMO_SCENARIO_PEOPLE);
-sampleState.bookSeedVersion = TREE_RESET_VERSION;
 
 let state = loadState();
 let session = loadSession();
@@ -859,33 +859,128 @@ function defaultGenderForPerson(person) {
   return sampleGenders[person.id] || "unknown";
 }
 
+function bookIdentityKeys(person = {}) {
+  const keys = new Set();
+  [person.name, ...(person.aliases || [])].filter(Boolean).forEach((value) => {
+    const normalized = normalizeSearchText(value);
+    if (!normalized) return;
+    keys.add(normalized);
+    const withoutHonorific = normalized.replace(/^(?:کربلایی|مشهدی|حاجی|حاج|آقا|خانم)+/u, "");
+    if (withoutHonorific) keys.add(withoutHonorific);
+  });
+  return keys;
+}
+
+function findBookMergeCandidate(bookPerson, people, mappedIds, claimedIds) {
+  const direct = people.find(
+    (person) => person.id === bookPerson.id || person.bookRecordId === bookPerson.id
+  );
+  if (direct && !claimedIds.has(direct.id)) return direct;
+
+  const bookKeys = bookIdentityKeys(bookPerson);
+  const expectedParents = (bookPerson.parentIds || []).map((id) => mappedIds.get(id)).filter(Boolean);
+  const candidates = people.filter((person) => {
+    if (claimedIds.has(person.id)) return false;
+    if (Number(person.generation || 0) !== Number(bookPerson.generation || 0)) return false;
+    const personKeys = bookIdentityKeys(person);
+    return Array.from(bookKeys).some((key) => personKeys.has(key));
+  });
+  if (!candidates.length) return null;
+  if (expectedParents.length) {
+    const parentMatches = candidates.filter((person) =>
+      expectedParents.every((parentId) => (person.parentIds || []).includes(parentId))
+    );
+    if (parentMatches.length === 1) return parentMatches[0];
+  }
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
+function mergeBookPeople(existingPeople = [], bookPeople = []) {
+  const merged = clone(Array.isArray(existingPeople) ? existingPeople : []);
+  const orderedBookPeople = clone(bookPeople).sort(
+    (a, b) =>
+      Number(a.generation || 0) - Number(b.generation || 0) ||
+      Number(a.slot || 0) - Number(b.slot || 0) ||
+      a.id.localeCompare(b.id)
+  );
+  const mappedIds = new Map();
+  const claimedIds = new Set();
+
+  orderedBookPeople.forEach((bookPerson) => {
+    const match = findBookMergeCandidate(bookPerson, merged, mappedIds, claimedIds);
+    if (match) {
+      mappedIds.set(bookPerson.id, match.id);
+      claimedIds.add(match.id);
+      return;
+    }
+    const created = {
+      ...bookPerson,
+      parentIds: [],
+      adoptiveParentIds: [],
+      spouseIds: [],
+    };
+    merged.push(created);
+    mappedIds.set(bookPerson.id, created.id);
+    claimedIds.add(created.id);
+  });
+
+  orderedBookPeople.forEach((bookPerson) => {
+    const targetId = mappedIds.get(bookPerson.id);
+    const target = merged.find((person) => person.id === targetId);
+    if (!target) return;
+
+    target.bookRecordId = bookPerson.id;
+    target.aliases = Array.from(
+      new Set([...(target.aliases || []), ...(bookPerson.aliases || []), ...(target.name !== bookPerson.name ? [bookPerson.name] : [])])
+    );
+    if (normalizeGender(target.gender) === "unknown" && normalizeGender(bookPerson.gender) !== "unknown") {
+      target.gender = bookPerson.gender;
+    }
+    if (!target.birth && bookPerson.birth) target.birth = bookPerson.birth;
+    if (!target.death && bookPerson.death) target.death = bookPerson.death;
+    if (!target.story && bookPerson.story) target.story = bookPerson.story;
+    target.sourcePages = Array.from(new Set([...(target.sourcePages || []), ...(bookPerson.sourcePages || [])])).sort(
+      (a, b) => Number(a) - Number(b)
+    );
+    target.bookBranch = bookPerson.bookBranch || target.bookBranch || "";
+    target.bookConfidence = bookPerson.bookConfidence || target.bookConfidence || "high";
+    target.listedOrder = bookPerson.listedOrder ?? target.listedOrder;
+    if (bookPerson.parentUncertainty) target.parentUncertainty = bookPerson.parentUncertainty;
+    if (bookPerson.reviewNote) target.reviewNote = bookPerson.reviewNote;
+
+    const mappedParents = (bookPerson.parentIds || []).map((id) => mappedIds.get(id)).filter(Boolean);
+    target.parentIds = Array.from(new Set([...(target.parentIds || []), ...mappedParents])).slice(0, 2);
+    const mappedAdoptiveParents = (bookPerson.adoptiveParentIds || []).map((id) => mappedIds.get(id)).filter(Boolean);
+    target.adoptiveParentIds = Array.from(
+      new Set([...(target.adoptiveParentIds || []), ...mappedAdoptiveParents])
+    );
+    const mappedSpouses = (bookPerson.spouseIds || []).map((id) => mappedIds.get(id)).filter(Boolean);
+    target.spouseIds = Array.from(new Set([...(target.spouseIds || []), ...mappedSpouses]));
+  });
+
+  return merged;
+}
+
 function normalizeState(value) {
   const loadedBookSeedVersion = value?.bookSeedVersion;
-  const incomingPeopleCount = Array.isArray(value?.people) ? value.people.length : 0;
   const normalized = { ...clone(sampleState), ...value };
   if (!Array.isArray(normalized.people)) {
     normalized.people = clone(sampleState.people);
   }
   const hasOutdatedTreeVersion =
     sampleState.bookSeedVersion === TREE_RESET_VERSION && loadedBookSeedVersion !== TREE_RESET_VERSION;
-  const shouldSeedFamilyTree = hasOutdatedTreeVersion && !incomingPeopleCount;
   const looksLikeDemoData = normalized.people.some((person) => person.id === "p1" && person.name === "بزرگ خاندان");
-  const shouldReplaceDemoData =
-    looksLikeDemoData && sampleState.bookSeedVersion && loadedBookSeedVersion !== sampleState.bookSeedVersion;
-  const shouldReplaceBookSeed = hasOutdatedTreeVersion && loadedBookSeedVersion === "book-ocr-assets-only-2026-07-05";
   const shouldRemovePublishedBookPhotos =
     sampleState.bookSeedVersion && loadedBookSeedVersion !== sampleState.bookSeedVersion;
-  if (shouldSeedFamilyTree || shouldReplaceBookSeed || shouldReplaceDemoData) {
-    normalized.people = clone(sampleState.people);
-    normalized.submissions = [];
+  const shouldMergeBookSeed =
+    hasOutdatedTreeVersion && Array.isArray(sampleState.people) && sampleState.people.length;
+  if (shouldMergeBookSeed) {
+    const existingPeople = looksLikeDemoData
+      ? normalized.people.filter((person) => !person.id.startsWith("demo-") && !/^p(?:[1-9]|1[0-8])$/.test(person.id))
+      : normalized.people;
+    normalized.people = mergeBookPeople(existingPeople, sampleState.people);
     normalized.bookSeedVersion = TREE_RESET_VERSION;
-  } else if (hasOutdatedTreeVersion) {
-    normalized.bookSeedVersion = TREE_RESET_VERSION;
-  } else if (looksLikeDemoData) {
-    const existingIds = new Set(normalized.people.map((person) => person.id));
-    clone(sampleState.people).forEach((person) => {
-      if (!existingIds.has(person.id)) normalized.people.push(person);
-    });
+    removeBookPhotosFromState(normalized);
   } else if (shouldRemovePublishedBookPhotos) {
     removeBookPhotosFromState(normalized);
     normalized.bookSeedVersion = sampleState.bookSeedVersion;
@@ -1572,7 +1667,7 @@ function renderMentionedText(value = "") {
 function personMatchesSearch(person, searchTerm) {
   const query = normalizeSearchText(searchTerm);
   if (!query) return false;
-  const fields = [person.name].filter(Boolean).join(" ");
+  const fields = [person.name, ...(person.aliases || []), person.mentionHandle].filter(Boolean).join(" ");
   const searchable = normalizeSearchText(fields);
   if (searchable.includes(query)) return true;
   return String(searchTerm)
