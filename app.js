@@ -121,7 +121,6 @@ const WEATHER_CODE_LABELS = {
 };
 const TREE_CANVAS_WIDTH = 1420;
 const TREE_CANVAS_HEIGHT = 760;
-const MAX_TREE_SLOT = 48;
 const NODE_BASE_X = 150;
 const NODE_BASE_Y = 120;
 const NODE_X_GAP = 190;
@@ -4393,13 +4392,12 @@ function nextAvailableSlot(generation, preferredSlot, excludeId = "") {
       .filter((person) => person.id !== excludeId && Number(person.generation || 0) === generation)
       .map((person) => Number(person.slot || 0))
   );
-  const normalized = Math.min(MAX_TREE_SLOT, Math.max(0, Number(preferredSlot || 0)));
-  for (let offset = 0; offset <= MAX_TREE_SLOT; offset += 1) {
+  const normalized = Math.max(0, Math.trunc(Number(preferredSlot || 0)));
+  for (let offset = 0; ; offset += 1) {
     const candidates = offset === 0 ? [normalized] : [normalized + offset, normalized - offset];
-    const match = candidates.find((slot) => slot >= 0 && slot <= MAX_TREE_SLOT && !occupied.has(slot));
+    const match = candidates.find((slot) => slot >= 0 && !occupied.has(slot));
     if (match !== undefined) return match;
   }
-  return normalized;
 }
 
 function nextRootSlot() {
