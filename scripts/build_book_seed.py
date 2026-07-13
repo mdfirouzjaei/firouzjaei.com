@@ -9,8 +9,6 @@ ROOT = Path(__file__).resolve().parents[1]
 OCR_DIR = ROOT / "assets" / "book" / "ocr"
 PHOTO_DIR = ROOT / "assets" / "book" / "photos"
 OUT_PATH = ROOT / "assets" / "book" / "book-data.js"
-CURATED_TREE_PATH = ROOT / "assets" / "book" / "family-tree" / "book-family-tree.json"
-CURATED_TREE_VERSION = "book-genealogy-opening-2026-07-12"
 
 
 def fa_digits(value: int | str) -> str:
@@ -92,70 +90,6 @@ class SeedBuilder:
 def source_note(page: int, note: str = "") -> str:
     base = f"برگرفته از کتاب «از بالاگنجکلا تا پایین‌شالینگچال»، صفحه {fa_digits(page)}."
     return f"{base} {note}".strip()
-
-
-def curated_person_story(person: dict, people_by_id: dict[str, dict]) -> str:
-    parts: list[str] = []
-    aliases = person.get("aliases") or []
-    if aliases:
-        parts.append(f"نام‌ها و لقب‌های دیگر: {'، '.join(aliases)}.")
-    if person.get("notes"):
-        parts.append(person["notes"])
-    if person.get("parentUncertainty"):
-        parts.append(person["parentUncertainty"])
-    if person.get("activityYearSolar"):
-        precision = "حدود " if person.get("activityYearPrecision") == "circa" else ""
-        parts.append(f"در {precision}سال {fa_digits(person['activityYearSolar'])} شمسی از او یاد شده است.")
-    if person.get("unnamedSpouseCount"):
-        parts.append("کتاب از همسر دیگری نیز یاد می‌کند که نام او ثبت نشده است.")
-    adoptive_names = [
-        people_by_id[parent_id]["name"]
-        for parent_id in person.get("adoptiveParentIds") or []
-        if parent_id in people_by_id
-    ]
-    if adoptive_names:
-        parts.append(f"والد پذیرفته‌شده: {' و '.join(adoptive_names)}.")
-    if person.get("reviewNote"):
-        parts.append(person["reviewNote"])
-    pages = person.get("sourcePages") or []
-    if pages:
-        page_label = "، ".join(fa_digits(page) for page in pages)
-        parts.append(f"منبع: کتاب «از بالاگنجکلا تا پایین‌شالینگچال»، صفحه‌های {page_label}.")
-    return "\n\n".join(parts)
-
-
-def build_curated_people() -> list[dict]:
-    source = json.loads(CURATED_TREE_PATH.read_text(encoding="utf-8"))
-    people_by_id = {person["id"]: person for person in source.get("people", [])}
-    people: list[dict] = []
-    for source_person in source.get("people", []):
-        person = {
-            "id": source_person["id"],
-            "bookRecordId": source_person["id"],
-            "name": source_person["name"],
-            "aliases": source_person.get("aliases") or [],
-            "gender": source_person.get("gender", "unknown"),
-            "birth": "",
-            "death": fa_digits(source_person["deathYearSolar"]) if source_person.get("deathYearSolar") else "",
-            "generation": int(source_person.get("generation", 0)),
-            "slot": int(source_person.get("listedOrder", 0)),
-            "listedOrder": source_person.get("listedOrder"),
-            "parentIds": source_person.get("parentIds") or [],
-            "adoptiveParentIds": source_person.get("adoptiveParentIds") or [],
-            "spouseIds": source_person.get("spouseIds") or [],
-            "story": curated_person_story(source_person, people_by_id),
-            "photos": [],
-            "media": [],
-            "sourcePages": source_person.get("sourcePages") or [],
-            "bookBranch": source_person.get("branch", ""),
-            "bookConfidence": source_person.get("confidence", "high"),
-        }
-        if source_person.get("parentUncertainty"):
-            person["parentUncertainty"] = source_person["parentUncertainty"]
-        if source_person.get("reviewNote"):
-            person["reviewNote"] = source_person["reviewNote"]
-        people.append(person)
-    return people
 
 
 def visual(path: str, title: str, caption: str = "") -> dict:
@@ -463,7 +397,7 @@ def build_articles() -> list[dict]:
 def build_data() -> dict:
     gallery = build_gallery()
     return {
-        "version": CURATED_TREE_VERSION,
+        "version": "demo-scenarios-2026-07-05",
         "source": {
             "title": "از بالاگنجکلا تا پایین‌شالینگچال (خاندان تقی فیروزجایی)",
             "authors": ["علی فیروزیان حاجی", "حسین بیگلرنیا"],
@@ -472,7 +406,7 @@ def build_data() -> dict:
             "pages": 366,
             "ocrNote": "متن و روابط از OCR فارسی و بازخوانی دستی چند صفحه کلیدی استخراج شده‌اند و نیازمند بازبینی خانوادگی هستند.",
         },
-        "people": build_curated_people(),
+        "people": [],
         "gallery": gallery,
         "history": "این بخش از این نسخه به بعد بر پایه کتاب خانوادگی «از بالاگنجکلا تا پایین‌شالینگچال» تکمیل شده است. مقاله‌ها خلاصه و بازنویسی‌شده‌اند و برای هر مورد صفحه‌های منبع ذکر شده است.",
         "historyArticles": build_articles(),
