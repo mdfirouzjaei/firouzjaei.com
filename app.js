@@ -126,6 +126,8 @@ const NODE_BASE_Y = 120;
 const NODE_X_GAP = 190;
 const NODE_Y_GAP = 250;
 const TREE_NODE_HALF_WIDTH = 69;
+const TREE_NODE_HALF_HEIGHT = 79;
+const RELATIONSHIP_CARD_CLEARANCE = 8;
 const RELATIONSHIP_LANE_CLEARANCE = 30;
 const RELATIONSHIP_ROUTE_X_OFFSET = 44;
 const RELATIONSHIP_ROUTE_Y_OFFSET = 24;
@@ -2946,7 +2948,41 @@ function treePositions(people = state.people, { focusId = "" } = {}) {
       previousGeneration = generation;
     });
 
+  alignExplicitAncestorDescendants(people, positions);
   return positions;
+}
+
+function alignExplicitAncestorDescendants(people, positions) {
+  const minimumGap = Math.min(currentTreeNodeXGap, FOCUSED_TREE_MIN_X_GAP);
+  people
+    .filter((person) => (person.ancestorIds || []).length && positions.has(person.id))
+    .sort((left, right) => positions.get(left.id).y - positions.get(right.id).y)
+    .forEach((person) => {
+      const position = positions.get(person.id);
+      const ancestorPositions = (person.ancestorIds || [])
+        .map((ancestorId) => positions.get(ancestorId))
+        .filter(Boolean);
+      if (!ancestorPositions.length) return;
+
+      const hasSameRowSpouse = (person.spouseIds || []).some((spouseId) => {
+        const spousePosition = positions.get(spouseId);
+        return spousePosition && Math.abs(spousePosition.y - position.y) < 1;
+      });
+      if (hasSameRowSpouse) return;
+
+      const targetX = ancestorPositions.reduce((sum, ancestor) => sum + ancestor.x, 0) / ancestorPositions.length;
+      const rowPeers = people
+        .filter((peer) => peer.id !== person.id && positions.has(peer.id))
+        .map((peer) => positions.get(peer.id))
+        .filter((peerPosition) => Math.abs(peerPosition.y - position.y) < 1)
+        .sort((left, right) => left.x - right.x);
+      const leftPeer = rowPeers.filter((peerPosition) => peerPosition.x < position.x).at(-1);
+      const rightPeer = rowPeers.find((peerPosition) => peerPosition.x > position.x);
+      const minimumX = leftPeer ? leftPeer.x + minimumGap : TREE_NODE_HALF_WIDTH + 10;
+      const maximumX = rightPeer ? rightPeer.x - minimumGap : Number.POSITIVE_INFINITY;
+      if (minimumX > maximumX) return;
+      position.x = Math.max(minimumX, Math.min(maximumX, targetX));
+    });
 }
 
 function treeCanvasSize(positions = treePositions(), { focused = false } = {}) {
@@ -3315,7 +3351,15 @@ function drawRelationships(svg, people, positions) {
           addLine(svg, hubPosition.x, marriageY, partnerPosition.x, marriageY, "marriage-line routed-marriage-line", marriageTitle);
           addCircle(svg, junctionX, marriageY, "marriage-dot routed-marriage-dot");
         }
-      } else if (Math.abs(a.y - b.y) > 40) {
+      } else if (
+        Math.abs(a.y - b.y) > 40 &&
+        !relationshipSegmentIsClear(
+          positions,
+          new Set([person.id, spouse.id]),
+          { x: a.x, y: a.y + 6 },
+          { x: b.x, y: b.y + 6 }
+        )
+      ) {
         const upper = a.y <= b.y ? a : b;
         const lower = a.y <= b.y ? b : a;
         const lane = reserveRelationshipLane(positions, upper, lower, relationshipLaneUse);
@@ -3416,6 +3460,20 @@ function drawRelationships(svg, people, positions) {
       const descendantPosition = positions.get(descendant.id);
       if (!ancestorPerson || !ancestor || !descendantPosition) return;
       const title = `پیوند جد ${ancestorPerson.name} با ${descendant.name}؛ ${inferredDescentTitle(true)}`;
+      const directStart = { x: ancestor.x, y: ancestor.y + 72 };
+      const directEnd = { x: descendantPosition.x, y: descendantPosition.y - 78 };
+      if (relationshipSegmentIsClear(positions, new Set([ancestorId, descendant.id]), directStart, directEnd)) {
+        addLine(
+          svg,
+          directStart.x,
+          directStart.y,
+          directEnd.x,
+          directEnd.y,
+          descentLineClass(true),
+          title
+        );
+        return;
+      }
       const upper = ancestor.y <= descendantPosition.y ? ancestor : descendantPosition;
       const lower = ancestor.y <= descendantPosition.y ? descendantPosition : ancestor;
       const lane = reserveRelationshipLane(positions, upper, lower, relationshipLaneUse);
@@ -3443,6 +3501,44 @@ function relationshipLaneCandidates(positions, upper, lower, laneUse) {
     left: Math.max(10, minX - laneOffset("left")),
     right: maxX + laneOffset("right"),
   };
+}
+
+function relationshipSegmentIsClear(positions, excludedIds, start, end) {
+  return Array.from(positions.entries()).every(([personId, position]) => {
+    if (excludedIds.has(personId)) return true;
+    const bounds = {
+      left: position.x - TREE_NODE_HALF_WIDTH - RELATIONSHIP_CARD_CLEARANCE,
+      right: position.x + TREE_NODE_HALF_WIDTH + RELATIONSHIP_CARD_CLEARANCE,
+      top: position.y - TREE_NODE_HALF_HEIGHT - RELATIONSHIP_CARD_CLEARANCE,
+      bottom: position.y + TREE_NODE_HALF_HEIGHT + RELATIONSHIP_CARD_CLEARANCE,
+    };
+    return !segmentIntersectsBounds(start, end, bounds);
+  });
+}
+
+function segmentIntersectsBounds(start, end, bounds) {
+  const deltaX = end.x - start.x;
+  const deltaY = end.y - start.y;
+  let minimumTime = 0;
+  let maximumTime = 1;
+  const edges = [
+    [-deltaX, start.x - bounds.left],
+    [deltaX, bounds.right - start.x],
+    [-deltaY, start.y - bounds.top],
+    [deltaY, bounds.bottom - start.y],
+  ];
+
+  for (const [direction, distance] of edges) {
+    if (direction === 0) {
+      if (distance < 0) return false;
+      continue;
+    }
+    const time = distance / direction;
+    if (direction < 0) minimumTime = Math.max(minimumTime, time);
+    else maximumTime = Math.min(maximumTime, time);
+    if (minimumTime > maximumTime) return false;
+  }
+  return true;
 }
 
 function reserveRelationshipLane(positions, upper, lower, laneUse) {
