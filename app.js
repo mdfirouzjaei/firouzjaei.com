@@ -2848,8 +2848,8 @@ function treePositions(people = state.people, { focusId = "" } = {}) {
     .forEach((generation) => {
       rowY =
         previousGeneration === null
-          ? NODE_BASE_Y + generation * NODE_Y_GAP
-          : rowY + (generation - previousGeneration) * NODE_Y_GAP + previousShelfOffset;
+          ? NODE_BASE_Y
+          : rowY + NODE_Y_GAP + previousShelfOffset;
       const generationPeople = generationMap.get(generation) || [];
       const orderedPeople = orderTreeRowPeople(generationPeople, positions);
       const rowChunks = focusId
