@@ -732,7 +732,8 @@ label select:focus,
   overflow: visible;
 }
 
-.tree-lines line {
+.tree-lines line,
+.tree-lines polyline {
   shape-rendering: geometricPrecision;
 }
 
@@ -747,6 +748,11 @@ label select:focus,
   stroke: rgba(35, 83, 116, 0.68);
   stroke-width: 3.1;
   stroke-dasharray: 10 7;
+}
+
+.tree-lines .routed-ancestor-line,
+.tree-lines .cross-row-marriage-line {
+  stroke-linejoin: round;
 }
 
 .tree-lines .marriage-line {

@@ -125,6 +125,10 @@ const NODE_BASE_X = 150;
 const NODE_BASE_Y = 120;
 const NODE_X_GAP = 190;
 const NODE_Y_GAP = 250;
+const TREE_NODE_HALF_WIDTH = 69;
+const RELATIONSHIP_LANE_CLEARANCE = 30;
+const RELATIONSHIP_ROUTE_X_OFFSET = 44;
+const RELATIONSHIP_ROUTE_Y_OFFSET = 24;
 const MULTI_SPOUSE_SHELF_OFFSET = 210;
 const DEEP_TREE_FOCUS_GENERATION = 8;
 const FOCUSED_TREE_MIN_WIDTH = 520;
@@ -767,6 +771,7 @@ let allRootsExpanded = false;
 let focusedSubtreeId = null;
 let focusedSubtreeReturnState = null;
 let currentTreeNodeXGap = NODE_X_GAP;
+let currentTreeRelationshipBounds = null;
 let selectedArticleId = null;
 let selectedGalleryItemId = null;
 let selectedCalendarYear = null;
@@ -2950,9 +2955,23 @@ function treeCanvasSize(positions = treePositions(), { focused = false } = {}) {
   const minimumHeight = focused ? 520 : TREE_CANVAS_HEIGHT;
   const trailingSpace = focused ? FOCUSED_TREE_SIDE_PADDING : 230;
   if (!positionList.length) return { width: minimumWidth, height: minimumHeight };
+  const relationshipMaxX = Number.isFinite(currentTreeRelationshipBounds?.maxX)
+    ? currentTreeRelationshipBounds.maxX + 12
+    : 0;
+  const relationshipMaxY = Number.isFinite(currentTreeRelationshipBounds?.maxY)
+    ? currentTreeRelationshipBounds.maxY + 12
+    : 0;
   return {
-    width: Math.max(minimumWidth, Math.max(...positionList.map((position) => position.x)) + trailingSpace),
-    height: Math.max(minimumHeight, Math.max(...positionList.map((position) => position.y)) + 220),
+    width: Math.max(
+      minimumWidth,
+      Math.max(...positionList.map((position) => position.x)) + trailingSpace,
+      relationshipMaxX
+    ),
+    height: Math.max(
+      minimumHeight,
+      Math.max(...positionList.map((position) => position.y)) + 220,
+      relationshipMaxY
+    ),
   };
 }
 
@@ -3226,8 +3245,10 @@ function fitTreeToStage() {
 }
 
 function drawRelationships(svg, people, positions) {
+  currentTreeRelationshipBounds = null;
   const drawnMarriages = new Set();
   const marriageConnections = [];
+  const relationshipLaneUse = { left: 0, right: 0 };
   people.forEach((person) => {
     person.spouseIds?.forEach((spouseId) => {
       const key = [person.id, spouseId].sort().join(":");
@@ -3294,6 +3315,23 @@ function drawRelationships(svg, people, positions) {
           addLine(svg, hubPosition.x, marriageY, partnerPosition.x, marriageY, "marriage-line routed-marriage-line", marriageTitle);
           addCircle(svg, junctionX, marriageY, "marriage-dot routed-marriage-dot");
         }
+      } else if (Math.abs(a.y - b.y) > 40) {
+        const upper = a.y <= b.y ? a : b;
+        const lower = a.y <= b.y ? b : a;
+        const lane = reserveRelationshipLane(positions, upper, lower, relationshipLaneUse);
+        const points = routedRelationshipPoints(upper, lower, lane.x, lane.side);
+        const routeStartY = upper.y + 72 + RELATIONSHIP_ROUTE_Y_OFFSET;
+        const routeEndY = lower.y - 78 - RELATIONSHIP_ROUTE_Y_OFFSET;
+        const marriageY = (routeStartY + routeEndY) / 2;
+        junctionX = lane.x;
+        descentStartY = marriageY;
+        addPolyline(
+          svg,
+          points,
+          "marriage-line routed-marriage-line cross-row-marriage-line",
+          marriageTitle
+        );
+        addCircle(svg, junctionX, marriageY, "marriage-dot routed-marriage-dot");
       } else {
         addLine(svg, a.x, a.y + 6, b.x, b.y + 6, "marriage-line", marriageTitle);
         addCircle(svg, junctionX, (a.y + b.y) / 2 + 6, "marriage-dot");
@@ -3378,17 +3416,67 @@ function drawRelationships(svg, people, positions) {
       const descendantPosition = positions.get(descendant.id);
       if (!ancestorPerson || !ancestor || !descendantPosition) return;
       const title = `پیوند جد ${ancestorPerson.name} با ${descendant.name}؛ ${inferredDescentTitle(true)}`;
-      addLine(
+      const upper = ancestor.y <= descendantPosition.y ? ancestor : descendantPosition;
+      const lower = ancestor.y <= descendantPosition.y ? descendantPosition : ancestor;
+      const lane = reserveRelationshipLane(positions, upper, lower, relationshipLaneUse);
+      addPolyline(
         svg,
-        ancestor.x,
-        ancestor.y + 72,
-        descendantPosition.x,
-        descendantPosition.y - 78,
-        descentLineClass(true),
+        routedRelationshipPoints(upper, lower, lane.x, lane.side),
+        `${descentLineClass(true)} routed-ancestor-line`,
         title
       );
     });
   });
+}
+
+function relationshipLaneCandidates(positions, upper, lower, laneUse) {
+  const minY = Math.min(upper.y, lower.y) - 82;
+  const maxY = Math.max(upper.y, lower.y) + 82;
+  const spanPositions = Array.from(positions.values()).filter(
+    (position) => position.y >= minY && position.y <= maxY
+  );
+  const relevantPositions = spanPositions.length ? spanPositions : [upper, lower];
+  const minX = Math.min(...relevantPositions.map((position) => position.x));
+  const maxX = Math.max(...relevantPositions.map((position) => position.x));
+  const laneOffset = (side) => TREE_NODE_HALF_WIDTH + RELATIONSHIP_LANE_CLEARANCE + laneUse[side] * 18;
+  return {
+    left: Math.max(10, minX - laneOffset("left")),
+    right: maxX + laneOffset("right"),
+  };
+}
+
+function reserveRelationshipLane(positions, upper, lower, laneUse) {
+  const candidates = relationshipLaneCandidates(positions, upper, lower, laneUse);
+  const usagePenalty = currentTreeNodeXGap * 2;
+  const leftCost =
+    Math.abs(upper.x - candidates.left) +
+    Math.abs(lower.x - candidates.left) +
+    laneUse.left * usagePenalty;
+  const rightCost =
+    Math.abs(upper.x - candidates.right) +
+    Math.abs(lower.x - candidates.right) +
+    laneUse.right * usagePenalty;
+  const side = leftCost <= rightCost ? "left" : "right";
+  laneUse[side] += 1;
+  return { side, x: candidates[side] };
+}
+
+function routedRelationshipPoints(upper, lower, laneX, side) {
+  const sideDirection = side === "left" ? -1 : 1;
+  const upperX = upper.x + sideDirection * RELATIONSHIP_ROUTE_X_OFFSET;
+  const lowerX = lower.x + sideDirection * RELATIONSHIP_ROUTE_X_OFFSET;
+  const upperCardY = upper.y + 72;
+  const lowerCardY = lower.y - 78;
+  const upperRouteY = upperCardY + RELATIONSHIP_ROUTE_Y_OFFSET;
+  const lowerRouteY = lowerCardY - RELATIONSHIP_ROUTE_Y_OFFSET;
+  return [
+    { x: upperX, y: upperCardY },
+    { x: upperX, y: upperRouteY },
+    { x: laneX, y: upperRouteY },
+    { x: laneX, y: lowerRouteY },
+    { x: lowerX, y: lowerRouteY },
+    { x: lowerX, y: lowerCardY },
+  ];
 }
 
 function isInferredDescent(parent, child) {
@@ -3417,6 +3505,29 @@ function addLine(svg, x1, y1, x2, y2, className, title = "") {
     line.appendChild(titleElement);
   }
   svg.appendChild(line);
+}
+
+function addPolyline(svg, points, className, title = "") {
+  const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+  polyline.setAttribute("points", points.map((point) => `${point.x},${point.y}`).join(" "));
+  polyline.setAttribute("class", className);
+  polyline.setAttribute("fill", "none");
+  points.forEach((point) => {
+    if (!currentTreeRelationshipBounds) {
+      currentTreeRelationshipBounds = { minX: point.x, maxX: point.x, minY: point.y, maxY: point.y };
+      return;
+    }
+    currentTreeRelationshipBounds.minX = Math.min(currentTreeRelationshipBounds.minX, point.x);
+    currentTreeRelationshipBounds.maxX = Math.max(currentTreeRelationshipBounds.maxX, point.x);
+    currentTreeRelationshipBounds.minY = Math.min(currentTreeRelationshipBounds.minY, point.y);
+    currentTreeRelationshipBounds.maxY = Math.max(currentTreeRelationshipBounds.maxY, point.y);
+  });
+  if (title) {
+    const titleElement = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    titleElement.textContent = title;
+    polyline.appendChild(titleElement);
+  }
+  svg.appendChild(polyline);
 }
 
 function addCircle(svg, cx, cy, className, radius = 8) {
