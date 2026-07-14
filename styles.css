@@ -549,7 +549,7 @@ h2 {
 label input,
 label textarea,
 label select,
-.spouse-picker select {
+.relationship-picker select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -563,21 +563,21 @@ label select,
   padding: 0 40px 0 12px;
 }
 
-.spouse-search-box {
+.relationship-search-box {
   margin-top: 6px;
 }
 
-.spouse-search-box input {
+.relationship-search-box input {
   margin-top: 0;
 }
 
-.spouse-picker select[multiple] {
+.relationship-picker select[multiple] {
   line-height: 1.7;
 }
 
 label input,
 label select,
-.spouse-picker select {
+.relationship-picker select {
   min-height: 42px;
   padding: 0 10px;
   margin-top: 6px;
@@ -695,7 +695,7 @@ label textarea {
 label input:focus,
 label textarea:focus,
 label select:focus,
-.spouse-picker select:focus,
+.relationship-picker select:focus,
 .search-box input:focus {
   border-color: rgba(36, 85, 76, 0.55);
   box-shadow: 0 0 0 3px rgba(36, 85, 76, 0.11);
@@ -1908,6 +1908,7 @@ body.admin-mode .article-admin-comments.admin-only {
   display: grid;
   gap: 14px;
   width: min(94vw, 480px);
+  max-width: 100%;
   max-height: min(86vh, 900px);
   overflow: auto;
   margin: auto;

@@ -300,7 +300,8 @@ const DEMO_SCENARIO_PEOPLE = [
     generation: 3,
     slot: 3,
     spouseIds: [],
-    parentIds: ["demo-arash", "demo-leila"],
+    parentIds: [],
+    ancestorIds: ["demo-arash", "demo-leila"],
     story: "نمونه پیوندی که ریشه اصلی مشخص است اما نسل‌های میانی هنوز معلوم نیستند؛ خط آن باید خط‌چین باشد.",
     photos: [],
   },
@@ -365,7 +366,8 @@ const DEMO_SCENARIO_PEOPLE = [
     generation: 4,
     slot: 13,
     spouseIds: [],
-    parentIds: ["demo-homa"],
+    parentIds: [],
+    ancestorIds: ["demo-homa"],
     story: "نمونه دیگری از پیوند دور با نسل‌های میانی نامشخص؛ خط از ریشه تا این کارت باید خط‌چین باشد.",
     photos: [],
   },
@@ -905,7 +907,23 @@ function normalizeState(value) {
     mentionHandle: String(person.mentionHandle || "").trim(),
     spouseIds: Array.from(new Set(person.spouseIds || [])).filter(Boolean),
     parentIds: Array.from(new Set(person.parentIds || [])).filter(Boolean).slice(0, 2),
+    ancestorIds: Array.from(
+      new Set([...(Array.isArray(person.ancestorIds) ? person.ancestorIds : []), person.ancestorId].filter(Boolean))
+    ),
   }));
+  const normalizedPeopleById = new Map(normalized.people.map((person) => [person.id, person]));
+  normalized.people.forEach((person) => {
+    const legacyAncestorIds = person.parentIds.filter((parentId) => {
+      const parent = normalizedPeopleById.get(parentId);
+      return parent && Number(person.generation || 0) - Number(parent.generation || 0) > 1;
+    });
+    if (legacyAncestorIds.length) {
+      person.parentIds = person.parentIds.filter((parentId) => !legacyAncestorIds.includes(parentId));
+    }
+    person.ancestorIds = Array.from(new Set([...person.ancestorIds, ...legacyAncestorIds])).filter(
+      (ancestorId) => ancestorId !== person.id && !person.parentIds.includes(ancestorId)
+    );
+  });
   normalized.people.forEach((person) => {
     person.spouseIds = person.spouseIds.filter((spouseId) => spouseId !== person.id);
     person.spouseIds.forEach((spouseId) => {
@@ -1029,6 +1047,7 @@ function stateHasCustomTree(value) {
       Number(person.generation || 0) !== Number(sample.generation || 0) ||
       Number(person.slot || 0) !== Number(sample.slot || 0) ||
       JSON.stringify(person.parentIds || []) !== JSON.stringify(sample.parentIds || []) ||
+      JSON.stringify(person.ancestorIds || []) !== JSON.stringify(sample.ancestorIds || []) ||
       JSON.stringify(person.spouseIds || []) !== JSON.stringify(sample.spouseIds || [])
     );
   });
@@ -1562,8 +1581,10 @@ function personByMentionHandle(handle = "") {
 
 function mentionContext(person) {
   const parents = (person.parentIds || []).map((parentId) => personById(parentId)?.name).filter(Boolean);
+  const ancestors = (person.ancestorIds || []).map((ancestorId) => personById(ancestorId)?.name).filter(Boolean);
   const dates = [person.birth, person.death].filter(Boolean);
   if (parents.length) return `والدین: ${parents.join(" و ")}`;
+  if (ancestors.length) return `جد: ${ancestors.join(" و ")}`;
   if (dates.length) return dates.join(" - ");
   return personMentionLabel(person);
 }
@@ -2295,15 +2316,27 @@ function childPeopleOf(personId, people = state.people) {
   return sortChildrenByBirth(people.filter((person) => (person.parentIds || []).includes(personId)));
 }
 
+function ancestryLinkIds(person) {
+  return Array.from(new Set([...(person?.parentIds || []), ...(person?.ancestorIds || [])].filter(Boolean)));
+}
+
+function treeChildPeopleOf(personId, people = state.people) {
+  return sortChildrenByBirth(people.filter((person) => ancestryLinkIds(person).includes(personId)));
+}
+
+function isExplicitAncestorLink(ancestor, descendant) {
+  return Boolean(ancestor?.id && descendant?.ancestorIds?.includes(ancestor.id));
+}
+
 function isStartingPerson(person) {
-  if ((person.parentIds || []).length) return false;
-  const spouseHasParents = (person.spouseIds || []).some((spouseId) => (personById(spouseId)?.parentIds || []).length);
-  return !spouseHasParents;
+  if (ancestryLinkIds(person).length) return false;
+  const spouseHasAncestry = (person.spouseIds || []).some((spouseId) => ancestryLinkIds(personById(spouseId)).length);
+  return !spouseHasAncestry;
 }
 
 function startingPeople() {
   const roots = state.people.filter(isStartingPerson);
-  return sortTreePeople(roots.length ? roots : state.people.filter((person) => !(person.parentIds || []).length));
+  return sortTreePeople(roots.length ? roots : state.people.filter((person) => !ancestryLinkIds(person).length));
 }
 
 function startingPersonIds() {
@@ -2315,9 +2348,9 @@ function rootAncestorIds(personId, visited = new Set()) {
   visited.add(personId);
   const person = personById(personId);
   if (!person) return [];
-  const parentIds = person.parentIds || [];
-  if (!parentIds.length) return [person.id];
-  const roots = parentIds.flatMap((parentId) => rootAncestorIds(parentId, new Set(visited)));
+  const upstreamIds = ancestryLinkIds(person);
+  if (!upstreamIds.length) return [person.id];
+  const roots = upstreamIds.flatMap((upstreamId) => rootAncestorIds(upstreamId, new Set(visited)));
   return Array.from(new Set(roots));
 }
 
@@ -2332,7 +2365,7 @@ function personHasAncestor(personId, ancestorId, visited = new Set()) {
   if (personId === ancestorId) return true;
   visited.add(personId);
   const person = personById(personId);
-  return Boolean(person?.parentIds?.some((parentId) => personHasAncestor(parentId, ancestorId, visited)));
+  return ancestryLinkIds(person).some((upstreamId) => personHasAncestor(upstreamId, ancestorId, visited));
 }
 
 function pathFromRootToPerson(rootId, personId, visited = new Set()) {
@@ -2341,9 +2374,9 @@ function pathFromRootToPerson(rootId, personId, visited = new Set()) {
   visited.add(personId);
   const person = personById(personId);
   if (!person) return [];
-  for (const parentId of person.parentIds || []) {
-    const parentPath = pathFromRootToPerson(rootId, parentId, new Set(visited));
-    if (parentPath.length) return [...parentPath, personId];
+  for (const upstreamId of ancestryLinkIds(person)) {
+    const upstreamPath = pathFromRootToPerson(rootId, upstreamId, new Set(visited));
+    if (upstreamPath.length) return [...upstreamPath, personId];
   }
   return [];
 }
@@ -2351,11 +2384,11 @@ function pathFromRootToPerson(rootId, personId, visited = new Set()) {
 function descendantIdsOf(personId, visited = new Set()) {
   if (!personId || visited.has(personId)) return [];
   visited.add(personId);
-  return childPeopleOf(personId).flatMap((child) => [child.id, ...descendantIdsOf(child.id, visited)]);
+  return treeChildPeopleOf(personId).flatMap((child) => [child.id, ...descendantIdsOf(child.id, visited)]);
 }
 
 function expandablePersonIds() {
-  return state.people.filter((person) => childPeopleOf(person.id).length).map((person) => person.id);
+  return state.people.filter((person) => treeChildPeopleOf(person.id).length).map((person) => person.id);
 }
 
 function treeNavigationRootId() {
@@ -2484,7 +2517,7 @@ function collapseWholeTree() {
 function descendantCount(personId, visited = new Set()) {
   if (visited.has(personId)) return 0;
   visited.add(personId);
-  return childPeopleOf(personId).reduce((total, child) => total + 1 + descendantCount(child.id, visited), 0);
+  return treeChildPeopleOf(personId).reduce((total, child) => total + 1 + descendantCount(child.id, visited), 0);
 }
 
 function lineageStatsForPerson(personId) {
@@ -2563,7 +2596,7 @@ function lineageStatsMarkup(personId) {
 }
 
 function navigableChildPeopleOf(personId) {
-  const children = childPeopleOf(personId);
+  const children = treeChildPeopleOf(personId);
   const navigationRootId = treeNavigationRootId();
   if (!navigationRootId) return children;
   return children.filter((child) => personHasAncestor(child.id, navigationRootId));
@@ -2593,11 +2626,11 @@ function searchContextPeople(searchTerm = "") {
 
   const visibleIds = new Set(matches.map((person) => person.id));
   matches.forEach((person) => {
-    (person.parentIds || []).forEach((parentId) => visibleIds.add(parentId));
+    ancestryLinkIds(person).forEach((upstreamId) => visibleIds.add(upstreamId));
     (person.spouseIds || []).forEach((spouseId) => visibleIds.add(spouseId));
-    childPeopleOf(person.id).forEach((child) => {
+    treeChildPeopleOf(person.id).forEach((child) => {
       visibleIds.add(child.id);
-      (child.parentIds || []).forEach((parentId) => visibleIds.add(parentId));
+      ancestryLinkIds(child).forEach((upstreamId) => visibleIds.add(upstreamId));
     });
   });
 
@@ -2632,7 +2665,7 @@ function visibleTreePeople(searchTerm = "") {
         }
       });
       if (!expandedPersonIds.has(id)) return;
-      const children = navigationRootId ? navigableChildPeopleOf(id) : childPeopleOf(id);
+      const children = navigationRootId ? navigableChildPeopleOf(id) : treeChildPeopleOf(id);
       children.forEach((child) => {
         if (!visibleIds.has(child.id)) {
           visibleIds.add(child.id);
@@ -2650,12 +2683,15 @@ function treeDepthMap() {
   startingPeople().forEach((person) => depths.set(person.id, 0));
 
   let changed = true;
-  while (changed) {
+  let passes = 0;
+  const maxPasses = Math.max(1, state.people.length * 2);
+  while (changed && passes < maxPasses) {
+    passes += 1;
     changed = false;
     state.people.forEach((person) => {
-      const parentDepths = (person.parentIds || []).map((parentId) => depths.get(parentId)).filter((depth) => depth !== undefined);
-      if (parentDepths.length) {
-        const nextDepth = Math.max(Math.min(...parentDepths) + 1, Number(person.generation || 0));
+      const upstreamDepths = ancestryLinkIds(person).map((upstreamId) => depths.get(upstreamId)).filter((depth) => depth !== undefined);
+      if (upstreamDepths.length) {
+        const nextDepth = Math.max(Math.min(...upstreamDepths) + 1, Number(person.generation || 0));
         if (depths.get(person.id) !== nextDepth) {
           depths.set(person.id, nextDepth);
           changed = true;
@@ -2688,7 +2724,7 @@ function rowGroupAnchor(group) {
     ? group.filter((person) => personHasAncestor(person.id, navigationRootId))
     : [];
   if (activeDescendants.length) return sortChildrenByBirth(activeDescendants)[0] || activeDescendants[0];
-  const descendants = group.filter((person) => (person.parentIds || []).length);
+  const descendants = group.filter((person) => ancestryLinkIds(person).length);
   return sortChildrenByBirth(descendants.length ? descendants : group)[0] || group[0];
 }
 
@@ -2765,11 +2801,11 @@ function orderTreeRowPeople(generationPeople, positionedAncestors = new Map()) {
   const bucketByParents = new Map();
   orderedGroups.forEach((group, index) => {
     const anchor = rowGroupAnchor(group);
-    const parentIds = (anchor?.parentIds || []).filter(Boolean).slice().sort();
-    const key = parentIds.length ? parentIds.join(":") : `unconnected:${index}`;
+    const upstreamIds = ancestryLinkIds(anchor).slice().sort();
+    const key = upstreamIds.length ? upstreamIds.join(":") : `unconnected:${index}`;
     let bucket = bucketByParents.get(key);
     if (!bucket) {
-      const parentXs = parentIds.map((parentId) => positionedAncestors.get(parentId)?.x).filter(Number.isFinite);
+      const parentXs = upstreamIds.map((upstreamId) => positionedAncestors.get(upstreamId)?.x).filter(Number.isFinite);
       bucket = {
         groups: [],
         firstIndex: index,
@@ -2924,7 +2960,7 @@ function branchBridgeRootForPerson(person) {
   if (focusedSubtreeId) return "";
   if (!activeRootId || !person) return "";
   if (isStartingPerson(person)) return "";
-  if (!(person.parentIds || []).length) return "";
+  if (!ancestryLinkIds(person).length) return "";
   const rootId = primaryRootForPerson(person.id);
   return rootId && rootId !== activeRootId ? rootId : "";
 }
@@ -3334,11 +3370,30 @@ function drawRelationships(svg, people, positions) {
       addLine(svg, parent.x, parent.y + 72, childPos.x, childPos.y - 78, descentLineClass(inferred), inferredDescentTitle(inferred));
     }
   });
+
+  people.forEach((descendant) => {
+    (descendant.ancestorIds || []).forEach((ancestorId) => {
+      const ancestorPerson = people.find((item) => item.id === ancestorId) || personById(ancestorId);
+      const ancestor = positions.get(ancestorId);
+      const descendantPosition = positions.get(descendant.id);
+      if (!ancestorPerson || !ancestor || !descendantPosition) return;
+      const title = `پیوند جد ${ancestorPerson.name} با ${descendant.name}؛ ${inferredDescentTitle(true)}`;
+      addLine(
+        svg,
+        ancestor.x,
+        ancestor.y + 72,
+        descendantPosition.x,
+        descendantPosition.y - 78,
+        descentLineClass(true),
+        title
+      );
+    });
+  });
 }
 
 function isInferredDescent(parent, child) {
   if (!parent || !child) return false;
-  return Number(child.generation || 0) - Number(parent.generation || 0) > 1;
+  return isExplicitAncestorLink(parent, child) || Number(child.generation || 0) - Number(parent.generation || 0) > 1;
 }
 
 function descentLineClass(inferred = false) {
@@ -3385,6 +3440,9 @@ function openPerson(id) {
   const parents = person.parentIds
     ?.map((parentId) => state.people.find((item) => item.id === parentId)?.name)
     .filter(Boolean);
+  const ancestors = person.ancestorIds
+    ?.map((ancestorId) => state.people.find((item) => item.id === ancestorId)?.name)
+    .filter(Boolean);
   const spouses = person.spouseIds
     ?.map((spouseId) => state.people.find((item) => item.id === spouseId)?.name)
     .filter(Boolean);
@@ -3400,6 +3458,7 @@ function openPerson(id) {
           ${gender !== "unknown" ? `<span>جنسیت: ${genderLabel(gender)}</span>` : ""}
           ${person.mentionHandle ? `<span>${escapeHtml(personMentionLabel(person))}</span>` : ""}
           ${parents?.length ? `<span>والدین: ${escapeHtml(parents.join(" و "))}</span>` : ""}
+          ${ancestors?.length ? `<span>جد: ${escapeHtml(ancestors.join("، "))}</span>` : ""}
           ${spouses?.length ? `<span>${spouses.length > 1 ? "همسران" : "همسر"}: ${escapeHtml(spouses.join("، "))}</span>` : ""}
         </div>
       </div>
@@ -4199,7 +4258,7 @@ function personOptionsForIds(personIds, selectedId = "", includeEmpty = true) {
   );
 }
 
-function spouseMatchesSearch(person, searchTerm = "") {
+function relationshipMatchesSearch(person, searchTerm = "") {
   const query = normalizeSearchText(String(searchTerm || "").replace(/^@+/, ""));
   if (!query) return true;
   return [person.name, person.mentionHandle, mentionContext(person)]
@@ -4207,17 +4266,24 @@ function spouseMatchesSearch(person, searchTerm = "") {
     .some((value) => normalizeSearchText(value).includes(query));
 }
 
-function renderSpouseOptions(selectedIds = [], searchTerm = "") {
+function renderRelationshipOptions(selectName, searchName, selectedIds = [], searchTerm = "") {
   const fields = $("#personEditor")?.elements;
-  const select = fields?.spouseId;
-  const searchInput = fields?.spouseSearch;
+  const select = fields?.[selectName];
+  const searchInput = fields?.[searchName];
   if (!select) return;
 
   const selected = new Set((Array.isArray(selectedIds) ? selectedIds : [selectedIds]).filter(Boolean));
   const currentPersonId = fields.id?.value || "";
   const people = state.people
     .filter((person) => person.id !== currentPersonId)
-    .filter((person) => selected.has(person.id) || spouseMatchesSearch(person, searchTerm))
+    .filter(
+      (person) =>
+        selected.has(person.id) ||
+        selectName !== "ancestorIds" ||
+        !currentPersonId ||
+        !personHasAncestor(person.id, currentPersonId)
+    )
+    .filter((person) => selected.has(person.id) || relationshipMatchesSearch(person, searchTerm))
     .sort(
       (a, b) =>
         Number(selected.has(b.id)) - Number(selected.has(a.id)) ||
@@ -4235,6 +4301,14 @@ function renderSpouseOptions(selectedIds = [], searchTerm = "") {
         .join("")
     : '<option value="" disabled>نتیجه‌ای پیدا نشد</option>';
   if (searchInput && searchInput.value !== searchTerm) searchInput.value = searchTerm;
+}
+
+function renderSpouseOptions(selectedIds = [], searchTerm = "") {
+  renderRelationshipOptions("spouseId", "spouseSearch", selectedIds, searchTerm);
+}
+
+function renderAncestorOptions(selectedIds = [], searchTerm = "") {
+  renderRelationshipOptions("ancestorIds", "ancestorSearch", selectedIds, searchTerm);
 }
 
 function resetParentEditorGuidance() {
@@ -4440,7 +4514,7 @@ function nextAvailableSlot(generation, preferredSlot, excludeId = "") {
 
 function nextRootSlot() {
   const rootSlots = state.people
-    .filter((person) => Number(person.generation || 0) === 0 && !(person.parentIds || []).length)
+    .filter((person) => Number(person.generation || 0) === 0 && !ancestryLinkIds(person).length)
     .map((person) => Number(person.slot || 0));
   const preferredSlot = rootSlots.length ? Math.max(...rootSlots) + 2 : 0;
   return nextAvailableSlot(0, preferredSlot);
@@ -4648,6 +4722,7 @@ function refreshAdminLists() {
   const spouseFields = $("#personEditor")?.elements;
   if (spouseFields?.spouseId) {
     renderSpouseOptions(selectedSelectValues(spouseFields.spouseId), spouseFields.spouseSearch?.value || "");
+    renderAncestorOptions(selectedSelectValues(spouseFields.ancestorIds), spouseFields.ancestorSearch?.value || "");
   }
   $$('select[name="parentOne"], select[name="parentTwo"]').forEach((select) => {
     select.innerHTML = personOptions();
@@ -4676,6 +4751,7 @@ function fillPersonForm(id) {
   fields.photos.value = (person.photos || []).join("\n");
   fields.mediaFiles.value = "";
   renderSpouseOptions(person.spouseIds || [], "");
+  renderAncestorOptions(person.ancestorIds || [], "");
   fields.parentOne.innerHTML = personOptions(person.parentIds?.[0] || "");
   fields.parentTwo.innerHTML = personOptions(person.parentIds?.[1] || "");
 }
@@ -4694,6 +4770,7 @@ function clearPersonForm() {
   fields.generation.value = 0;
   fields.slot.value = 0;
   renderSpouseOptions([], "");
+  renderAncestorOptions([], "");
   fields.parentOne.innerHTML = personOptions();
   fields.parentTwo.innerHTML = personOptions();
 }
@@ -4724,6 +4801,7 @@ function openRootEditor() {
   fields.parentOne.value = "";
   fields.parentTwo.value = "";
   renderSpouseOptions([], "");
+  renderAncestorOptions([], "");
   $("#personEditorDialog").showModal();
 }
 
@@ -5306,11 +5384,16 @@ function bindEvents() {
     fields[`${fieldName}Unknown`]?.addEventListener("change", () => syncPersonDateField(fields, fieldName));
   });
   const personEditorFields = $("#personEditor").elements;
-  personEditorFields.spouseSearch?.addEventListener("input", (event) => {
-    renderSpouseOptions(selectedSelectValues(personEditorFields.spouseId), event.currentTarget.value);
-  });
-  personEditorFields.spouseSearch?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") event.preventDefault();
+  [
+    ["spouseSearch", "spouseId", renderSpouseOptions],
+    ["ancestorSearch", "ancestorIds", renderAncestorOptions],
+  ].forEach(([searchName, selectName, renderOptions]) => {
+    personEditorFields[searchName]?.addEventListener("input", (event) => {
+      renderOptions(selectedSelectValues(personEditorFields[selectName]), event.currentTarget.value);
+    });
+    personEditorFields[searchName]?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") event.preventDefault();
+    });
   });
 
   $("#subscribeForm").addEventListener("submit", (event) => {
@@ -5329,8 +5412,9 @@ function bindEvents() {
     const fields = form.elements;
     const id = fields.id.value || `p${Date.now()}`;
     const existing = state.people.find((item) => item.id === id);
-    const person = existing || { id, spouseIds: [], parentIds: [] };
+    const person = existing || { id, spouseIds: [], parentIds: [], ancestorIds: [] };
     const spouseIds = selectedSelectValues(fields.spouseId).filter((spouseId) => spouseId !== id);
+    const ancestorIds = selectedSelectValues(fields.ancestorIds).filter((ancestorId) => ancestorId !== id);
     let headshotMedia = null;
     let uploadedMedia = [];
     try {
@@ -5368,6 +5452,9 @@ function bindEvents() {
     person.photos = fields.photos.value.split(/\n+/).map((item) => item.trim()).filter(Boolean);
     person.media = uniqueMedia([...(person.media || []), ...uploadedMedia]);
     person.parentIds = orderedParentIds([fields.parentOne.value, fields.parentTwo.value]);
+    person.ancestorIds = Array.from(new Set(ancestorIds)).filter(
+      (ancestorId) => !person.parentIds.includes(ancestorId) && !personHasAncestor(ancestorId, id)
+    );
     person.spouseIds = Array.from(new Set(spouseIds));
     if (!existing) state.people.push(person);
     state.people.forEach((item) => {
@@ -5411,6 +5498,7 @@ function bindEvents() {
     state.people.forEach((person) => {
       person.spouseIds = (person.spouseIds || []).filter((item) => item !== id);
       person.parentIds = (person.parentIds || []).filter((item) => item !== id);
+      person.ancestorIds = (person.ancestorIds || []).filter((item) => item !== id);
     });
     saveState();
     selectedPersonId = null;
