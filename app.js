@@ -850,6 +850,10 @@ function normalizeGender(value) {
   return value === "male" || value === "female" ? value : "unknown";
 }
 
+function normalizeCardColor(value) {
+  return value === "red" ? "red" : "default";
+}
+
 function defaultGenderForPerson(person) {
   const sampleGenders = {
     p1: "male",
@@ -913,6 +917,7 @@ function normalizeState(value) {
     const normalizedPerson = {
       ...person,
       gender: normalizeGender(person.gender || defaultGenderForPerson(person)),
+      cardColor: normalizeCardColor(person.cardColor),
       media: (person.media || []).map(normalizeMediaItem).filter(Boolean),
       mentionHandle: String(person.mentionHandle || "").trim(),
       spouseIds: Array.from(new Set(person.spouseIds || [])).filter(Boolean),
@@ -1046,6 +1051,7 @@ function stateHasCustomTree(value) {
       person.death !== sample.death ||
       Number(person.generation || 0) !== Number(sample.generation || 0) ||
       Number(person.slot || 0) !== Number(sample.slot || 0) ||
+      normalizeCardColor(person.cardColor) !== normalizeCardColor(sample.cardColor) ||
       JSON.stringify(person.parentIds || []) !== JSON.stringify(sample.parentIds || []) ||
       JSON.stringify(person.spouseIds || []) !== JSON.stringify(sample.spouseIds || [])
     );
@@ -3127,7 +3133,9 @@ function renderTree() {
     node.style.top = `${position.y}px`;
     node.dataset.id = person.id;
     node.dataset.gender = normalizeGender(person.gender);
+    node.dataset.cardColor = normalizeCardColor(person.cardColor);
     node.classList.add(`gender-${normalizeGender(person.gender)}`);
+    node.classList.add(`card-color-${normalizeCardColor(person.cardColor)}`);
     node.classList.toggle("selected", selectedPersonId === person.id);
     node.classList.toggle("active-root", activeRootId === person.id || focusedSubtreeId === person.id);
     node.classList.toggle("search-match", hasSearch && searchMatchIds.has(person.id));
@@ -4835,6 +4843,7 @@ function fillPersonForm(id) {
   fields.name.value = person.name || "";
   setPersonDateField(fields, "birth", person.birth || "");
   fields.gender.value = normalizeGender(person.gender);
+  fields.cardColor.value = normalizeCardColor(person.cardColor);
   setPersonDateField(fields, "death", person.death || "");
   fields.generation.value = person.generation ?? 0;
   fields.slot.value = person.slot ?? 0;
@@ -4859,6 +4868,7 @@ function clearPersonForm() {
   setPersonDateField(fields, "birth", "");
   setPersonDateField(fields, "death", "");
   fields.gender.value = "unknown";
+  fields.cardColor.value = "default";
   fields.generation.value = 0;
   fields.slot.value = 0;
   renderSpouseOptions([], "");
@@ -5530,6 +5540,7 @@ function bindEvents() {
     person.name = fields.name.value.trim();
     person.birth = normalizePersonDate(fields.birth.value, fields.birthUnknown?.checked);
     person.gender = normalizeGender(fields.gender.value);
+    person.cardColor = normalizeCardColor(fields.cardColor.value);
     person.death = normalizePersonDate(fields.death.value, fields.deathUnknown?.checked);
     person.generation = generation;
     person.slot = Number(fields.slot.value || 0);

@@ -9,7 +9,7 @@
     />
     <title>خاندان فیروزجایی</title>
     <link rel="icon" type="image/svg+xml" sizes="any" href="assets/brand/firouzjaei-logo.svg?v=logo-svg-20260706" />
-    <link rel="stylesheet" href="styles.css?v=unified-parent-links-20260713" />
+    <link rel="stylesheet" href="styles.css?v=person-card-color-20260715" />
   </head>
   <body>
     <div class="app-shell">
@@ -259,6 +259,26 @@
               <option value="female">زن</option>
             </select>
           </label>
+          <fieldset class="card-color-field">
+            <legend>رنگ کارت</legend>
+            <div class="card-color-options">
+              <label class="card-color-choice">
+                <input name="cardColor" type="radio" value="default" checked />
+                <span class="card-color-choice-body">
+                  <span class="card-color-swatch card-color-swatch-default" aria-hidden="true"></span>
+                  <strong>پیش‌فرض</strong>
+                </span>
+              </label>
+              <label class="card-color-choice">
+                <input name="cardColor" type="radio" value="red" />
+                <span class="card-color-choice-body">
+                  <span class="card-color-swatch card-color-swatch-red" aria-hidden="true"></span>
+                  <strong>قرمز</strong>
+                </span>
+              </label>
+            </div>
+            <small class="field-note">برای مشخص‌کردن کارت‌های ویژه، رنگ قرمز را انتخاب کنید.</small>
+          </fieldset>
           <label>سال درگذشت
             <input name="death" type="text" />
             <span class="inline-check">
@@ -599,6 +619,6 @@
     </template>
 
     <script src="assets/book/book-data.js?v=demo-tree-20260705"></script>
-    <script src="app.js?v=unified-parent-links-20260713"></script>
+    <script src="app.js?v=person-card-color-20260715"></script>
   </body>
 </html>
