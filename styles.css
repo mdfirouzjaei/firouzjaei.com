@@ -480,6 +480,55 @@ h2 {
   font-weight: 760;
 }
 
+.tree-color-legend {
+  grid-column: 1 / -1;
+  display: none;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.tree-layout.focused-subtree-layout .tree-color-legend {
+  display: flex;
+}
+
+.tree-color-legend-title {
+  font-weight: 780;
+}
+
+.tree-color-legend > span:not(.tree-color-legend-title) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.family-color-swatch {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+}
+
+.family-color-green {
+  border-color: #4d8463;
+  background: #d9ecdf;
+}
+
+.family-color-blue {
+  border-color: #547fa4;
+  background: #dce9f4;
+}
+
+.family-color-red {
+  border-color: #ad5b6d;
+  background: #f2d9df;
+}
+
 .root-chip {
   flex: 0 0 auto;
   display: inline-flex;
@@ -840,6 +889,7 @@ label select:focus,
 }
 
 .tree-stage.focused-subtree {
+  min-height: 260px;
   background: #f6fbf8;
 }
 
@@ -903,12 +953,12 @@ label select:focus,
   left: -11px;
   z-index: 3;
   display: inline-grid;
-  grid-template-columns: auto auto;
-  align-items: center;
-  gap: 3px;
+  width: 32px;
+  height: 32px;
+  place-items: center;
   min-width: 32px;
-  min-height: 28px;
-  padding: 0 7px;
+  min-height: 32px;
+  padding: 0;
   border: 1px solid rgba(185, 133, 40, 0.36);
   border-radius: 999px;
   background: #fff;
@@ -942,11 +992,6 @@ label select:focus,
   display: none;
 }
 
-.branch-toggle small {
-  color: var(--muted);
-  font-size: 0.68rem;
-}
-
 .person-node.gender-male {
   border-color: rgba(49, 93, 126, 0.24);
 }
@@ -973,6 +1018,52 @@ label select:focus,
 
 .person-node.card-color-red.active-root {
   box-shadow: 0 16px 34px rgba(116, 38, 58, 0.3);
+}
+
+.tree-stage.focused-subtree .person-node.family-role-father,
+.tree-stage.focused-subtree .person-node.family-role-parent,
+.tree-stage.focused-subtree .person-node.family-role-child {
+  border-color: #4d8463;
+  background: #e4f2e8;
+  color: #173b2b;
+  box-shadow: 0 12px 28px rgba(49, 105, 74, 0.15);
+}
+
+.tree-stage.focused-subtree .person-node.family-role-father .avatar,
+.tree-stage.focused-subtree .person-node.family-role-parent .avatar,
+.tree-stage.focused-subtree .person-node.family-role-child .avatar {
+  background: #cfe5d6;
+  box-shadow: 0 0 0 1px rgba(77, 132, 99, 0.28);
+}
+
+.tree-stage.focused-subtree .person-node.family-role-mother {
+  border-color: #547fa4;
+  background: #e5eff8;
+  color: #17364f;
+  box-shadow: 0 12px 28px rgba(59, 104, 143, 0.15);
+}
+
+.tree-stage.focused-subtree .person-node.family-role-mother .avatar {
+  background: #cfdfed;
+  box-shadow: 0 0 0 1px rgba(84, 127, 164, 0.28);
+}
+
+.tree-stage.focused-subtree .person-node.family-role-inlaw {
+  border-color: #ad5b6d;
+  background: #f7e5e9;
+  color: #542330;
+  box-shadow: 0 12px 28px rgba(138, 47, 69, 0.14);
+}
+
+.tree-stage.focused-subtree .person-node.family-role-inlaw .avatar {
+  background: #edd0d7;
+  box-shadow: 0 0 0 1px rgba(173, 91, 109, 0.28);
+}
+
+.tree-stage.focused-subtree .person-node[class*="family-role-"]:hover,
+.tree-stage.focused-subtree .person-node[class*="family-role-"].selected {
+  border-color: var(--gold);
+  box-shadow: 0 16px 34px rgba(185, 133, 40, 0.2);
 }
 
 .person-node:hover,

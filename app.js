@@ -135,8 +135,6 @@ const MULTI_SPOUSE_SHELF_OFFSET = 210;
 const FOCUSED_TREE_MIN_WIDTH = 520;
 const FOCUSED_TREE_SIDE_PADDING = 92;
 const FOCUSED_TREE_MIN_X_GAP = 146;
-const FOCUSED_TREE_TARGET_SCALE = 0.86;
-const FOCUSED_TREE_WRAP_Y_GAP = 220;
 const FAMILY_CONNECTOR_LANE_GAP = 18;
 const UNKNOWN_DATE_LABEL = "نامشخص";
 const GENDER_LABELS = {
@@ -2680,6 +2678,28 @@ function visibleTreePeople(searchTerm = "") {
   return sortTreePeople(state.people.filter((person) => visibleIds.has(person.id)));
 }
 
+function focusedFamilyRoleMap(focusId, people) {
+  const roles = new Map();
+  const visibleIds = new Set(people.map((person) => person.id));
+  const focusPerson = personById(focusId);
+  if (!focusPerson) return roles;
+
+  [focusPerson, ...(focusPerson.spouseIds || []).map(personById).filter(Boolean)].forEach((parent) => {
+    if (!visibleIds.has(parent.id)) return;
+    const gender = normalizeGender(parent.gender);
+    roles.set(parent.id, gender === "female" ? "mother" : gender === "male" ? "father" : "parent");
+  });
+
+  const children = navigableChildPeopleOf(focusId).filter((child) => visibleIds.has(child.id));
+  children.forEach((child) => roles.set(child.id, "child"));
+  children.forEach((child) => {
+    (child.spouseIds || []).forEach((spouseId) => {
+      if (visibleIds.has(spouseId) && !roles.has(spouseId)) roles.set(spouseId, "inlaw");
+    });
+  });
+  return roles;
+}
+
 function treeDepthMap() {
   const depths = new Map();
   startingPeople().forEach((person) => depths.set(person.id, 0));
@@ -2829,73 +2849,6 @@ function orderTreeRowPeople(generationPeople, positionedAncestors = new Map()) {
     .flatMap(orderTreeRowGroupMembers);
 }
 
-function chunkFocusedTreeRow(orderedPeople, columnCount) {
-  if (!orderedPeople.length) return [];
-  const rowIds = new Set(orderedPeople.map((person) => person.id));
-  const orderIndex = new Map(orderedPeople.map((person, index) => [person.id, index]));
-  const visited = new Set();
-  const spouseGroups = [];
-
-  orderedPeople.forEach((person) => {
-    if (visited.has(person.id)) return;
-    const group = [];
-    const queue = [person];
-    while (queue.length) {
-      const current = queue.shift();
-      if (!current || visited.has(current.id)) continue;
-      visited.add(current.id);
-      group.push(current);
-      (current.spouseIds || [])
-        .map(personById)
-        .filter((spouse) => spouse && rowIds.has(spouse.id) && !visited.has(spouse.id))
-        .forEach((spouse) => queue.push(spouse));
-    }
-    const orderedGroup = group.sort((left, right) => orderIndex.get(left.id) - orderIndex.get(right.id));
-    const groupIds = new Set(orderedGroup.map((member) => member.id));
-    const hub = orderedGroup
-      .slice()
-      .sort(
-        (left, right) =>
-          (right.spouseIds || []).filter((id) => groupIds.has(id)).length -
-            (left.spouseIds || []).filter((id) => groupIds.has(id)).length ||
-          orderIndex.get(left.id) - orderIndex.get(right.id)
-      )[0];
-    spouseGroups.push({ members: orderedGroup, hub });
-  });
-
-  const chunks = [];
-  let currentChunk = [];
-  const flushChunk = () => {
-    if (currentChunk.length) chunks.push(currentChunk);
-    currentChunk = [];
-  };
-  spouseGroups.forEach(({ members: group, hub }) => {
-    const connectedSpouses = (hub?.spouseIds || [])
-      .map(personById)
-      .filter((spouse) => spouse && group.includes(spouse));
-    if (hub && connectedSpouses.length > 1) {
-      flushChunk();
-      chunks.push([hub]);
-      const remainingMembers = group.filter((member) => member.id !== hub.id);
-      for (let index = 0; index < remainingMembers.length; index += columnCount) {
-        chunks.push(remainingMembers.slice(index, index + columnCount));
-      }
-      return;
-    }
-    if (group.length > columnCount) {
-      flushChunk();
-      for (let index = 0; index < group.length; index += columnCount) {
-        chunks.push(group.slice(index, index + columnCount));
-      }
-      return;
-    }
-    if (currentChunk.length && currentChunk.length + group.length > columnCount) flushChunk();
-    currentChunk.push(...group);
-  });
-  flushChunk();
-  return chunks;
-}
-
 function focusedTreeMinimumWidth() {
   const stageWidth = $("#treeStage")?.clientWidth || TREE_CANVAS_WIDTH;
   return Math.min(FOCUSED_TREE_MIN_WIDTH, Math.max(260, stageWidth - 28));
@@ -2903,30 +2856,12 @@ function focusedTreeMinimumWidth() {
 
 function focusedTreeLayout(generationMap) {
   const widestRowCount = Math.max(1, ...Array.from(generationMap.values()).map((row) => row.length));
-  const stageWidth = $("#treeStage")?.clientWidth || TREE_CANVAS_WIDTH;
   const minimumWidth = focusedTreeMinimumWidth();
-  const targetCanvasWidth = Math.max(minimumWidth, stageWidth - 28) / FOCUSED_TREE_TARGET_SCALE;
-  const availableForGaps = targetCanvasWidth - FOCUSED_TREE_SIDE_PADDING * 2;
-  let columnCount = Math.max(
-    1,
-    Math.min(
-      widestRowCount,
-      Math.floor(Math.max(0, availableForGaps) / FOCUSED_TREE_MIN_X_GAP) + 1
-    )
-  );
-  if (columnCount < widestRowCount && columnCount > 2 && columnCount % 2) columnCount -= 1;
-  const xGap = columnCount <= 1
-    ? NODE_X_GAP
-    : Math.max(
-        FOCUSED_TREE_MIN_X_GAP,
-        Math.min(NODE_X_GAP, availableForGaps / (columnCount - 1))
-      );
   return {
-    columnCount,
-    xGap,
+    xGap: FOCUSED_TREE_MIN_X_GAP,
     width: Math.max(
       minimumWidth,
-      FOCUSED_TREE_SIDE_PADDING * 2 + (columnCount - 1) * xGap
+      FOCUSED_TREE_SIDE_PADDING * 2 + (widestRowCount - 1) * FOCUSED_TREE_MIN_X_GAP
     ),
   };
 }
@@ -2969,12 +2904,19 @@ function treePositions(people = state.people, { focusId = "" } = {}) {
   const positions = new Map();
   const generationMap = new Map();
   const depths = treeDepthMap();
-  const focusDepth = focusId ? depths.get(focusId) ?? Number(personById(focusId)?.generation || 0) : 0;
-  people.forEach((person) => {
-    const absoluteGeneration = depths.get(person.id) ?? Number(person.generation || 0);
-    const generation = focusId ? Math.max(0, absoluteGeneration - focusDepth) : absoluteGeneration;
-    generationMap.set(generation, [...(generationMap.get(generation) || []), person]);
-  });
+  if (focusId) {
+    const focusPerson = personById(focusId);
+    const parentRowIds = new Set([focusId, ...(focusPerson?.spouseIds || [])]);
+    const parentRow = people.filter((person) => parentRowIds.has(person.id));
+    const childRow = people.filter((person) => !parentRowIds.has(person.id));
+    if (parentRow.length) generationMap.set(0, parentRow);
+    if (childRow.length) generationMap.set(1, childRow);
+  } else {
+    people.forEach((person) => {
+      const generation = depths.get(person.id) ?? Number(person.generation || 0);
+      generationMap.set(generation, [...(generationMap.get(generation) || []), person]);
+    });
+  }
 
   const focusedLayout = focusId ? focusedTreeLayout(generationMap) : null;
   currentTreeNodeXGap = focusedLayout?.xGap || NODE_X_GAP;
@@ -2991,9 +2933,7 @@ function treePositions(people = state.people, { focusId = "" } = {}) {
           : rowY + NODE_Y_GAP + previousShelfOffset;
       const generationPeople = generationMap.get(generation) || [];
       const orderedPeople = orderTreeRowPeople(generationPeople, positions);
-      const rowChunks = focusId
-        ? chunkFocusedTreeRow(orderedPeople, focusedLayout.columnCount)
-        : [orderedPeople];
+      const rowChunks = [orderedPeople];
       rowChunks.forEach((chunk, chunkIndex) => {
         const rowContentWidth = Math.max(0, chunk.length - 1) * currentTreeNodeXGap;
         const rowBaseX = focusId
@@ -3003,45 +2943,36 @@ function treePositions(people = state.people, { focusId = "" } = {}) {
         chunk.forEach((person, displaySlot) => {
           positions.set(person.id, {
             x: rowBaseX + displaySlot * currentTreeNodeXGap,
-            y: rowY + chunkIndex * FOCUSED_TREE_WRAP_Y_GAP,
+            y: rowY,
           });
         });
         centerTreeRowOnParents(chunk, positions);
       });
 
-      previousShelfOffset = focusId ? Math.max(0, rowChunks.length - 1) * FOCUSED_TREE_WRAP_Y_GAP : 0;
+      previousShelfOffset = 0;
       const rowIds = new Set(generationPeople.map((person) => person.id));
       const movedSpouses = new Set();
-      generationPeople
-        .slice()
-        .sort(
-          (a, b) =>
-            (b.spouseIds || []).filter((id) => rowIds.has(id)).length -
-              (a.spouseIds || []).filter((id) => rowIds.has(id)).length ||
-            a.id.localeCompare(b.id)
-        )
-        .forEach((hub) => {
-          const spouseIds = (hub.spouseIds || []).filter((id) => rowIds.has(id) && positions.has(id));
-          if (spouseIds.length < 2 || movedSpouses.has(hub.id)) return;
-          const hubPosition = positions.get(hub.id);
-          const spousesAlreadyShelved = focusId && spouseIds.every((spouseId) => {
-            const spousePosition = positions.get(spouseId);
-            return hubPosition && spousePosition && spousePosition.y > hubPosition.y + 40;
-          });
-          spouseIds.forEach((spouseId) => {
-            const spousePosition = positions.get(spouseId);
-            if (!spousePosition || movedSpouses.has(spouseId) || spousesAlreadyShelved) return;
-            spousePosition.y += MULTI_SPOUSE_SHELF_OFFSET;
-            movedSpouses.add(spouseId);
-          });
-          const extraConnectorRoom = Math.max(0, spouseIds.length - 4) * 26;
-          if (!spousesAlreadyShelved) {
+      if (!focusId) {
+        generationPeople
+          .slice()
+          .sort(
+            (a, b) =>
+              (b.spouseIds || []).filter((id) => rowIds.has(id)).length -
+                (a.spouseIds || []).filter((id) => rowIds.has(id)).length ||
+              a.id.localeCompare(b.id)
+          )
+          .forEach((hub) => {
+            const spouseIds = (hub.spouseIds || []).filter((id) => rowIds.has(id) && positions.has(id));
+            if (spouseIds.length < 2 || movedSpouses.has(hub.id)) return;
+            spouseIds.forEach((spouseId) => {
+              const spousePosition = positions.get(spouseId);
+              if (!spousePosition || movedSpouses.has(spouseId)) return;
+              spousePosition.y += MULTI_SPOUSE_SHELF_OFFSET;
+              movedSpouses.add(spouseId);
+            });
+            const extraConnectorRoom = Math.max(0, spouseIds.length - 4) * 26;
             previousShelfOffset = Math.max(previousShelfOffset, MULTI_SPOUSE_SHELF_OFFSET + extraConnectorRoom);
-          }
-        });
-      if (focusId && generationPeople.length) {
-        const lowestPersonY = Math.max(...generationPeople.map((person) => positions.get(person.id)?.y || rowY));
-        previousShelfOffset = Math.max(previousShelfOffset, lowestPersonY - rowY);
+          });
       }
       previousGeneration = generation;
     });
@@ -3216,6 +3147,7 @@ function renderTree() {
 
   const people = visibleTreePeople(searchTerm);
   const positions = treePositions(people, { focusId: focusViewId });
+  const familyRoles = focusViewId ? focusedFamilyRoleMap(focusViewId, people) : new Map();
 
   drawRelationships(lines, people, positions);
 
@@ -3241,6 +3173,11 @@ function renderTree() {
     node.dataset.id = person.id;
     node.dataset.gender = normalizeGender(person.gender);
     node.dataset.cardColor = normalizeCardColor(person.cardColor);
+    const familyRole = familyRoles.get(person.id) || "";
+    if (familyRole) {
+      node.dataset.familyRole = familyRole;
+      node.classList.add(`family-role-${familyRole}`);
+    }
     node.classList.add(`gender-${normalizeGender(person.gender)}`);
     node.classList.add(`card-color-${normalizeCardColor(person.cardColor)}`);
     node.classList.toggle("selected", selectedPersonId === person.id);
@@ -3272,19 +3209,13 @@ function renderTree() {
     if (toggleButton && childCount) {
       const isExpanded = expandedPersonIds.has(person.id);
       node.classList.toggle("branch-open", isExpanded);
-      $("[data-branch-symbol]", toggleButton).textContent = isExpanded ? "-" : "+";
-      $("[data-branch-count]", toggleButton).textContent = childCount;
-      toggleButton.title = isExpanded ? "بستن فرزندان این خانواده" : "نمایش خانواده این فرد";
+      $("[data-branch-symbol]", toggleButton).textContent = "+";
+      toggleButton.title = "نمایش خانواده این فرد";
       toggleButton.setAttribute("aria-label", toggleButton.title);
       toggleButton.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (expandedPersonIds.has(person.id)) {
-          allRootsExpanded = false;
-          collapsePersonBranch(person.id);
-        } else {
-          expandPersonBranch(person.id);
-        }
+        expandPersonBranch(person.id);
         renderTreeAroundPerson(person.id);
       });
     } else if (toggleButton) {
