@@ -9,7 +9,7 @@
     />
     <title>خاندان فیروزجایی</title>
     <link rel="icon" type="image/svg+xml" sizes="any" href="assets/brand/firouzjaei-logo.svg?v=logo-svg-20260706" />
-    <link rel="stylesheet" href="styles.css?v=merge-person-cards-20260719" />
+    <link rel="stylesheet" href="styles.css?v=search-all-relations-20260719" />
   </head>
   <body>
     <div class="app-shell">
@@ -308,13 +308,33 @@
             <select name="spouseId" multiple size="5" aria-label="همسران انتخاب‌شده"></select>
             <small class="field-note">برای انتخاب چند همسر، گزینه‌ها را با Ctrl یا Command انتخاب کنید.</small>
           </div>
-          <label><span data-parent-one-label>والد اول</span>
-            <select name="parentOne"></select>
-          </label>
-          <label><span data-parent-two-label>والد دوم</span>
-            <select name="parentTwo"></select>
+          <div class="relationship-picker">
+            <label for="parentOneSearch" data-parent-one-label>والد اول</label>
+            <span class="search-box relationship-search-box">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>
+              <input id="parentOneSearch" name="parentOneSearch" type="search" placeholder="جست‌وجوی نام یا @شناسه" autocomplete="off" aria-label="جست‌وجوی والد اول" />
+            </span>
+            <select name="parentOne" size="5" aria-label="والد اول"></select>
+          </div>
+          <div class="relationship-picker">
+            <label for="parentTwoSearch" data-parent-two-label>والد دوم</label>
+            <span class="search-box relationship-search-box">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>
+              <input id="parentTwoSearch" name="parentTwoSearch" type="search" placeholder="جست‌وجوی نام یا @شناسه" autocomplete="off" aria-label="جست‌وجوی والد دوم" />
+            </span>
+            <select name="parentTwo" size="5" aria-label="والد دوم"></select>
             <small class="field-note" data-co-parent-note hidden></small>
-          </label>
+          </div>
+          <div class="relationship-picker relationship-picker-wide" data-child-relationship-picker hidden>
+            <label for="childSearch">فرزندان</label>
+            <span class="search-box relationship-search-box">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>
+              <input id="childSearch" name="childSearch" type="search" placeholder="جست‌وجوی نام، @شناسه، والدین یا تاریخ" autocomplete="off" aria-label="جست‌وجوی فرزند" />
+            </span>
+            <select name="childIds" multiple size="6" aria-label="فرزندان انتخاب‌شده"></select>
+            <small class="field-note">فرزندان ثبت‌شده همیشه بالای فهرست و انتخاب‌شده می‌مانند. برای افزودن یا برداشتن چند نفر از Ctrl یا Command استفاده کنید.</small>
+            <p class="form-message relationship-message" data-child-relationship-message role="status"></p>
+          </div>
         </div>
         <label>نشانی عکس اصلی
           <input name="photo" type="text" placeholder="اختیاری" />
@@ -648,6 +668,6 @@
     </template>
 
     <script src="assets/book/book-data.js?v=demo-tree-20260705"></script>
-    <script src="app.js?v=merge-person-cards-20260719"></script>
+    <script src="app.js?v=search-all-relations-20260719"></script>
   </body>
 </html>

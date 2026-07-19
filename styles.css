@@ -624,6 +624,29 @@ label select,
   line-height: 1.7;
 }
 
+.relationship-picker select[size] {
+  min-height: 132px;
+  padding-block: 6px;
+}
+
+.relationship-picker-wide {
+  grid-column: 1 / -1;
+}
+
+.relationship-picker[hidden] {
+  display: none;
+}
+
+.relationship-message {
+  margin: 4px 0 0;
+}
+
+.relationship-search-box input:disabled {
+  background: #f3f5f3;
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
 label input,
 label select,
 .relationship-picker select {

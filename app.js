@@ -2293,8 +2293,7 @@ function preferredSpouseSlot(basePerson, newGender = "unknown") {
 }
 
 function orderedParentIds(parentIds) {
-  return parentIds
-    .filter(Boolean)
+  return Array.from(new Set(parentIds.filter(Boolean)))
     .slice(0, 2)
     .sort((a, b) => {
       const parentA = state.people.find((person) => person.id === a);
@@ -4727,12 +4726,31 @@ function personOptionsForIds(personIds, selectedId = "", includeEmpty = true) {
 function relationshipMatchesSearch(person, searchTerm = "") {
   const query = normalizeSearchText(String(searchTerm || "").replace(/^@+/, ""));
   if (!query) return true;
-  return [person.name, ...(person.nameAliases || []), person.mentionHandle, ...(person.mentionAliases || []), mentionContext(person)]
+  const relativeNames = [
+    ...(person.parentIds || []).map((id) => personById(id)?.name),
+    ...(person.spouseIds || []).map((id) => personById(id)?.name),
+  ].filter(Boolean);
+  return [
+    person.name,
+    ...(person.nameAliases || []),
+    person.mentionHandle,
+    ...(person.mentionAliases || []),
+    person.birth,
+    person.death,
+    person.id,
+    ...relativeNames,
+  ]
     .filter(Boolean)
     .some((value) => normalizeSearchText(value).includes(query));
 }
 
-function renderRelationshipOptions(selectName, searchName, selectedIds = [], searchTerm = "") {
+function renderRelationshipOptions(
+  selectName,
+  searchName,
+  selectedIds = [],
+  searchTerm = "",
+  { allowedIds = null, includeEmpty = false } = {}
+) {
   const fields = $("#personEditor")?.elements;
   const select = fields?.[selectName];
   const searchInput = fields?.[searchName];
@@ -4740,8 +4758,10 @@ function renderRelationshipOptions(selectName, searchName, selectedIds = [], sea
 
   const selected = new Set((Array.isArray(selectedIds) ? selectedIds : [selectedIds]).filter(Boolean));
   const currentPersonId = fields.id?.value || "";
+  const allowed = Array.isArray(allowedIds) ? new Set(allowedIds.filter(Boolean)) : null;
   const people = state.people
     .filter((person) => person.id !== currentPersonId)
+    .filter((person) => !allowed || allowed.has(person.id))
     .filter((person) => selected.has(person.id) || relationshipMatchesSearch(person, searchTerm))
     .sort(
       (a, b) =>
@@ -4750,20 +4770,48 @@ function renderRelationshipOptions(selectName, searchName, selectedIds = [], sea
         a.id.localeCompare(b.id)
     );
 
-  select.innerHTML = people.length
-    ? people
-        .map((person) => {
-          const handle = personMentionLabel(person);
-          const label = handle ? `${person.name} (${handle})` : person.name;
-          return `<option value="${escapeHtml(person.id)}" ${selected.has(person.id) ? "selected" : ""}>${escapeHtml(label)}</option>`;
-        })
-        .join("")
-    : '<option value="" disabled>نتیجه‌ای پیدا نشد</option>';
+  const options = people.map((person) => {
+    const handle = personMentionLabel(person);
+    const context = mentionContext(person);
+    const identity = handle ? `${person.name} (${handle})` : person.name;
+    const label = `${identity}${context && context !== handle ? ` - ${context}` : ""} - شناسه ${shortPersonId(person.id)}`;
+    return `<option value="${escapeHtml(person.id)}" ${selected.has(person.id) ? "selected" : ""}>${escapeHtml(label)}</option>`;
+  });
+  select.innerHTML = [
+    ...(includeEmpty ? ['<option value="">انتخاب نشده</option>'] : []),
+    ...(options.length ? options : ['<option value="" disabled>نتیجه‌ای پیدا نشد</option>']),
+  ].join("");
   if (searchInput && searchInput.value !== searchTerm) searchInput.value = searchTerm;
 }
 
 function renderSpouseOptions(selectedIds = [], searchTerm = "") {
   renderRelationshipOptions("spouseId", "spouseSearch", selectedIds, searchTerm);
+}
+
+function allowedParentIdsForPendingRelationship(parentField) {
+  if (pendingRelationship?.type !== "child") return null;
+  const base = personById(pendingRelationship.baseId);
+  if (!base) return [];
+  if (parentField === "parentOne") return [base.id];
+  return (base.spouseIds || []).filter((spouseId) => Boolean(personById(spouseId)));
+}
+
+function renderParentOneOptions(selectedId = "", searchTerm = "") {
+  renderRelationshipOptions("parentOne", "parentOneSearch", selectedId, searchTerm, {
+    allowedIds: allowedParentIdsForPendingRelationship("parentOne"),
+    includeEmpty: true,
+  });
+}
+
+function renderParentTwoOptions(selectedId = "", searchTerm = "") {
+  renderRelationshipOptions("parentTwo", "parentTwoSearch", selectedId, searchTerm, {
+    allowedIds: allowedParentIdsForPendingRelationship("parentTwo"),
+    includeEmpty: true,
+  });
+}
+
+function renderChildOptions(selectedIds = [], searchTerm = "") {
+  renderRelationshipOptions("childIds", "childSearch", selectedIds, searchTerm);
 }
 
 function mergePersonSearchText(person) {
@@ -5039,6 +5087,12 @@ function resetParentEditorGuidance() {
   fields.parentTwo.required = false;
   fields.parentTwo.dataset.requireCoParent = "false";
   fields.parentTwo.setCustomValidity("");
+  fields.parentOneSearch.value = "";
+  fields.parentTwoSearch.value = "";
+  fields.parentOneSearch.disabled = false;
+  fields.parentTwoSearch.disabled = false;
+  fields.parentOneSearch.placeholder = "جست‌وجوی نام یا @شناسه";
+  fields.parentTwoSearch.placeholder = "جست‌وجوی نام یا @شناسه";
   $("[data-parent-one-label]").textContent = "والد اول";
   $("[data-parent-two-label]").textContent = "والد دوم";
   const note = $("[data-co-parent-note]");
@@ -5050,6 +5104,61 @@ function syncCoParentValidity() {
   const parentTwo = $("#personEditor").elements.parentTwo;
   const needsCoParent = parentTwo.dataset.requireCoParent === "true";
   parentTwo.setCustomValidity(needsCoParent && !parentTwo.value ? "والد دیگر این فرزند را انتخاب کنید." : "");
+}
+
+function childRelationshipIssue(parentId, childIds, spouseIds = [], parentIds = []) {
+  const parent = personById(parentId);
+  if (!parent) return "";
+  const spouseSet = new Set(spouseIds);
+  const parentSet = new Set(parentIds);
+  for (const childId of childIds) {
+    const child = personById(childId);
+    if (!child) continue;
+    if (spouseSet.has(child.id)) return `${child.name} نمی‌تواند هم‌زمان همسر و فرزند این فرد باشد.`;
+    if (parentSet.has(child.id)) return `${child.name} نمی‌تواند هم‌زمان والد و فرزند این فرد باشد.`;
+    const existingParentIds = Array.from(new Set(child.parentIds || [])).filter(Boolean);
+    if (!existingParentIds.includes(parent.id) && existingParentIds.length >= 2) {
+      return `${child.name} در حال حاضر دو والد دارد. برای جایگزینی والد، ابتدا کارت خود او را ویرایش کنید.`;
+    }
+    if (!existingParentIds.includes(parent.id) && personHasAncestor(parent.id, child.id)) {
+      return `افزودن ${child.name} به‌عنوان فرزند، چرخه در شجره‌نامه ایجاد می‌کند.`;
+    }
+  }
+  return "";
+}
+
+function syncChildRelationshipValidity() {
+  const form = $("#personEditor");
+  const fields = form?.elements;
+  if (!fields?.childIds) return true;
+  const personId = fields.id.value;
+  const issue = personId
+    ? childRelationshipIssue(
+        personId,
+        selectedSelectValues(fields.childIds),
+        selectedSelectValues(fields.spouseId),
+        [fields.parentOne.value, fields.parentTwo.value].filter(Boolean)
+      )
+    : "";
+  fields.childIds.setCustomValidity(issue);
+  const message = $("[data-child-relationship-message]", form);
+  if (message) message.textContent = issue;
+  return !issue;
+}
+
+function applySelectedChildRelationships(parentId, selectedChildIds) {
+  const selected = new Set(selectedChildIds);
+  state.people.forEach((child) => {
+    const currentParentIds = Array.from(new Set(child.parentIds || [])).filter(Boolean);
+    const alreadyLinked = currentParentIds.includes(parentId);
+    if (alreadyLinked && !selected.has(child.id)) {
+      child.parentIds = orderedParentIds(currentParentIds.filter((id) => id !== parentId));
+      return;
+    }
+    if (!alreadyLinked && selected.has(child.id)) {
+      child.parentIds = orderedParentIds([...currentParentIds, parentId]);
+    }
+  });
 }
 
 function selectedSelectValues(select) {
@@ -5275,8 +5384,11 @@ function fillRelativeForm(baseId, relation) {
     const coParentLabel = base.gender === "male" ? "مادر این فرزند" : base.gender === "female" ? "پدر این فرزند" : "والد دیگر این فرزند";
     $("[data-parent-one-label]").textContent = baseParentLabel;
     $("[data-parent-two-label]").textContent = coParentLabel;
-    fields.parentOne.innerHTML = personOptionsForIds([base.id], base.id, false);
-    fields.parentTwo.innerHTML = personOptionsForIds(spouseIds, spouseId);
+    fields.parentOne.required = true;
+    fields.parentOneSearch.disabled = true;
+    fields.parentOneSearch.placeholder = baseParentLabel;
+    renderParentOneOptions(base.id, "");
+    renderParentTwoOptions(spouseId, "");
     if (spouseIds.length > 1) {
       fields.parentTwo.required = true;
       fields.parentTwo.dataset.requireCoParent = "true";
@@ -5446,10 +5558,10 @@ function refreshAdminLists() {
   const spouseFields = $("#personEditor")?.elements;
   if (spouseFields?.spouseId) {
     renderSpouseOptions(selectedSelectValues(spouseFields.spouseId), spouseFields.spouseSearch?.value || "");
+    renderParentOneOptions(spouseFields.parentOne?.value || "", spouseFields.parentOneSearch?.value || "");
+    renderParentTwoOptions(spouseFields.parentTwo?.value || "", spouseFields.parentTwoSearch?.value || "");
+    renderChildOptions(selectedSelectValues(spouseFields.childIds), spouseFields.childSearch?.value || "");
   }
-  $$('select[name="parentOne"], select[name="parentTwo"]').forEach((select) => {
-    select.innerHTML = personOptions();
-  });
   renderSubmissions();
 }
 
@@ -5475,8 +5587,14 @@ function fillPersonForm(id) {
   fields.photos.value = (person.photos || []).join("\n");
   fields.mediaFiles.value = "";
   renderSpouseOptions(person.spouseIds || [], "");
-  fields.parentOne.innerHTML = personOptions(person.parentIds?.[0] || "");
-  fields.parentTwo.innerHTML = personOptions(person.parentIds?.[1] || "");
+  renderParentOneOptions(person.parentIds?.[0] || "", "");
+  renderParentTwoOptions(person.parentIds?.[1] || "", "");
+  const childIds = childPeopleOf(person.id).map((child) => child.id);
+  renderChildOptions(childIds, "");
+  $("[data-child-relationship-picker]", form).hidden = false;
+  fields.childIds.setCustomValidity("");
+  const childMessage = $("[data-child-relationship-message]", form);
+  if (childMessage) childMessage.textContent = "";
   resetPersonMergePanel(person.id);
 }
 
@@ -5495,8 +5613,14 @@ function clearPersonForm() {
   fields.generation.value = 0;
   fields.slot.value = 0;
   renderSpouseOptions([], "");
-  fields.parentOne.innerHTML = personOptions();
-  fields.parentTwo.innerHTML = personOptions();
+  renderParentOneOptions("", "");
+  renderParentTwoOptions("", "");
+  fields.childSearch.value = "";
+  fields.childIds.innerHTML = "";
+  fields.childIds.setCustomValidity("");
+  $("[data-child-relationship-picker]", form).hidden = true;
+  const childMessage = $("[data-child-relationship-message]", form);
+  if (childMessage) childMessage.textContent = "";
   resetPersonMergePanel("");
 }
 
@@ -6108,13 +6232,24 @@ function bindEvents() {
     fields[`${fieldName}Unknown`]?.addEventListener("change", () => syncPersonDateField(fields, fieldName));
   });
   const personEditorFields = $("#personEditor").elements;
-  [["spouseSearch", "spouseId", renderSpouseOptions]].forEach(([searchName, selectName, renderOptions]) => {
+  [
+    ["spouseSearch", "spouseId", renderSpouseOptions],
+    ["parentOneSearch", "parentOne", renderParentOneOptions],
+    ["parentTwoSearch", "parentTwo", renderParentTwoOptions],
+    ["childSearch", "childIds", renderChildOptions],
+  ].forEach(([searchName, selectName, renderOptions]) => {
     personEditorFields[searchName]?.addEventListener("input", (event) => {
-      renderOptions(selectedSelectValues(personEditorFields[selectName]), event.currentTarget.value);
+      const select = personEditorFields[selectName];
+      const selected = select.multiple ? selectedSelectValues(select) : select.value;
+      renderOptions(selected, event.currentTarget.value);
+      if (selectName === "childIds") syncChildRelationshipValidity();
     });
     personEditorFields[searchName]?.addEventListener("keydown", (event) => {
       if (event.key === "Enter") event.preventDefault();
     });
+  });
+  ["spouseId", "parentOne", "parentTwo", "childIds"].forEach((fieldName) => {
+    personEditorFields[fieldName]?.addEventListener("change", syncChildRelationshipValidity);
   });
   personEditorFields.mergePersonSearch?.addEventListener("input", (event) => {
     renderPersonMergeOptions(personEditorFields.mergePersonId.value, event.currentTarget.value);
@@ -6143,6 +6278,13 @@ function bindEvents() {
     const existing = state.people.find((item) => item.id === id);
     const person = existing || { id, spouseIds: [], parentIds: [] };
     const spouseIds = selectedSelectValues(fields.spouseId).filter((spouseId) => spouseId !== id);
+    const childIds = existing
+      ? selectedSelectValues(fields.childIds).filter((childId) => childId !== id)
+      : [];
+    if (existing && !syncChildRelationshipValidity()) {
+      fields.childIds.reportValidity();
+      return;
+    }
     let headshotMedia = null;
     let uploadedMedia = [];
     try {
@@ -6200,6 +6342,7 @@ function bindEvents() {
         alignSpouseSlots(person, spouseId);
       }
     });
+    if (existing) applySelectedChildRelationships(person.id, childIds);
     applyPendingRelationship(person);
     assignMentionHandles(state.people);
     pendingRelationship = null;
