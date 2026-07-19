@@ -9,7 +9,7 @@
     />
     <title>خاندان فیروزجایی</title>
     <link rel="icon" type="image/svg+xml" sizes="any" href="assets/brand/firouzjaei-logo.svg?v=logo-svg-20260706" />
-    <link rel="stylesheet" href="styles.css?v=family-role-layout-20260719" />
+    <link rel="stylesheet" href="styles.css?v=merge-person-cards-20260719" />
   </head>
   <body>
     <div class="app-shell">
@@ -331,6 +331,30 @@
         <label>بارگذاری عکس یا ویدیو برای گالری فرد
           <input name="mediaFiles" type="file" accept="image/*,video/*" multiple />
         </label>
+        <section class="person-merge-panel" data-person-merge-panel hidden>
+          <div class="person-merge-heading">
+            <div>
+              <h3>ادغام کارت تکراری</h3>
+              <p>کارت فعلی باقی می‌ماند و اطلاعات و پیوندهای کارت انتخاب‌شده به آن منتقل می‌شود. در اختلاف‌ها، مقدار ذخیره‌شده کارت فعلی حفظ می‌شود.</p>
+            </div>
+            <span class="merge-current-badge">کارت فعلی حفظ می‌شود</span>
+          </div>
+          <label for="mergePersonSearch">جست‌وجو در همه افراد
+            <span class="search-box relationship-search-box">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" /></svg>
+              <input id="mergePersonSearch" name="mergePersonSearch" type="search" placeholder="نام، @شناسه، والدین یا تاریخ" autocomplete="off" aria-label="جست‌وجوی کارت تکراری" />
+            </span>
+          </label>
+          <select name="mergePersonId" size="6" aria-label="انتخاب کارت تکراری برای ادغام"></select>
+          <div class="person-merge-preview" data-person-merge-preview>
+            <p>برای مقایسه، یک کارت را از فهرست انتخاب کنید.</p>
+          </div>
+          <p class="form-message person-merge-message" data-person-merge-message role="status"></p>
+          <div class="person-merge-actions">
+            <button class="danger-action" type="button" data-merge-person disabled>ادغام کارت انتخاب‌شده</button>
+            <small>پس از تأیید، کارت انتخاب‌شده حذف می‌شود. تغییرات ذخیره‌نشده فرم را ابتدا ذخیره کنید.</small>
+          </div>
+        </section>
         <div class="form-actions">
           <button class="primary-action" type="submit">ذخیره فرد</button>
           <button class="soft-action" type="button" data-clear-person-form>فرم تازه</button>
@@ -624,6 +648,6 @@
     </template>
 
     <script src="assets/book/book-data.js?v=demo-tree-20260705"></script>
-    <script src="app.js?v=focused-straight-layout-20260719"></script>
+    <script src="app.js?v=merge-person-cards-20260719"></script>
   </body>
 </html>

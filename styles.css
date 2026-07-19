@@ -2337,6 +2337,133 @@ body.admin-mode .person-detail .detail-admin-tools.admin-only {
   margin: 0;
 }
 
+.person-merge-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.person-merge-panel[hidden] {
+  display: none;
+}
+
+.person-merge-heading,
+.person-merge-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.person-merge-heading h3,
+.person-merge-heading p,
+.person-merge-preview p,
+.person-merge-message {
+  margin: 0;
+}
+
+.person-merge-heading p,
+.person-merge-actions small,
+.person-merge-preview > p {
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+
+.merge-current-badge {
+  padding: 4px 9px;
+  border: 1px solid rgba(36, 85, 76, 0.18);
+  border-radius: 999px;
+  background: var(--green-2);
+  color: var(--green);
+  font-size: 0.76rem;
+  font-weight: 780;
+  white-space: nowrap;
+}
+
+.person-merge-panel select {
+  width: 100%;
+  min-height: 148px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--ink);
+  line-height: 1.8;
+  outline: none;
+}
+
+.person-merge-panel select:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(36, 85, 76, 0.1);
+}
+
+.person-merge-preview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  padding-block: 12px;
+  border-block: 1px solid var(--line);
+}
+
+.person-merge-summary {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding-inline: 14px;
+}
+
+.person-merge-summary + .person-merge-summary {
+  border-inline-start: 1px solid var(--line);
+}
+
+.person-merge-summary strong,
+.person-merge-summary span,
+.person-merge-summary small {
+  overflow-wrap: anywhere;
+}
+
+.person-merge-summary strong {
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.person-merge-summary span,
+.person-merge-summary small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.person-merge-handle {
+  direction: ltr;
+  text-align: right;
+  unicode-bidi: isolate;
+}
+
+.person-merge-role {
+  color: var(--green) !important;
+  font-weight: 780;
+}
+
+.person-merge-summary.duplicate .person-merge-role,
+.person-merge-warning {
+  color: var(--wine) !important;
+}
+
+.person-merge-warning {
+  grid-column: 1 / -1;
+  margin: 10px 14px 0;
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.person-merge-actions small {
+  max-width: 520px;
+  font-size: 0.78rem;
+}
+
 .admin-only {
   display: none;
 }
@@ -2728,6 +2855,17 @@ body.admin-mode .sync-toast.visible {
   .form-grid,
   .detail-head {
     grid-template-columns: 1fr;
+  }
+
+  .person-merge-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .person-merge-summary + .person-merge-summary {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-inline-start: 0;
+    border-top: 1px solid var(--line);
   }
 
   .lineage-stats {

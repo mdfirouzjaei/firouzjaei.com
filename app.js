@@ -919,6 +919,13 @@ function normalizeState(value) {
       cardColor: normalizeCardColor(person.cardColor),
       media: (person.media || []).map(normalizeMediaItem).filter(Boolean),
       mentionHandle: String(person.mentionHandle || "").trim(),
+      mentionAliases: Array.from(
+        new Set((Array.isArray(person.mentionAliases) ? person.mentionAliases : []).map((alias) => normalizeMentionHandle(alias)).filter(Boolean))
+      ),
+      nameAliases: Array.from(
+        new Set((Array.isArray(person.nameAliases) ? person.nameAliases : []).map((name) => String(name || "").trim()).filter(Boolean))
+      ).filter((name) => name !== String(person.name || "").trim()),
+      mergedFromIds: Array.from(new Set((Array.isArray(person.mergedFromIds) ? person.mergedFromIds : []).map(String).filter(Boolean))),
       spouseIds: Array.from(new Set(person.spouseIds || [])).filter(Boolean),
       parentIds: Array.from(new Set([...(person.parentIds || []), ...legacyAncestorIds]))
         .filter((parentId) => parentId && parentId !== person.id)
@@ -1558,7 +1565,18 @@ function shortPersonId(id = "") {
 }
 
 function assignMentionHandles(people = []) {
-  const used = new Set();
+  const aliasOwners = new Map();
+  people.forEach((person) => {
+    const primary = normalizeMentionHandle(person.mentionHandle);
+    person.mentionAliases = Array.from(
+      new Set((person.mentionAliases || []).map(normalizeMentionHandle).filter((alias) => alias && alias !== primary))
+    ).filter((alias) => {
+      if (aliasOwners.has(alias)) return false;
+      aliasOwners.set(alias, person.id);
+      return true;
+    });
+  });
+  const used = new Set(aliasOwners.keys());
   people.forEach((person) => {
     const base = normalizeMentionHandle(person.mentionHandle) || mentionHandleBase(person);
     let handle = base;
@@ -1580,7 +1598,11 @@ function personMentionLabel(person) {
 function personByMentionHandle(handle = "") {
   const normalized = normalizeMentionHandle(handle);
   if (!normalized) return null;
-  return state.people.find((person) => normalizeMentionHandle(person.mentionHandle) === normalized) || null;
+  return (
+    state.people.find((person) => normalizeMentionHandle(person.mentionHandle) === normalized) ||
+    state.people.find((person) => (person.mentionAliases || []).some((alias) => normalizeMentionHandle(alias) === normalized)) ||
+    null
+  );
 }
 
 function mentionContext(person) {
@@ -1603,7 +1625,12 @@ function renderMentionedText(value = "") {
 function personMatchesSearch(person, searchTerm) {
   const query = normalizeSearchText(searchTerm);
   if (!query) return false;
-  const fields = [person.name].filter(Boolean).join(" ");
+  const fields = [
+    person.name,
+    ...(person.nameAliases || []),
+    person.mentionHandle,
+    ...(person.mentionAliases || []),
+  ].filter(Boolean).join(" ");
   const searchable = normalizeSearchText(fields);
   if (searchable.includes(query)) return true;
   return String(searchTerm)
@@ -4700,7 +4727,7 @@ function personOptionsForIds(personIds, selectedId = "", includeEmpty = true) {
 function relationshipMatchesSearch(person, searchTerm = "") {
   const query = normalizeSearchText(String(searchTerm || "").replace(/^@+/, ""));
   if (!query) return true;
-  return [person.name, person.mentionHandle, mentionContext(person)]
+  return [person.name, ...(person.nameAliases || []), person.mentionHandle, ...(person.mentionAliases || []), mentionContext(person)]
     .filter(Boolean)
     .some((value) => normalizeSearchText(value).includes(query));
 }
@@ -4737,6 +4764,273 @@ function renderRelationshipOptions(selectName, searchName, selectedIds = [], sea
 
 function renderSpouseOptions(selectedIds = [], searchTerm = "") {
   renderRelationshipOptions("spouseId", "spouseSearch", selectedIds, searchTerm);
+}
+
+function mergePersonSearchText(person) {
+  const relativeNames = [
+    ...(person.parentIds || []).map((id) => personById(id)?.name),
+    ...(person.spouseIds || []).map((id) => personById(id)?.name),
+  ].filter(Boolean);
+  return normalizeSearchText(
+    [
+      person.name,
+      ...(person.nameAliases || []),
+      person.mentionHandle,
+      ...(person.mentionAliases || []),
+      person.birth,
+      person.death,
+      person.id,
+      ...relativeNames,
+    ].filter(Boolean).join(" ")
+  );
+}
+
+function mergePersonCandidateScore(person, searchTerm = "") {
+  const query = normalizeSearchText(String(searchTerm || "").replace(/^@+/, ""));
+  if (!query) return 10;
+  const name = normalizeSearchText(person.name);
+  const handle = normalizeSearchText(person.mentionHandle);
+  const aliases = normalizeSearchText([...(person.nameAliases || []), ...(person.mentionAliases || [])].join(" "));
+  if (name === query || handle === query) return 0;
+  if (name.startsWith(query) || handle.startsWith(query)) return 1;
+  if (name.includes(query) || handle.includes(query)) return 2;
+  if (aliases.includes(query)) return 3;
+  return mergePersonSearchText(person).includes(query) ? 4 : 100;
+}
+
+function mergePersonOptionLabel(person) {
+  const handle = personMentionLabel(person);
+  const context = mentionContext(person);
+  const identity = `${person.name}${handle ? ` (${handle})` : ""}`;
+  return `${identity}${context && context !== handle ? ` - ${context}` : ""} - شناسه ${shortPersonId(person.id)}`;
+}
+
+function mergedParentIdsForCards(survivor, duplicate) {
+  return Array.from(
+    new Set(
+      [...(survivor.parentIds || []), ...(duplicate.parentIds || [])]
+        .map((id) => (id === duplicate.id ? survivor.id : id))
+        .filter((id) => id && id !== survivor.id && Boolean(personById(id)))
+    )
+  );
+}
+
+function personMergeSummaryMarkup(person, role, className = "") {
+  const parents = (person.parentIds || []).map(personById).filter(Boolean);
+  const spouses = (person.spouseIds || []).map(personById).filter(Boolean);
+  const children = childPeopleOf(person.id);
+  const mediaCount = personMedia(person).length;
+  const dates = [person.birth ? `تولد: ${person.birth}` : "", person.death ? `درگذشت: ${person.death}` : ""]
+    .filter(Boolean)
+    .join("، ");
+  return `
+    <div class="person-merge-summary ${className}">
+      <span class="person-merge-role">${escapeHtml(role)}</span>
+      <strong>${escapeHtml(person.name)}</strong>
+      <span class="person-merge-handle" dir="ltr">${escapeHtml(personMentionLabel(person) || `ID: ${shortPersonId(person.id)}`)}</span>
+      ${dates ? `<small>${escapeHtml(dates)}</small>` : ""}
+      <small>والد: ${toPersianDigits(parents.length)}، همسر: ${toPersianDigits(spouses.length)}، فرزند: ${toPersianDigits(children.length)}، رسانه: ${toPersianDigits(mediaCount)}</small>
+      ${parents.length ? `<small>والدین: ${escapeHtml(parents.map((parent) => parent.name).join(" و "))}</small>` : ""}
+    </div>
+  `;
+}
+
+function renderPersonMergePreview() {
+  const form = $("#personEditor");
+  const fields = form?.elements;
+  const preview = $("[data-person-merge-preview]", form);
+  const button = $("[data-merge-person]", form);
+  const message = $("[data-person-merge-message]", form);
+  if (!fields || !preview || !button) return;
+  const survivor = personById(fields.id.value);
+  const duplicate = personById(fields.mergePersonId.value);
+  button.disabled = true;
+  if (message) message.textContent = "";
+  if (!survivor || !duplicate || survivor.id === duplicate.id) {
+    preview.innerHTML = "<p>برای مقایسه، یک کارت را از فهرست انتخاب کنید.</p>";
+    return;
+  }
+
+  const mergedParentIds = mergedParentIdsForCards(survivor, duplicate);
+  const parentConflict = mergedParentIds.length > 2;
+  preview.innerHTML = `
+    ${personMergeSummaryMarkup(survivor, "کارت باقی‌مانده")}
+    ${personMergeSummaryMarkup(duplicate, "کارت حذف‌شونده", "duplicate")}
+    ${
+      parentConflict
+        ? '<p class="person-merge-warning">این دو کارت بیش از دو والد متفاوت دارند. ابتدا والدین یکی از کارت‌ها را اصلاح کنید، سپس ادغام را انجام دهید.</p>'
+        : ""
+    }
+  `;
+  button.disabled = parentConflict;
+  if (message && parentConflict) message.textContent = "ادغام تا رفع ناسازگاری والدین غیرفعال است.";
+}
+
+function renderPersonMergeOptions(selectedId = "", searchTerm = "") {
+  const form = $("#personEditor");
+  const fields = form?.elements;
+  const select = fields?.mergePersonId;
+  if (!select) return;
+  const currentId = fields.id.value;
+  const people = state.people
+    .filter((person) => person.id !== currentId)
+    .map((person) => ({ person, score: mergePersonCandidateScore(person, searchTerm) }))
+    .filter((item) => item.score < 100 || item.person.id === selectedId)
+    .sort(
+      (a, b) =>
+        Number(b.person.id === selectedId) - Number(a.person.id === selectedId) ||
+        a.score - b.score ||
+        a.person.name.localeCompare(b.person.name, "fa") ||
+        a.person.id.localeCompare(b.person.id)
+    );
+  select.innerHTML = [
+    '<option value="">یک کارت را انتخاب کنید</option>',
+    ...people.map(
+      ({ person }) =>
+        `<option value="${escapeHtml(person.id)}" ${person.id === selectedId ? "selected" : ""}>${escapeHtml(mergePersonOptionLabel(person))}</option>`
+    ),
+  ].join("");
+  select.value = people.some((item) => item.person.id === selectedId) ? selectedId : "";
+  renderPersonMergePreview();
+}
+
+function resetPersonMergePanel(personId = "") {
+  const form = $("#personEditor");
+  const fields = form?.elements;
+  const panel = $("[data-person-merge-panel]", form);
+  if (!fields || !panel) return;
+  panel.hidden = !personId;
+  fields.mergePersonSearch.value = "";
+  fields.mergePersonId.innerHTML = "";
+  const message = $("[data-person-merge-message]", form);
+  if (message) message.textContent = "";
+  if (personId) renderPersonMergeOptions("", "");
+}
+
+function mergeKnownPersonDate(currentValue, duplicateValue) {
+  if (currentValue && !isUnknownDateValue(currentValue)) return currentValue;
+  if (duplicateValue && !isUnknownDateValue(duplicateValue)) return duplicateValue;
+  return currentValue || duplicateValue || "";
+}
+
+function mergePersonStories(currentStory = "", duplicateStory = "") {
+  const current = String(currentStory || "").trim();
+  const duplicate = String(duplicateStory || "").trim();
+  if (!current) return duplicate;
+  if (!duplicate || normalizeSearchText(current).includes(normalizeSearchText(duplicate))) return current;
+  if (normalizeSearchText(duplicate).includes(normalizeSearchText(current))) return duplicate;
+  return `${current}\n\n${duplicate}`;
+}
+
+function remapPersonUiReference(value, duplicateId, survivorId) {
+  return value === duplicateId ? survivorId : value;
+}
+
+function remapFocusedSnapshot(snapshot, duplicateId, survivorId) {
+  if (!snapshot) return snapshot;
+  return {
+    ...snapshot,
+    activeRootId: remapPersonUiReference(snapshot.activeRootId, duplicateId, survivorId),
+    focusedSubtreeId: remapPersonUiReference(snapshot.focusedSubtreeId, duplicateId, survivorId),
+    selectedPersonId: remapPersonUiReference(snapshot.selectedPersonId, duplicateId, survivorId),
+    expandedPersonIds: Array.from(
+      new Set((snapshot.expandedPersonIds || []).map((id) => remapPersonUiReference(id, duplicateId, survivorId)))
+    ),
+  };
+}
+
+function mergePersonCards(survivorId, duplicateId) {
+  const survivor = personById(survivorId);
+  const duplicate = personById(duplicateId);
+  if (!survivor || !duplicate || survivor.id === duplicate.id) throw new Error("دو کارت معتبر برای ادغام انتخاب نشده است.");
+  const parentIds = mergedParentIdsForCards(survivor, duplicate);
+  if (parentIds.length > 2) throw new Error("این دو کارت بیش از دو والد متفاوت دارند. ابتدا والدین را اصلاح کنید.");
+
+  const duplicatePhoto = String(duplicate.photo || "").trim();
+  const extraHeadshot = duplicatePhoto && duplicatePhoto !== String(survivor.photo || "").trim()
+    ? normalizeMediaItem({ src: duplicatePhoto, name: `عکس ${duplicate.name}` })
+    : null;
+  survivor.birth = mergeKnownPersonDate(survivor.birth, duplicate.birth);
+  survivor.death = mergeKnownPersonDate(survivor.death, duplicate.death);
+  survivor.gender = normalizeGender(survivor.gender) === "unknown" ? normalizeGender(duplicate.gender) : normalizeGender(survivor.gender);
+  survivor.cardColor = normalizeCardColor(survivor.cardColor) === "red" || normalizeCardColor(duplicate.cardColor) === "red" ? "red" : "default";
+  survivor.photo = String(survivor.photo || "").trim() || duplicatePhoto;
+  survivor.story = mergePersonStories(survivor.story, duplicate.story);
+  survivor.photos = Array.from(new Set([...(survivor.photos || []), ...(duplicate.photos || [])].map(String).map((item) => item.trim()).filter(Boolean)));
+  survivor.media = uniqueMedia([...(survivor.media || []), ...(duplicate.media || []), ...(extraHeadshot ? [extraHeadshot] : [])]);
+  survivor.nameAliases = Array.from(
+    new Set([...(survivor.nameAliases || []), duplicate.name, ...(duplicate.nameAliases || [])].map((name) => String(name || "").trim()).filter(Boolean))
+  ).filter((name) => name !== survivor.name);
+  survivor.mentionAliases = Array.from(
+    new Set([...(survivor.mentionAliases || []), duplicate.mentionHandle, ...(duplicate.mentionAliases || [])].map(normalizeMentionHandle).filter(Boolean))
+  ).filter((alias) => alias !== normalizeMentionHandle(survivor.mentionHandle));
+  survivor.mergedFromIds = Array.from(new Set([...(survivor.mergedFromIds || []), duplicate.id, ...(duplicate.mergedFromIds || [])]));
+  survivor.mergedAt = new Date().toISOString();
+  survivor.generation = Number.isFinite(Number(survivor.generation)) ? Number(survivor.generation) : Number(duplicate.generation || 0);
+  survivor.slot = Number.isFinite(Number(survivor.slot)) ? Number(survivor.slot) : Number(duplicate.slot || 0);
+  survivor.parentIds = parentIds;
+  survivor.spouseIds = Array.from(
+    new Set([...(survivor.spouseIds || []), ...(duplicate.spouseIds || [])].map((id) => (id === duplicate.id ? survivor.id : id)))
+  ).filter((id) => id && id !== survivor.id);
+
+  state.people = state.people.filter((person) => person.id !== duplicate.id);
+  const peopleById = new Map(state.people.map((person) => [person.id, person]));
+  const remapIds = (ids, ownerId, limit = Infinity) =>
+    Array.from(new Set((ids || []).map((id) => (id === duplicate.id ? survivor.id : id))))
+      .filter((id) => id && id !== ownerId && peopleById.has(id))
+      .slice(0, limit);
+  state.people.forEach((person) => {
+    person.spouseIds = remapIds(person.spouseIds, person.id);
+    person.parentIds = orderedParentIds(remapIds(person.parentIds, person.id, 2));
+  });
+  state.people.forEach((person) => {
+    person.spouseIds.forEach((spouseId) => {
+      const spouse = peopleById.get(spouseId);
+      if (spouse && !spouse.spouseIds.includes(person.id)) spouse.spouseIds.push(person.id);
+    });
+  });
+
+  state.submissions = (state.submissions || []).map((submission) =>
+    submission.personId === duplicate.id
+      ? { ...submission, personId: survivor.id, personName: survivor.name }
+      : submission
+  );
+  selectedPersonId = remapPersonUiReference(selectedPersonId, duplicate.id, survivor.id);
+  activeRootId = remapPersonUiReference(activeRootId, duplicate.id, survivor.id);
+  focusedSubtreeId = remapPersonUiReference(focusedSubtreeId, duplicate.id, survivor.id);
+  expandedPersonIds = new Set(Array.from(expandedPersonIds).map((id) => remapPersonUiReference(id, duplicate.id, survivor.id)));
+  focusedSubtreeReturnState = remapFocusedSnapshot(focusedSubtreeReturnState, duplicate.id, survivor.id);
+  focusedSubtreeHistory = focusedSubtreeHistory.map((snapshot) => remapFocusedSnapshot(snapshot, duplicate.id, survivor.id));
+  if (pendingRelationship?.baseId === duplicate.id) pendingRelationship.baseId = survivor.id;
+  assignMentionHandles(state.people);
+  closeMentionMenu();
+  return { survivor, duplicate };
+}
+
+function handlePersonCardMerge() {
+  if (!isAdmin()) return;
+  const form = $("#personEditor");
+  const fields = form.elements;
+  const survivor = personById(fields.id.value);
+  const duplicate = personById(fields.mergePersonId.value);
+  if (!survivor || !duplicate || survivor.id === duplicate.id) return;
+  const confirmed = window.confirm(
+    `کارت «${duplicate.name}» در کارت «${survivor.name}» ادغام شود؟\n\nکارت «${survivor.name}» باقی می‌ماند و کارت «${duplicate.name}» پس از انتقال اطلاعات و پیوندها حذف می‌شود.`
+  );
+  if (!confirmed) return;
+  try {
+    const result = mergePersonCards(survivor.id, duplicate.id);
+    saveState();
+    selectedPersonId = result.survivor.id;
+    refreshAll();
+    fillPersonForm(result.survivor.id);
+    const message = $("[data-person-merge-message]", form);
+    if (message) message.textContent = `کارت «${result.duplicate.name}» با موفقیت در «${result.survivor.name}» ادغام شد.`;
+    showSyncToast("کارت‌های تکراری ادغام شدند و تغییر برای ذخیره در Azure فرستاده شد.");
+  } catch (error) {
+    const message = $("[data-person-merge-message]", form);
+    if (message) message.textContent = error.message || "ادغام کارت‌ها انجام نشد.";
+  }
 }
 
 function resetParentEditorGuidance() {
@@ -4789,6 +5083,7 @@ function mentionSuggestions(query = "") {
     .map((person) => {
       const name = normalizeSearchText(person.name);
       const handle = normalizeSearchText(person.mentionHandle);
+      const aliases = normalizeSearchText([...(person.nameAliases || []), ...(person.mentionAliases || [])].join(" "));
       const context = normalizeSearchText(mentionContext(person));
       let score = 20;
       if (!normalizedQuery) score = 10;
@@ -4796,7 +5091,8 @@ function mentionSuggestions(query = "") {
       else if (name.startsWith(normalizedQuery)) score = 1;
       else if (handle.includes(normalizedQuery)) score = 2;
       else if (name.includes(normalizedQuery)) score = 3;
-      else if (context.includes(normalizedQuery)) score = 4;
+      else if (aliases.includes(normalizedQuery)) score = 4;
+      else if (context.includes(normalizedQuery)) score = 5;
       return { person, score };
     })
     .filter((item) => item.score < 20)
@@ -5181,6 +5477,7 @@ function fillPersonForm(id) {
   renderSpouseOptions(person.spouseIds || [], "");
   fields.parentOne.innerHTML = personOptions(person.parentIds?.[0] || "");
   fields.parentTwo.innerHTML = personOptions(person.parentIds?.[1] || "");
+  resetPersonMergePanel(person.id);
 }
 
 function clearPersonForm() {
@@ -5200,6 +5497,7 @@ function clearPersonForm() {
   renderSpouseOptions([], "");
   fields.parentOne.innerHTML = personOptions();
   fields.parentTwo.innerHTML = personOptions();
+  resetPersonMergePanel("");
 }
 
 function openPersonEditor(id = "") {
@@ -5818,6 +6116,14 @@ function bindEvents() {
       if (event.key === "Enter") event.preventDefault();
     });
   });
+  personEditorFields.mergePersonSearch?.addEventListener("input", (event) => {
+    renderPersonMergeOptions(personEditorFields.mergePersonId.value, event.currentTarget.value);
+  });
+  personEditorFields.mergePersonSearch?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") event.preventDefault();
+  });
+  personEditorFields.mergePersonId?.addEventListener("change", renderPersonMergePreview);
+  $("[data-merge-person]")?.addEventListener("click", handlePersonCardMerge);
 
   $("#subscribeForm").addEventListener("submit", (event) => {
     event.preventDefault();
