@@ -132,9 +132,6 @@ const RELATIONSHIP_LANE_CLEARANCE = 30;
 const RELATIONSHIP_ROUTE_X_OFFSET = 44;
 const RELATIONSHIP_ROUTE_Y_OFFSET = 24;
 const MULTI_SPOUSE_SHELF_OFFSET = 210;
-const DEEP_TREE_FOCUS_GENERATION = 8;
-const MAX_INLINE_FAMILY_CARDS = 9;
-const MAX_FOCUSED_VISIBLE_CARDS = 32;
 const FOCUSED_TREE_MIN_WIDTH = 520;
 const FOCUSED_TREE_SIDE_PADDING = 92;
 const FOCUSED_TREE_MIN_X_GAP = 146;
@@ -2398,12 +2395,6 @@ function treeNavigationRootId() {
   return focusedSubtreeId || activeRootId;
 }
 
-function treeGenerationForPerson(personId) {
-  const person = personById(personId);
-  if (!person) return 0;
-  return treeDepthMap().get(personId) ?? Number(person.generation || 0);
-}
-
 function clearFocusedSubtree() {
   focusedSubtreeId = null;
   focusedSubtreeReturnState = null;
@@ -2471,68 +2462,31 @@ function collapsePersonBranch(personId) {
   descendantIdsOf(personId).forEach((id) => expandedPersonIds.delete(id));
 }
 
-function branchExpansionPath(personId) {
-  const pathRootId = focusedSubtreeId || activeRootId || primaryRootForPerson(personId);
-  if (!pathRootId) return [];
-  const directPath = pathFromRootToPerson(pathRootId, personId);
-  if (directPath.length) return directPath;
-
-  const person = personById(personId);
-  for (const spouseId of person?.spouseIds || []) {
-    const spousePath = pathFromRootToPerson(pathRootId, spouseId);
-    if (spousePath.length) return [...spousePath, personId];
-  }
-  return [];
-}
-
-function branchNeedsFocusedView(personId) {
-  const person = personById(personId);
-  if (!person) return false;
-  if (focusedSubtreeId === personId) return false;
-  const familyCardCount =
-    1 + navigableChildPeopleOf(personId).length + (person.spouseIds || []).filter((id) => personById(id)).length;
-  if (familyCardCount > MAX_INLINE_FAMILY_CARDS) return true;
-  if (!focusedSubtreeId) return treeGenerationForPerson(personId) >= DEEP_TREE_FOCUS_GENERATION;
-  const currentlyVisibleIds = new Set(visibleTreePeople("").map((visiblePerson) => visiblePerson.id));
-  const newlyVisibleCards = [
-    ...navigableChildPeopleOf(personId),
-    ...(person.spouseIds || []).map(personById).filter(Boolean),
-  ].filter((visiblePerson) => !currentlyVisibleIds.has(visiblePerson.id)).length;
-  return currentlyVisibleIds.size + newlyVisibleCards > MAX_FOCUSED_VISIBLE_CARDS;
-}
-
 function expandPersonBranch(personId) {
-  if (branchNeedsFocusedView(personId)) {
+  if (!personById(personId)) return;
+  if (focusedSubtreeId !== personId) {
     enterFocusedSubtree(personId);
     return;
   }
+  clearTreeSearch();
   allRootsExpanded = false;
-  if (!activeRootId && !focusedSubtreeId) {
-    const rootId = startingPersonIds().has(personId) ? personId : primaryRootForPerson(personId);
-    activeRootId = rootId && personById(rootId) ? rootId : null;
-  }
-  const path = branchExpansionPath(personId);
-  expandedPersonIds = new Set([...path, personId]);
+  expandedPersonIds = new Set([personId]);
+  selectedPersonId = personId;
+  treeZoom = 1;
 }
 
 function setActiveRoot(rootId = null) {
   clearFocusedSubtree();
   allRootsExpanded = false;
-  activeRootId = rootId && personById(rootId) ? rootId : null;
-  expandedPersonIds = activeRootId ? new Set([activeRootId]) : new Set();
-  selectedPersonId = activeRootId;
+  activeRootId = null;
+  expandedPersonIds = new Set();
+  selectedPersonId = null;
+  if (rootId && personById(rootId)) enterFocusedSubtree(rootId);
   renderTree();
 }
 
 function focusPersonBranch(personId) {
-  clearFocusedSubtree();
-  allRootsExpanded = false;
-  const rootId = primaryRootForPerson(personId);
-  activeRootId = rootId && personById(rootId) ? rootId : null;
-  const path = activeRootId ? pathFromRootToPerson(activeRootId, personId) : [];
-  expandedPersonIds = new Set(path.slice(0, -1));
-  if (activeRootId) expandedPersonIds.add(activeRootId);
-  selectedPersonId = personId;
+  enterFocusedSubtree(personId);
   renderTree();
 }
 
@@ -2654,12 +2608,6 @@ function navigableChildPeopleOf(personId) {
   const navigationRootId = treeNavigationRootId();
   if (!navigationRootId) return children;
   return children.filter((child) => personHasAncestor(child.id, navigationRootId));
-}
-
-function navigableDescendantCount(personId, visited = new Set()) {
-  if (visited.has(personId)) return 0;
-  visited.add(personId);
-  return navigableChildPeopleOf(personId).reduce((total, child) => total + 1 + navigableDescendantCount(child.id, visited), 0);
 }
 
 function shouldShowSpouseConnection(person, spouse) {
@@ -3165,7 +3113,7 @@ function renderRootNavigator(searchTerm = "", matchCount = 0) {
     } else {
       const title = document.createElement("span");
       title.className = "root-nav-title";
-      title.textContent = "شاخه متمرکز";
+      title.textContent = "خانواده باز";
       rootNav.appendChild(title);
 
       const focusedChip = document.createElement("span");
@@ -3176,7 +3124,7 @@ function renderRootNavigator(searchTerm = "", matchCount = 0) {
       const backButton = document.createElement("button");
       backButton.type = "button";
       backButton.className = "root-chip focus-return-chip";
-      backButton.textContent = "بازگشت به نسل‌های پیشین";
+      backButton.textContent = "بازگشت به خانواده پیشین";
       backButton.addEventListener("click", exitFocusedSubtree);
       rootNav.appendChild(backButton);
       return;
@@ -3322,12 +3270,11 @@ function renderTree() {
     const toggleButton = $("[data-toggle-branch]", node);
     const childCount = hasSearch ? 0 : navigableChildPeopleOf(person.id).length;
     if (toggleButton && childCount) {
-      const hiddenCount = navigableDescendantCount(person.id);
       const isExpanded = expandedPersonIds.has(person.id);
       node.classList.toggle("branch-open", isExpanded);
       $("[data-branch-symbol]", toggleButton).textContent = isExpanded ? "-" : "+";
-      $("[data-branch-count]", toggleButton).textContent = hiddenCount;
-      toggleButton.title = isExpanded ? "بستن نسل های پایین تر" : "باز کردن نسل های پایین تر";
+      $("[data-branch-count]", toggleButton).textContent = childCount;
+      toggleButton.title = isExpanded ? "بستن فرزندان این خانواده" : "نمایش خانواده این فرد";
       toggleButton.setAttribute("aria-label", toggleButton.title);
       toggleButton.addEventListener("click", (event) => {
         event.preventDefault();
