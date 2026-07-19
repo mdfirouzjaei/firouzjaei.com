@@ -827,6 +827,8 @@ label select:focus,
   filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.8)) drop-shadow(0 0 2px rgba(35, 83, 116, 0.18));
 }
 
+.tree-lines .wrapped-family-connector,
+.tree-lines .shelf-marriage-line,
 .tree-lines .cross-row-marriage-line {
   stroke-linejoin: round;
 }

@@ -133,11 +133,14 @@ const RELATIONSHIP_ROUTE_X_OFFSET = 44;
 const RELATIONSHIP_ROUTE_Y_OFFSET = 24;
 const MULTI_SPOUSE_SHELF_OFFSET = 210;
 const DEEP_TREE_FOCUS_GENERATION = 8;
+const MAX_INLINE_FAMILY_CARDS = 9;
+const MAX_FOCUSED_VISIBLE_CARDS = 32;
 const FOCUSED_TREE_MIN_WIDTH = 520;
 const FOCUSED_TREE_SIDE_PADDING = 92;
 const FOCUSED_TREE_MIN_X_GAP = 146;
 const FOCUSED_TREE_TARGET_SCALE = 0.86;
 const FOCUSED_TREE_WRAP_Y_GAP = 220;
+const FAMILY_CONNECTOR_LANE_GAP = 18;
 const UNKNOWN_DATE_LABEL = "نامشخص";
 const GENDER_LABELS = {
   male: "مرد",
@@ -770,6 +773,7 @@ let activeRootId = null;
 let allRootsExpanded = false;
 let focusedSubtreeId = null;
 let focusedSubtreeReturnState = null;
+let focusedSubtreeHistory = [];
 let currentTreeNodeXGap = NODE_X_GAP;
 let currentTreeRelationshipBounds = null;
 let selectedArticleId = null;
@@ -2403,17 +2407,27 @@ function treeGenerationForPerson(personId) {
 function clearFocusedSubtree() {
   focusedSubtreeId = null;
   focusedSubtreeReturnState = null;
+  focusedSubtreeHistory = [];
 }
 
 function enterFocusedSubtree(personId) {
   if (!personById(personId)) return false;
-  focusedSubtreeReturnState = {
-    activeRootId,
-    allRootsExpanded,
-    expandedPersonIds: Array.from(expandedPersonIds),
-    selectedPersonId,
-    treeZoom,
-  };
+  if (focusedSubtreeId) {
+    focusedSubtreeHistory.push({
+      focusedSubtreeId,
+      expandedPersonIds: Array.from(expandedPersonIds),
+      selectedPersonId,
+      treeZoom,
+    });
+  } else {
+    focusedSubtreeReturnState = {
+      activeRootId,
+      allRootsExpanded,
+      expandedPersonIds: Array.from(expandedPersonIds),
+      selectedPersonId,
+      treeZoom,
+    };
+  }
   clearTreeSearch();
   focusedSubtreeId = personId;
   activeRootId = null;
@@ -2425,9 +2439,23 @@ function enterFocusedSubtree(personId) {
 }
 
 function exitFocusedSubtree() {
+  const nestedPrevious = focusedSubtreeHistory.pop();
+  if (nestedPrevious?.focusedSubtreeId && personById(nestedPrevious.focusedSubtreeId)) {
+    focusedSubtreeId = nestedPrevious.focusedSubtreeId;
+    activeRootId = null;
+    allRootsExpanded = false;
+    expandedPersonIds = new Set((nestedPrevious.expandedPersonIds || []).filter((id) => personById(id)));
+    selectedPersonId = nestedPrevious.selectedPersonId && personById(nestedPrevious.selectedPersonId)
+      ? nestedPrevious.selectedPersonId
+      : focusedSubtreeId;
+    treeZoom = nestedPrevious.treeZoom || 1;
+    renderTree();
+    return;
+  }
   const previous = focusedSubtreeReturnState;
   focusedSubtreeId = null;
   focusedSubtreeReturnState = null;
+  focusedSubtreeHistory = [];
   activeRootId = previous?.activeRootId && personById(previous.activeRootId) ? previous.activeRootId : null;
   allRootsExpanded = Boolean(previous?.allRootsExpanded);
   expandedPersonIds = new Set((previous?.expandedPersonIds || []).filter((id) => personById(id)));
@@ -2443,21 +2471,48 @@ function collapsePersonBranch(personId) {
   descendantIdsOf(personId).forEach((id) => expandedPersonIds.delete(id));
 }
 
+function branchExpansionPath(personId) {
+  const pathRootId = focusedSubtreeId || activeRootId || primaryRootForPerson(personId);
+  if (!pathRootId) return [];
+  const directPath = pathFromRootToPerson(pathRootId, personId);
+  if (directPath.length) return directPath;
+
+  const person = personById(personId);
+  for (const spouseId of person?.spouseIds || []) {
+    const spousePath = pathFromRootToPerson(pathRootId, spouseId);
+    if (spousePath.length) return [...spousePath, personId];
+  }
+  return [];
+}
+
+function branchNeedsFocusedView(personId) {
+  const person = personById(personId);
+  if (!person) return false;
+  if (focusedSubtreeId === personId) return false;
+  const familyCardCount =
+    1 + navigableChildPeopleOf(personId).length + (person.spouseIds || []).filter((id) => personById(id)).length;
+  if (familyCardCount > MAX_INLINE_FAMILY_CARDS) return true;
+  if (!focusedSubtreeId) return treeGenerationForPerson(personId) >= DEEP_TREE_FOCUS_GENERATION;
+  const currentlyVisibleIds = new Set(visibleTreePeople("").map((visiblePerson) => visiblePerson.id));
+  const newlyVisibleCards = [
+    ...navigableChildPeopleOf(personId),
+    ...(person.spouseIds || []).map(personById).filter(Boolean),
+  ].filter((visiblePerson) => !currentlyVisibleIds.has(visiblePerson.id)).length;
+  return currentlyVisibleIds.size + newlyVisibleCards > MAX_FOCUSED_VISIBLE_CARDS;
+}
+
 function expandPersonBranch(personId) {
-  if (!focusedSubtreeId && treeGenerationForPerson(personId) >= DEEP_TREE_FOCUS_GENERATION) {
+  if (branchNeedsFocusedView(personId)) {
     enterFocusedSubtree(personId);
     return;
   }
   allRootsExpanded = false;
-  const hadExpandedBranches = expandedPersonIds.size > 0;
-  if (!activeRootId && !hadExpandedBranches) {
+  if (!activeRootId && !focusedSubtreeId) {
     const rootId = startingPersonIds().has(personId) ? personId : primaryRootForPerson(personId);
     activeRootId = rootId && personById(rootId) ? rootId : null;
   }
-  const pathRootId = activeRootId || primaryRootForPerson(personId);
-  const path = pathRootId ? pathFromRootToPerson(pathRootId, personId) : [];
-  path.forEach((pathId) => expandedPersonIds.add(pathId));
-  expandedPersonIds.add(personId);
+  const path = branchExpansionPath(personId);
+  expandedPersonIds = new Set([...path, personId]);
 }
 
 function setActiveRoot(rootId = null) {
@@ -2826,6 +2881,73 @@ function orderTreeRowPeople(generationPeople, positionedAncestors = new Map()) {
     .flatMap(orderTreeRowGroupMembers);
 }
 
+function chunkFocusedTreeRow(orderedPeople, columnCount) {
+  if (!orderedPeople.length) return [];
+  const rowIds = new Set(orderedPeople.map((person) => person.id));
+  const orderIndex = new Map(orderedPeople.map((person, index) => [person.id, index]));
+  const visited = new Set();
+  const spouseGroups = [];
+
+  orderedPeople.forEach((person) => {
+    if (visited.has(person.id)) return;
+    const group = [];
+    const queue = [person];
+    while (queue.length) {
+      const current = queue.shift();
+      if (!current || visited.has(current.id)) continue;
+      visited.add(current.id);
+      group.push(current);
+      (current.spouseIds || [])
+        .map(personById)
+        .filter((spouse) => spouse && rowIds.has(spouse.id) && !visited.has(spouse.id))
+        .forEach((spouse) => queue.push(spouse));
+    }
+    const orderedGroup = group.sort((left, right) => orderIndex.get(left.id) - orderIndex.get(right.id));
+    const groupIds = new Set(orderedGroup.map((member) => member.id));
+    const hub = orderedGroup
+      .slice()
+      .sort(
+        (left, right) =>
+          (right.spouseIds || []).filter((id) => groupIds.has(id)).length -
+            (left.spouseIds || []).filter((id) => groupIds.has(id)).length ||
+          orderIndex.get(left.id) - orderIndex.get(right.id)
+      )[0];
+    spouseGroups.push({ members: orderedGroup, hub });
+  });
+
+  const chunks = [];
+  let currentChunk = [];
+  const flushChunk = () => {
+    if (currentChunk.length) chunks.push(currentChunk);
+    currentChunk = [];
+  };
+  spouseGroups.forEach(({ members: group, hub }) => {
+    const connectedSpouses = (hub?.spouseIds || [])
+      .map(personById)
+      .filter((spouse) => spouse && group.includes(spouse));
+    if (hub && connectedSpouses.length > 1) {
+      flushChunk();
+      chunks.push([hub]);
+      const remainingMembers = group.filter((member) => member.id !== hub.id);
+      for (let index = 0; index < remainingMembers.length; index += columnCount) {
+        chunks.push(remainingMembers.slice(index, index + columnCount));
+      }
+      return;
+    }
+    if (group.length > columnCount) {
+      flushChunk();
+      for (let index = 0; index < group.length; index += columnCount) {
+        chunks.push(group.slice(index, index + columnCount));
+      }
+      return;
+    }
+    if (currentChunk.length && currentChunk.length + group.length > columnCount) flushChunk();
+    currentChunk.push(...group);
+  });
+  flushChunk();
+  return chunks;
+}
+
 function focusedTreeMinimumWidth() {
   const stageWidth = $("#treeStage")?.clientWidth || TREE_CANVAS_WIDTH;
   return Math.min(FOCUSED_TREE_MIN_WIDTH, Math.max(260, stageWidth - 28));
@@ -2861,6 +2983,40 @@ function focusedTreeLayout(generationMap) {
   };
 }
 
+function centerTreeRowOnParents(rowPeople, positions) {
+  if (!rowPeople.length) return;
+  const parentCenters = rowPeople.flatMap((person) => {
+    const parentXs = ancestryLinkIds(person)
+      .map((parentId) => positions.get(parentId)?.x)
+      .filter(Number.isFinite);
+    return parentXs.length
+      ? [parentXs.reduce((sum, value) => sum + value, 0) / parentXs.length]
+      : [];
+  });
+  if (!parentCenters.length) return;
+
+  const rowXs = rowPeople.map((person) => positions.get(person.id)?.x).filter(Number.isFinite);
+  if (!rowXs.length) return;
+  const currentCenter = (Math.min(...rowXs) + Math.max(...rowXs)) / 2;
+  const parentCenter = parentCenters.reduce((sum, value) => sum + value, 0) / parentCenters.length;
+  const offset = parentCenter - currentCenter;
+  rowPeople.forEach((person) => {
+    const position = positions.get(person.id);
+    if (position) position.x += offset;
+  });
+}
+
+function normalizeTreePositionX(positions, minimumCenterX) {
+  const positionList = Array.from(positions.values());
+  if (!positionList.length) return;
+  const minimumX = Math.min(...positionList.map((position) => position.x));
+  const offset = minimumCenterX - minimumX;
+  if (Math.abs(offset) < 0.5) return;
+  positionList.forEach((position) => {
+    position.x += offset;
+  });
+}
+
 function treePositions(people = state.people, { focusId = "" } = {}) {
   const positions = new Map();
   const generationMap = new Map();
@@ -2888,13 +3044,7 @@ function treePositions(people = state.people, { focusId = "" } = {}) {
       const generationPeople = generationMap.get(generation) || [];
       const orderedPeople = orderTreeRowPeople(generationPeople, positions);
       const rowChunks = focusId
-        ? Array.from(
-            { length: Math.ceil(orderedPeople.length / focusedLayout.columnCount) },
-            (_, index) => orderedPeople.slice(
-              index * focusedLayout.columnCount,
-              (index + 1) * focusedLayout.columnCount
-            )
-          )
+        ? chunkFocusedTreeRow(orderedPeople, focusedLayout.columnCount)
         : [orderedPeople];
       rowChunks.forEach((chunk, chunkIndex) => {
         const rowContentWidth = Math.max(0, chunk.length - 1) * currentTreeNodeXGap;
@@ -2908,6 +3058,7 @@ function treePositions(people = state.people, { focusId = "" } = {}) {
             y: rowY + chunkIndex * FOCUSED_TREE_WRAP_Y_GAP,
           });
         });
+        centerTreeRowOnParents(chunk, positions);
       });
 
       previousShelfOffset = focusId ? Math.max(0, rowChunks.length - 1) * FOCUSED_TREE_WRAP_Y_GAP : 0;
@@ -2924,14 +3075,21 @@ function treePositions(people = state.people, { focusId = "" } = {}) {
         .forEach((hub) => {
           const spouseIds = (hub.spouseIds || []).filter((id) => rowIds.has(id) && positions.has(id));
           if (spouseIds.length < 2 || movedSpouses.has(hub.id)) return;
+          const hubPosition = positions.get(hub.id);
+          const spousesAlreadyShelved = focusId && spouseIds.every((spouseId) => {
+            const spousePosition = positions.get(spouseId);
+            return hubPosition && spousePosition && spousePosition.y > hubPosition.y + 40;
+          });
           spouseIds.forEach((spouseId) => {
             const spousePosition = positions.get(spouseId);
-            if (!spousePosition || movedSpouses.has(spouseId)) return;
+            if (!spousePosition || movedSpouses.has(spouseId) || spousesAlreadyShelved) return;
             spousePosition.y += MULTI_SPOUSE_SHELF_OFFSET;
             movedSpouses.add(spouseId);
           });
           const extraConnectorRoom = Math.max(0, spouseIds.length - 4) * 26;
-          previousShelfOffset = Math.max(previousShelfOffset, MULTI_SPOUSE_SHELF_OFFSET + extraConnectorRoom);
+          if (!spousesAlreadyShelved) {
+            previousShelfOffset = Math.max(previousShelfOffset, MULTI_SPOUSE_SHELF_OFFSET + extraConnectorRoom);
+          }
         });
       if (focusId && generationPeople.length) {
         const lowestPersonY = Math.max(...generationPeople.map((person) => positions.get(person.id)?.y || rowY));
@@ -2940,6 +3098,7 @@ function treePositions(people = state.people, { focusId = "" } = {}) {
       previousGeneration = generation;
     });
 
+  normalizeTreePositionX(positions, focusId ? FOCUSED_TREE_SIDE_PADDING : NODE_BASE_X);
   return positions;
 }
 
@@ -3290,12 +3449,20 @@ function drawRelationships(svg, people, positions) {
         if (usesSpouseShelf) {
           const hubAnchor = { x: hubPosition.x, y: hubPosition.y + 78 };
           const spouseAnchor = { x: partnerPosition.x, y: partnerPosition.y - 78 };
-          const towardHub = Math.sign(hubPosition.x - partnerPosition.x) || 1;
-          junctionX = partnerPosition.x + towardHub * (currentTreeNodeXGap / 2);
-          const routeRatio = (junctionX - hubAnchor.x) / (spouseAnchor.x - hubAnchor.x);
-          const marriageY = hubAnchor.y + (spouseAnchor.y - hubAnchor.y) * routeRatio;
+          const marriageY = (hubAnchor.y + spouseAnchor.y) / 2;
+          junctionX = (hubAnchor.x + spouseAnchor.x) / 2;
           descentStartY = marriageY;
-          addLine(svg, hubAnchor.x, hubAnchor.y, spouseAnchor.x, spouseAnchor.y, "marriage-line shelf-marriage-line", marriageTitle);
+          addPolyline(
+            svg,
+            [
+              hubAnchor,
+              { x: hubAnchor.x, y: marriageY },
+              { x: spouseAnchor.x, y: marriageY },
+              spouseAnchor,
+            ],
+            "marriage-line shelf-marriage-line",
+            marriageTitle
+          );
           addCircle(svg, junctionX, marriageY, "marriage-dot shelf-marriage-dot");
         } else {
           const cardTopY = Math.min(hubPosition.y, partnerPosition.y) - 78;
@@ -3311,31 +3478,38 @@ function drawRelationships(svg, people, positions) {
           addLine(svg, hubPosition.x, marriageY, partnerPosition.x, marriageY, "marriage-line routed-marriage-line", marriageTitle);
           addCircle(svg, junctionX, marriageY, "marriage-dot routed-marriage-dot");
         }
-      } else if (
-        Math.abs(a.y - b.y) > 40 &&
-        !relationshipSegmentIsClear(
-          positions,
-          new Set([person.id, spouse.id]),
-          { x: a.x, y: a.y + 6 },
-          { x: b.x, y: b.y + 6 }
-        )
-      ) {
+      } else if (Math.abs(a.y - b.y) > 40) {
         const upper = a.y <= b.y ? a : b;
         const lower = a.y <= b.y ? b : a;
-        const lane = reserveRelationshipLane(positions, upper, lower, relationshipLaneUse);
-        const points = routedRelationshipPoints(upper, lower, lane.x, lane.side);
-        const routeStartY = upper.y + 72 + RELATIONSHIP_ROUTE_Y_OFFSET;
-        const routeEndY = lower.y - 78 - RELATIONSHIP_ROUTE_Y_OFFSET;
-        const marriageY = (routeStartY + routeEndY) / 2;
-        junctionX = lane.x;
+        const upperAnchor = { x: upper.x, y: upper.y + 72 };
+        const lowerAnchor = { x: lower.x, y: lower.y - 78 };
+        const marriageY = (upperAnchor.y + lowerAnchor.y) / 2;
+        const compactPoints = [
+          upperAnchor,
+          { x: upperAnchor.x, y: marriageY },
+          { x: lowerAnchor.x, y: marriageY },
+          lowerAnchor,
+        ];
+        junctionX = (upper.x + lower.x) / 2;
         descentStartY = marriageY;
-        addPolyline(
-          svg,
-          points,
-          "marriage-line routed-marriage-line cross-row-marriage-line",
-          marriageTitle
-        );
-        addCircle(svg, junctionX, marriageY, "marriage-dot routed-marriage-dot");
+        if (relationshipPolylineIsClear(positions, new Set([person.id, spouse.id]), compactPoints)) {
+          addPolyline(svg, compactPoints, "marriage-line compact-marriage-line cross-row-marriage-line", marriageTitle);
+        } else {
+          const lane = reserveRelationshipLane(positions, upper, lower, relationshipLaneUse);
+          const points = routedRelationshipPoints(upper, lower, lane.x, lane.side);
+          const routeStartY = upper.y + 72 + RELATIONSHIP_ROUTE_Y_OFFSET;
+          const routeEndY = lower.y - 78 - RELATIONSHIP_ROUTE_Y_OFFSET;
+          const routedMarriageY = (routeStartY + routeEndY) / 2;
+          junctionX = lane.x;
+          descentStartY = routedMarriageY;
+          addPolyline(
+            svg,
+            points,
+            "marriage-line routed-marriage-line cross-row-marriage-line",
+            marriageTitle
+          );
+        }
+        addCircle(svg, junctionX, descentStartY, "marriage-dot routed-marriage-dot");
       } else {
         addLine(svg, a.x, a.y + 6, b.x, b.y + 6, "marriage-line", marriageTitle);
         addCircle(svg, junctionX, (a.y + b.y) / 2 + 6, "marriage-dot");
@@ -3375,39 +3549,133 @@ function drawRelationships(svg, people, positions) {
         return rows;
       }, new Map())
     ).sort((left, right) => left[0] - right[0]);
-    let descentY = descentStartY;
-    childRows.forEach(([rowY, rowChildren]) => {
+    childRows.forEach(([rowY, rowChildren], rowIndex) => {
       const branchY = rowY - 84 - laneIndex * 26;
+      const childXs = rowChildren.map((child) => positions.get(child.id).x);
+      let rowHubX = junctionX;
+      if (rowIndex === 0) {
+        addLine(
+          svg,
+          junctionX,
+          descentStartY,
+          junctionX,
+          branchY,
+          "descent-line family-connector",
+          parentTitle
+        );
+      } else {
+        rowHubX = Math.max(
+          12,
+          Math.min(...childXs) - TREE_NODE_HALF_WIDTH - RELATIONSHIP_LANE_CLEARANCE - rowIndex * FAMILY_CONNECTOR_LANE_GAP
+        );
+        const routeY = descentStartY + rowIndex * 12;
+        addPolyline(
+          svg,
+          [
+            { x: junctionX, y: descentStartY },
+            { x: junctionX, y: routeY },
+            { x: rowHubX, y: routeY },
+            { x: rowHubX, y: branchY },
+          ],
+          "descent-line family-connector wrapped-family-connector",
+          parentTitle
+        );
+      }
+      addCircle(svg, rowHubX, branchY, "descent-junction", 4);
       addLine(
         svg,
-        junctionX,
-        descentY,
-        junctionX,
+        Math.min(rowHubX, ...childXs),
+        branchY,
+        Math.max(rowHubX, ...childXs),
         branchY,
         "descent-line family-connector",
         parentTitle
       );
-      addCircle(svg, junctionX, branchY, "descent-junction", 4);
       rowChildren.forEach((child) => {
         const c = positions.get(child.id);
         const childTitle = `${child.name}، فرزند ${person.name} و ${spouse.name}`;
         const className = "descent-line family-connector";
-        addLine(svg, junctionX, branchY, c.x, branchY, className, childTitle);
         addLine(svg, c.x, branchY, c.x, c.y - 78, className, childTitle);
       });
-      descentY = branchY;
     });
   });
 
+  const singleParentFamilies = new Map();
   people.forEach((child) => {
     const parents = child.parentIds || [];
-    if (parents.length !== 1) return;
-    const parent = positions.get(parents[0]);
-    const childPos = positions.get(child.id);
-    if (parent && childPos) {
-      addLine(svg, parent.x, parent.y + 72, childPos.x, childPos.y - 78, "descent-line");
-    }
+    if (parents.length !== 1 || !positions.has(parents[0]) || !positions.has(child.id)) return;
+    const family = singleParentFamilies.get(parents[0]) || [];
+    family.push(child);
+    singleParentFamilies.set(parents[0], family);
   });
+  const singleParentRowLanes = new Map();
+  Array.from(singleParentFamilies.entries())
+    .sort((left, right) => positions.get(left[0]).x - positions.get(right[0]).x)
+    .forEach(([parentId, children]) => {
+      const parentPerson = people.find((person) => person.id === parentId) || personById(parentId);
+      const parent = positions.get(parentId);
+      const familyTitle = parentPerson ? `فرزندان ${parentPerson.name}` : "فرزندان";
+      const childRows = Array.from(
+        children.reduce((rows, child) => {
+          const childPosition = positions.get(child.id);
+          const row = rows.get(childPosition.y) || [];
+          row.push(child);
+          rows.set(childPosition.y, row);
+          return rows;
+        }, new Map())
+      ).sort((left, right) => left[0] - right[0]);
+
+      childRows.forEach(([rowY, rowChildren], rowIndex) => {
+        const laneIndex = singleParentRowLanes.get(rowY) || 0;
+        singleParentRowLanes.set(rowY, laneIndex + 1);
+        const branchY = rowY - 84 - laneIndex * FAMILY_CONNECTOR_LANE_GAP;
+        const childXs = rowChildren.map((child) => positions.get(child.id).x);
+        let hubX = parent.x;
+        if (rowIndex === 0) {
+          addLine(svg, parent.x, parent.y + 72, parent.x, branchY, "descent-line family-connector", familyTitle);
+        } else {
+          hubX = Math.max(
+            12,
+            Math.min(...childXs) - TREE_NODE_HALF_WIDTH - RELATIONSHIP_LANE_CLEARANCE - rowIndex * FAMILY_CONNECTOR_LANE_GAP
+          );
+          const routeY = parent.y + 72 + rowIndex * 12;
+          addPolyline(
+            svg,
+            [
+              { x: parent.x, y: parent.y + 72 },
+              { x: parent.x, y: routeY },
+              { x: hubX, y: routeY },
+              { x: hubX, y: branchY },
+            ],
+            "descent-line family-connector wrapped-family-connector",
+            familyTitle
+          );
+        }
+        addCircle(svg, hubX, branchY, "descent-junction", 4);
+        addLine(
+          svg,
+          Math.min(hubX, ...childXs),
+          branchY,
+          Math.max(hubX, ...childXs),
+          branchY,
+          "descent-line family-connector",
+          familyTitle
+        );
+        rowChildren.forEach((child) => {
+          const childPosition = positions.get(child.id);
+          const childTitle = parentPerson ? `${child.name}، فرزند ${parentPerson.name}` : child.name;
+          addLine(
+            svg,
+            childPosition.x,
+            branchY,
+            childPosition.x,
+            childPosition.y - 78,
+            "descent-line family-connector",
+            childTitle
+          );
+        });
+      });
+    });
 }
 
 function relationshipLaneCandidates(positions, upper, lower, laneUse) {
@@ -3437,6 +3705,13 @@ function relationshipSegmentIsClear(positions, excludedIds, start, end) {
     };
     return !segmentIntersectsBounds(start, end, bounds);
   });
+}
+
+function relationshipPolylineIsClear(positions, excludedIds, points) {
+  for (let index = 1; index < points.length; index += 1) {
+    if (!relationshipSegmentIsClear(positions, excludedIds, points[index - 1], points[index])) return false;
+  }
+  return true;
 }
 
 function segmentIntersectsBounds(start, end, bounds) {
