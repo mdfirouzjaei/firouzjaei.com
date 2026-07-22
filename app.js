@@ -1043,6 +1043,30 @@ function stateTimestamp(value) {
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
+function historyArticleIds(value) {
+  return new Set(
+    (Array.isArray(value?.historyArticles) ? value.historyArticles : [])
+      .map((article) => article?.id)
+      .filter(Boolean)
+  );
+}
+
+function hasNewPublishedHistoryArticles(publishedValue, localValue) {
+  const publishedIds = historyArticleIds(publishedValue);
+  if (!publishedIds.size) return false;
+  const localIds = historyArticleIds(localValue);
+  return [...publishedIds].some((id) => !localIds.has(id));
+}
+
+function mergePublishedHistoryArticles(localValue, publishedValue) {
+  const merged = normalizeState(localValue || clone(sampleState));
+  const publishedArticles = normalizeState(publishedValue || {}).historyArticles || [];
+  const publishedIds = new Set(publishedArticles.map((article) => article.id).filter(Boolean));
+  const localOnlyArticles = (merged.historyArticles || []).filter((article) => !publishedIds.has(article.id));
+  merged.historyArticles = [...localOnlyArticles, ...publishedArticles].filter(Boolean).sort(compareHistoryArticles);
+  return merged;
+}
+
 function stateHasCustomTree(value) {
   if (!Array.isArray(value?.people)) return false;
   const samplePeople = sampleState.people || [];
@@ -1183,6 +1207,15 @@ async function loadPublishedState({ force = false, notify = false } = {}) {
       force ||
       !localRaw ||
       (!shouldKeepLocal && stateTimestamp(publishedRaw) >= stateTimestamp(localRaw));
+
+    if (!shouldUsePublished && hasNewPublishedHistoryArticles(publishedState, localRaw)) {
+      backupStateIfNeeded(state);
+      state = mergePublishedHistoryArticles(localRaw, publishedState);
+      persistState();
+      refreshAll();
+      if (notify) setSyncMessage("داده منتشرشده دریافت شد.");
+      return true;
+    }
 
     if (!shouldUsePublished) return false;
     backupStateIfNeeded(state);
