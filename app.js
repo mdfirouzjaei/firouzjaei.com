@@ -4697,9 +4697,11 @@ function renderArticlePage() {
 function openHistoryEditor(articleId = "") {
   const form = $("#historyEditor");
   const title = $("#historyEditorTitle");
+  const deleteButton = $("[data-delete-history-article]", form);
   form.reset();
   form.elements.articleId.value = articleId;
   const article = articleId ? findHistoryArticle(articleId) : null;
+  if (deleteButton) deleteButton.hidden = !article;
   if (!article) {
     title.textContent = "افزودن مقاله تاریخی";
     form.elements.author.value = session.email || "دبیرخانه خاندان";
@@ -4721,6 +4723,21 @@ function openHistoryEditor(articleId = "") {
   form.elements.figureCaption.value = firstFigure.caption || "";
   form.elements.references.value = article.references.join("\n");
   $("#historyEditorDialog").showModal();
+}
+
+function deleteHistoryArticle(articleId = selectedArticleId) {
+  if (!isAdmin() || !articleId) return;
+  const article = findHistoryArticle(articleId);
+  if (!article) return;
+  const confirmed = window.confirm(`آیا مقاله «${article.title}» کامل حذف شود؟`);
+  if (!confirmed) return;
+  state.historyArticles = (state.historyArticles || []).filter((item) => item.id !== articleId);
+  state.articleComments = (state.articleComments || []).filter((comment) => comment.articleId !== articleId);
+  if (selectedArticleId === articleId) selectedArticleId = "";
+  saveState();
+  $("#historyEditorDialog")?.close();
+  refreshAll();
+  routeTo("history");
 }
 
 function updateAdminStatus() {
@@ -6252,6 +6269,8 @@ function bindEvents() {
   });
   $("[data-back-history]").addEventListener("click", () => routeTo("history"));
   $("[data-edit-current-article]").addEventListener("click", () => openHistoryEditor(selectedArticleId));
+  $("[data-delete-current-article]").addEventListener("click", () => deleteHistoryArticle(selectedArticleId));
+  $("[data-delete-history-article]").addEventListener("click", () => deleteHistoryArticle($("#historyEditor").elements.articleId.value));
   $$("[data-logout]").forEach((button) => button.addEventListener("click", logoutAdmin));
 
   $("#familySearch").addEventListener("input", renderTree);

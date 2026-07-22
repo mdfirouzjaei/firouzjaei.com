@@ -211,6 +211,7 @@
             <div class="form-actions">
               <button class="soft-action" type="button" data-back-history>بازگشت به مقاله ها</button>
               <button class="admin-only soft-action" type="button" data-edit-current-article>ویرایش مقاله</button>
+              <button class="admin-only danger-action" type="button" data-delete-current-article>حذف مقاله</button>
             </div>
           </div>
           <div class="article-page" id="articlePage"></div>
@@ -646,7 +647,10 @@
         <label>منابع
           <textarea name="references" rows="4" placeholder="هر منبع در یک خط"></textarea>
         </label>
-        <button class="primary-action" type="submit">ذخیره مقاله</button>
+        <div class="form-actions">
+          <button class="primary-action" type="submit">ذخیره مقاله</button>
+          <button class="danger-action" type="button" data-delete-history-article hidden>حذف مقاله</button>
+        </div>
       </form>
     </dialog>
 
@@ -668,6 +672,6 @@
     </template>
 
     <script src="assets/book/book-data.js?v=demo-tree-20260705"></script>
-    <script src="app.js?v=bandpay-history-20260722"></script>
+    <script src="app.js?v=article-delete-20260722"></script>
   </body>
 </html>
